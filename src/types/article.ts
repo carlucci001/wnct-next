@@ -1,3 +1,5 @@
+export type ArticleStatus = 'draft' | 'published' | 'archived';
+
 export interface Article {
   id: string;
   title: string;

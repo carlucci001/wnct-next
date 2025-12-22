@@ -45,7 +45,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'manage_media_library',
     'infrastructure',
   ],
-  business_owner: [
+  "business-owner": [
     'create_article',
     'edit_own_article',
     'edit_any_article',
@@ -66,7 +66,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'manage_tags',
     'manage_media_library',
   ],
-  editor_in_chief: [
+  "editor-in-chief": [
     'create_article',
     'edit_own_article',
     'edit_any_article',
@@ -100,7 +100,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'manage_tags',
     'manage_media_library',
   ],
-  content_contributor: [
+  "content-contributor": [
     'create_article',
     'edit_own_article',
     'delete_own_article',
