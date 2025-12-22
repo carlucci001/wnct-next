@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut
   };
 
+  // Always render children - don't block on loading
   return (
     <AuthContext.Provider value={value}>
       {children}
