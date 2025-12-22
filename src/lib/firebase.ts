@@ -1,6 +1,6 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,12 +13,30 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if it hasn't been initialized already
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
 
-// Point at the named Firestore database 'gwnct'
-export const db = getFirestore(app, 'gwnct');
+try {
+  if (!firebaseConfig.apiKey) {
+    console.warn('Firebase API key is missing. Firebase features will be disabled.');
+  }
 
-// Firebase Auth
-export const auth = getAuth(app);
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
+  // Point at the named Firestore database 'gwnct'
+  db = getFirestore(app, 'gwnct');
+
+  // Firebase Auth
+  auth = getAuth(app);
+} catch (error) {
+  console.error('Error initializing Firebase:', error);
+  // Prevent crash by assigning mocks or leaving undefined (handled by consumers)
+  // Casting to any to avoid strict type issues with mocks for now
+  app = {} as any;
+  db = {} as any;
+  auth = {} as any;
+}
+
+export { app, db, auth };
 export default app;
