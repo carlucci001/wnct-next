@@ -1,48 +1,99 @@
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
+  Timestamp,
+  type QueryDocumentSnapshot,
+  type DocumentData
+} from 'firebase/firestore';
 import { db } from './firebase';
-import { Article } from '../types';
+import { Article } from '@/types/article';
 
+const ARTICLES_COLLECTION = 'articles';
+
+// Helper to convert Firestore timestamp to ISO string if needed
+// or just handle data as is.
+// The interface says string, but Firestore returns Timestamp.
+// We should convert Timestamp to string (ISO) or Date.
+// Task 1 said publishedAt, createdAt, updatedAt.
+// I will assume they are stored as Timestamps in Firestore and need conversion.
+
+const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentData>): Article => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    title: data.title || '',
+    content: data.content || '',
+    slug: data.slug || '',
+    author: data.author || '',
+    category: data.category || 'Uncategorized',
+    tags: data.tags || [],
+    status: data.status || 'draft',
+    publishedAt: data.publishedAt instanceof Timestamp ? data.publishedAt.toDate().toISOString() : data.publishedAt || '',
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt || '',
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt || '',
+    featuredImage: data.featuredImage || '',
+    excerpt: data.excerpt || '',
+  } as Article;
+};
+
+/**
+ * Fetch all published articles
+ */
 export async function getArticles(): Promise<Article[]> {
   try {
-    const articlesRef = collection(db, 'articles');
-    // We try to order by date, but if the index is missing, this might fail in dev.
-    // Ideally we'd have error handling or fallback.
-    const q = query(articlesRef, orderBy('date', 'desc'), limit(20));
-
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      where('status', '==', 'published'),
+      orderBy('publishedAt', 'desc')
+    );
     const querySnapshot = await getDocs(q);
-    const articles: Article[] = [];
-
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-
-      // Helper to safely convert Firestore Timestamp to string
-      let dateStr = new Date().toISOString();
-      if (data.date) {
-         if (typeof data.date.toDate === 'function') {
-             dateStr = data.date.toDate().toISOString();
-         } else if (typeof data.date === 'string') {
-             dateStr = data.date;
-         } else if (data.date instanceof Date) {
-             dateStr = data.date.toISOString();
-         }
-      }
-
-      articles.push({
-        id: doc.id,
-        title: data.title || 'Untitled',
-        excerpt: data.excerpt || '',
-        featuredImage: data.featuredImage || '',
-        category: data.category || 'Uncategorized',
-        date: dateStr,
-        slug: data.slug || doc.id,
-      });
-    });
-
-    return articles;
+    return querySnapshot.docs.map(convertDocToArticle);
   } catch (error) {
-    console.error("Error fetching articles:", error);
-    // Return empty array or throw, depending on desired behavior.
-    // For homepage, empty array is safer than crashing.
+    console.error('Error fetching articles:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch a single article by slug
+ */
+export async function getArticleBySlug(slug: string): Promise<Article | null> {
+  try {
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      where('slug', '==', slug),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+      return null;
+    }
+    return convertDocToArticle(querySnapshot.docs[0]);
+  } catch (error) {
+    console.error(`Error fetching article with slug ${slug}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch articles by category
+ */
+export async function getArticlesByCategory(category: string): Promise<Article[]> {
+  try {
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      where('category', '==', category),
+      where('status', '==', 'published'),
+      orderBy('publishedAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(convertDocToArticle);
+  } catch (error) {
+    console.error(`Error fetching articles in category ${category}:`, error);
     return [];
   }
 }
