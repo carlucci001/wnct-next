@@ -1,8 +1,8 @@
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Permission } from '@/lib/permissions';
 
 export function usePermissions() {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
 
   // TODO: Implement proper role-based permissions when user profiles are added
   // For now, all authenticated users have all permissions

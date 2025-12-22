@@ -1,9 +1,8 @@
 import {
   collection,
+  getDocs,
   query,
   where,
-  getDocs,
-  orderBy,
   limit,
   doc,
   deleteDoc,
@@ -15,13 +14,6 @@ import { db } from './firebase';
 import { Article } from '@/types/article';
 
 const ARTICLES_COLLECTION = 'articles';
-
-// Helper to convert Firestore timestamp to ISO string if needed
-// or just handle data as is.
-// The interface says string, but Firestore returns Timestamp.
-// We should convert Timestamp to string (ISO) or Date.
-// Task 1 said publishedAt, createdAt, updatedAt.
-// I will assume they are stored as Timestamps in Firestore and need conversion.
 
 const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentData>): Article => {
   const data = doc.data();
@@ -43,17 +35,19 @@ const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentDa
 };
 
 /**
- * Fetch all published articles
+ * Fetch all published articles (client-side filtering to avoid index)
  */
 export async function getArticles(): Promise<Article[]> {
   try {
-    const q = query(
-      collection(db, ARTICLES_COLLECTION),
-      where('status', '==', 'published'),
-      orderBy('publishedAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(convertDocToArticle);
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    return querySnapshot.docs
+      .map(convertDocToArticle)
+      .filter(article => article.status === 'published')
+      .sort((a, b) => {
+        const dateA = new Date(a.publishedAt || a.createdAt).getTime();
+        const dateB = new Date(b.publishedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
   } catch (error) {
     console.error('Error fetching articles:', error);
     return [];
@@ -82,18 +76,19 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
 }
 
 /**
- * Fetch articles by category
+ * Fetch articles by category (client-side filtering to avoid index)
  */
 export async function getArticlesByCategory(category: string): Promise<Article[]> {
   try {
-    const q = query(
-      collection(db, ARTICLES_COLLECTION),
-      where('category', '==', category),
-      where('status', '==', 'published'),
-      orderBy('publishedAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(convertDocToArticle);
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    return querySnapshot.docs
+      .map(convertDocToArticle)
+      .filter(article => article.category === category && article.status === 'published')
+      .sort((a, b) => {
+        const dateA = new Date(a.publishedAt || a.createdAt).getTime();
+        const dateB = new Date(b.publishedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
   } catch (error) {
     console.error(`Error fetching articles in category ${category}:`, error);
     return [];
@@ -105,12 +100,14 @@ export async function getArticlesByCategory(category: string): Promise<Article[]
  */
 export async function getAllArticles(): Promise<Article[]> {
   try {
-    const q = query(
-      collection(db, ARTICLES_COLLECTION),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(convertDocToArticle);
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    return querySnapshot.docs
+      .map(convertDocToArticle)
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
   } catch (error) {
     console.error('Error fetching all articles:', error);
     return [];

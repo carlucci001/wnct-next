@@ -1,12 +1,12 @@
 'use client';
 
 import { usePermissions } from '@/hooks/usePermissions';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { currentUser: user, loading } = useAuth();
   const { can } = usePermissions();
   const router = useRouter();
 
