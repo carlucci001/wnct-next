@@ -13,12 +13,25 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if it hasn't been initialized already
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let app: any;
+let db: any;
+let auth: any;
 
-// Point at the named Firestore database 'gwnct'
-export const db = getFirestore(app, 'gwnct');
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  db = getFirestore(app, 'gwnct');
+  auth = getAuth(app);
+} catch (error) {
+  console.error("Firebase initialization failed. This is expected during build if env vars are missing.", error);
+  // Mock objects for build time or test time if needed
+  app = {} as any;
+  db = {} as any;
+  auth = {
+     onAuthStateChanged: () => () => {},
+     currentUser: null,
+  } as any;
+}
 
-// Firebase Auth
-export const auth = getAuth(app);
+export { db, auth };
 
 export default app;
