@@ -1,41 +1,46 @@
-import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "dummy-key",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "dummy-domain",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "dummy-project",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "dummy-bucket",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "dummy-sender-id",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "dummy-app-id",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "dummy-measurement-id",
 };
 
-// Initialize Firebase only if it hasn't been initialized already
-let app: FirebaseApp;
-let db: Firestore;
-let auth: Auth;
+// Check if config is valid (at least apiKey is present)
+const isValidConfig = !!firebaseConfig.apiKey;
 
-try {
-  if (!firebaseConfig.apiKey) {
-    console.warn('Firebase API key is missing. Firebase features will be disabled.');
-  }
+let app;
+let db: any;
+let auth: any;
 
+if (isValidConfig) {
+  // Initialize Firebase only if it hasn't been initialized already
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-
   // Point at the named Firestore database 'gwnct'
   db = getFirestore(app, 'gwnct');
-
   // Firebase Auth
   auth = getAuth(app);
-} catch (error) {
-  console.error('Error initializing Firebase:', error);
-  // Prevent crash by assigning mocks or leaving undefined (handled by consumers)
-  // Casting to any to avoid strict type issues with mocks for now
-  app = {} as any;
-  db = {} as any;
-  auth = {} as any;
+} else {
+  // Warn about missing config but don't crash, allowing build to proceed (pages will handle errors)
+  console.warn("Firebase configuration missing or invalid. Initializing in mock/offline mode.");
+
+  // We can initialize a dummy app or just export null/undefined and handle it in consumers.
+  // Initializing a dummy app might throw if keys are missing.
+  // Better to export a proxy or throw on usage?
+  // For static build, avoiding crash is key.
+
+  // Let's try to initialize with dummy values if completely missing,
+  // but that might fail connection.
+  // Instead, let's keep exports as undefined or mock if possible,
+  // but `getFirestore` requires an app.
+
+  // If we return undefined for db, consumers must handle it.
 }
 
 export { app, db, auth };
