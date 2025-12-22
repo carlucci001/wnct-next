@@ -7,16 +7,9 @@
 - Network:       http://192.168.0.2:3000
 
 ✓ Starting...
-Attention: Next.js now collects completely anonymous telemetry regarding usage.
-This information is used to shape Next.js' roadmap and prioritize features.
-You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-https://nextjs.org/telemetry
-
-✓ Ready in 1081ms
-○ Compiling /admin/users ...
- GET /admin/users 200 in 7.4s (compile: 7.0s, render: 351ms)
- GET /admin/users 200 in 131ms (compile: 14ms, render: 117ms)
- GET /admin/users 200 in 68ms (compile: 4ms, render: 64ms)
- GET /admin/users 200 in 68ms (compile: 4ms, render: 64ms)
- GET /admin/users 200 in 54ms (compile: 4ms, render: 50ms)
- GET /admin/users 200 in 76ms (compile: 3ms, render: 73ms)
+✓ Ready in 1043ms
+○ Compiling /article/[slug] ...
+[2025-12-21T21:59:30.508Z]  @firebase/firestore: Firestore (12.6.0): GrpcConnection RPC 'Listen' stream 0x54c30e6f error. Code: 7 Message: 7 PERMISSION_DENIED: Permission denied on resource project dummy-project.
+[2025-12-21T21:59:30.511Z]  @firebase/firestore: Firestore (12.6.0): Could not reach Cloud Firestore backend. Connection failed 1 times. Most recent error: FirebaseError: [code=permission-denied]: 7 PERMISSION_DENIED: Permission denied on resource project dummy-project.
+This typically indicates that your device does not have a healthy Internet connection at the moment. The client will operate in offline mode until it is able to successfully connect to the backend.
+ GET /article/test-article-slug 404 in 7.2s (compile: 6.1s, render: 1030ms)
