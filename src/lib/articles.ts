@@ -1,75 +1,99 @@
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
+  Timestamp,
+  type QueryDocumentSnapshot,
+  type DocumentData
+} from 'firebase/firestore';
 import { db } from './firebase';
-import { collection, getDocs, query, where, orderBy, limit, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { Article } from '@/types/article';
 
 const ARTICLES_COLLECTION = 'articles';
 
+// Helper to convert Firestore timestamp to ISO string if needed
+// or just handle data as is.
+// The interface says string, but Firestore returns Timestamp.
+// We should convert Timestamp to string (ISO) or Date.
+// Task 1 said publishedAt, createdAt, updatedAt.
+// I will assume they are stored as Timestamps in Firestore and need conversion.
+
+const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentData>): Article => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    title: data.title || '',
+    content: data.content || '',
+    slug: data.slug || '',
+    author: data.author || '',
+    category: data.category || 'Uncategorized',
+    tags: data.tags || [],
+    status: data.status || 'draft',
+    publishedAt: data.publishedAt instanceof Timestamp ? data.publishedAt.toDate().toISOString() : data.publishedAt || '',
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt || '',
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt || '',
+    featuredImage: data.featuredImage || '',
+    excerpt: data.excerpt || '',
+  } as Article;
+};
+
+/**
+ * Fetch all published articles
+ */
 export async function getArticles(): Promise<Article[]> {
   try {
-    const articlesRef = collection(db, ARTICLES_COLLECTION);
     const q = query(
-      articlesRef,
+      collection(db, ARTICLES_COLLECTION),
       where('status', '==', 'published'),
       orderBy('publishedAt', 'desc')
     );
-
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Article));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(convertDocToArticle);
   } catch (error) {
     console.error('Error fetching articles:', error);
     return [];
   }
 }
 
+/**
+ * Fetch a single article by slug
+ */
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
   try {
-    const articlesRef = collection(db, ARTICLES_COLLECTION);
     const q = query(
-      articlesRef,
+      collection(db, ARTICLES_COLLECTION),
       where('slug', '==', slug),
-      where('status', '==', 'published'),
       limit(1)
     );
-
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
       return null;
     }
-
-    const doc = snapshot.docs[0];
-    return {
-      id: doc.id,
-      ...doc.data()
-    } as Article;
+    return convertDocToArticle(querySnapshot.docs[0]);
   } catch (error) {
-    console.error('Error fetching article by slug:', error);
+    console.error(`Error fetching article with slug ${slug}:`, error);
     return null;
   }
 }
 
+/**
+ * Fetch articles by category
+ */
 export async function getArticlesByCategory(category: string): Promise<Article[]> {
   try {
-    const articlesRef = collection(db, ARTICLES_COLLECTION);
-
-    // Note: This query requires a composite index in Firestore
-    // If it fails, check the console for a link to create the index
     const q = query(
-      articlesRef,
+      collection(db, ARTICLES_COLLECTION),
       where('category', '==', category),
       where('status', '==', 'published'),
       orderBy('publishedAt', 'desc')
     );
-
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Article));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(convertDocToArticle);
   } catch (error) {
-    console.error(`Error fetching articles for category ${category}:`, error);
+    console.error(`Error fetching articles in category ${category}:`, error);
     return [];
   }
 }
