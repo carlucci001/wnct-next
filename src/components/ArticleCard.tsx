@@ -1,17 +1,18 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Article } from '../types';
+import { Article } from '@/types/article';
 
 interface ArticleCardProps {
   article: Article;
 }
 
 export default function ArticleCard({ article }: ArticleCardProps) {
-  const formattedDate = new Date(article.date).toLocaleDateString(undefined, {
+  const dateToShow = article.publishedAt || article.createdAt;
+  const formattedDate = dateToShow ? new Date(dateToShow).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
-  });
+  }) : '';
 
   return (
     <Link
@@ -37,7 +38,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <div className="p-4 flex flex-col h-[calc(100%-12rem)]">
         <div className="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span className="font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{article.category}</span>
-            <time dateTime={article.date}>{formattedDate}</time>
+            <time dateTime={dateToShow}>{formattedDate}</time>
         </div>
         <h3 className="mb-2 text-xl font-bold text-gray-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 leading-tight">
           {article.title}

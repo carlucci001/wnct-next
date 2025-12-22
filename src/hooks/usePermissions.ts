@@ -1,11 +1,15 @@
 import { useAuth } from '@/context/AuthContext';
-import { hasPermission, Permission } from '@/lib/permissions';
+import { Permission } from '@/lib/permissions';
 
 export function usePermissions() {
   const { user } = useAuth();
 
-  const can = (permission: Permission) => {
-    return hasPermission(user, permission);
+  // TODO: Implement proper role-based permissions when user profiles are added
+  // For now, all authenticated users have all permissions
+  const can = (permission: Permission): boolean => {
+    if (!user) return false;
+    // Temporary: grant all permissions to authenticated users
+    return true;
   };
 
   return { can };

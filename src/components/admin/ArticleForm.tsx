@@ -22,7 +22,7 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
   const [slug, setSlug] = useState(initialData?.slug || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [tags, setTags] = useState<string>(initialData?.tags?.join(', ') || '');
-  const [status, setStatus] = useState<'draft' | 'published'>(initialData?.status || 'draft');
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>(initialData?.status || 'draft');
   const [featuredImage, setFeaturedImage] = useState(initialData?.featuredImage || '');
 
   // Auto-generate slug from title if not editing manually
@@ -50,18 +50,18 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         status,
         featuredImage,
-        updatedAt: serverTimestamp() as Timestamp,
+        updatedAt: new Date().toISOString(),
       };
 
       if (status === 'published' && (!initialData?.publishedAt)) {
-          articleData.publishedAt = serverTimestamp() as Timestamp;
+          articleData.publishedAt = new Date().toISOString();
       }
 
       if (isEditing && articleId) {
         const docRef = doc(db, 'articles', articleId);
         await updateDoc(docRef, articleData);
       } else {
-        articleData.createdAt = serverTimestamp() as Timestamp;
+        articleData.createdAt = new Date().toISOString();
         await addDoc(collection(db, 'articles'), articleData as Article);
       }
 

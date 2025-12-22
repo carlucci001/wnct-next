@@ -11,25 +11,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        // Redirect to login if not authenticated
-        // For now, redirecting to home as login page might not exist
-        router.push('/');
-      } else {
-        // Check if user has access to admin area (at least one admin permission?)
-        // Or check a specific base permission.
-        // Let's assume 'view_dashboard' or check if role is not reader/commenter
-        // The matrix shows Reader/Commenter have NO checkmarks in most things.
-        // Let's check 'create_article' as a proxy for "can access admin panel" for now,
-        // or better, check if they are NOT reader/commenter.
-
-        const disallowedRoles = ['reader', 'commenter'];
-        if (disallowedRoles.includes(user.role)) {
-           router.push('/');
-        }
-      }
+    if (!loading && !user) {
+      // Redirect to login if not authenticated
+      router.push('/');
     }
+    // TODO: Add role-based access check when user profiles are implemented
   }, [user, loading, router]);
 
   if (loading) return <div>Loading...</div>;

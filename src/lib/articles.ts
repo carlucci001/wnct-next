@@ -5,6 +5,8 @@ import {
   getDocs,
   orderBy,
   limit,
+  doc,
+  deleteDoc,
   Timestamp,
   type QueryDocumentSnapshot,
   type DocumentData
@@ -95,5 +97,35 @@ export async function getArticlesByCategory(category: string): Promise<Article[]
   } catch (error) {
     console.error(`Error fetching articles in category ${category}:`, error);
     return [];
+  }
+}
+
+/**
+ * Fetch ALL articles (including drafts) - for admin use
+ */
+export async function getAllArticles(): Promise<Article[]> {
+  try {
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(convertDocToArticle);
+  } catch (error) {
+    console.error('Error fetching all articles:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete an article by ID
+ */
+export async function deleteArticle(id: string): Promise<boolean> {
+  try {
+    await deleteDoc(doc(db, ARTICLES_COLLECTION, id));
+    return true;
+  } catch (error) {
+    console.error(`Error deleting article ${id}:`, error);
+    return false;
   }
 }

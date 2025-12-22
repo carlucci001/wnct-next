@@ -30,7 +30,7 @@ export default async function ArticlePage({ params }: PageProps) {
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
               <span className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">{article.category}</span>
               <span>&bull;</span>
-              <time dateTime={article.date}>{article.date}</time>
+              <time dateTime={article.publishedAt || article.createdAt}>{article.publishedAt || article.createdAt}</time>
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-bold mb-4">{article.title}</h1>

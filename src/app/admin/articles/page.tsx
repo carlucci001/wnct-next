@@ -145,7 +145,7 @@ export default function ArticlesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {article.author?.name || 'Unknown'}
+                      {article.author || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {article.publishedAt ? formatDate(article.publishedAt) : formatDate(article.createdAt)}
