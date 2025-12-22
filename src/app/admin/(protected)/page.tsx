@@ -1,8 +1,8 @@
 export default function AdminDashboard() {
   return (
-    <div>
-      <h1 className="text-3xl font-semibold text-gray-800">Dashboard</h1>
-      <p className="mt-4 text-gray-600">Welcome to the WNC Times Admin Dashboard.</p>
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      <p>Welcome to the protected admin area.</p>
     </div>
   );
 }

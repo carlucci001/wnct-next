@@ -1,25 +1,36 @@
 'use client';
 
-import { useAuth } from '@/context/AuthContext';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/admin/login');
-    }
-  }, [user, loading, router]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthenticated(true);
+        setLoading(false);
+      } else {
+        setAuthenticated(false);
+        setLoading(false);
+        router.push('/admin/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <div>Loading...</div>;
   }
 
-  if (!user) {
-    return null; // Will redirect in useEffect
+  if (!authenticated) {
+    return null;
   }
 
   return <>{children}</>;

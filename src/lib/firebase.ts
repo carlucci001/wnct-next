@@ -7,9 +7,9 @@ const firebaseConfig = {
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "dummy-domain",
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "dummy-project",
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "dummy-bucket",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "dummy-sender",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "dummy-app",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "dummy-measurement",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "dummy-sender-id",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "dummy-app-id",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "dummy-measurement-id",
 };
 
 // Initialize Firebase only if it hasn't been initialized already
