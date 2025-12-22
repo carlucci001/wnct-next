@@ -1,0 +1,15 @@
+
+> wnct-next@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.0 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+
+✓ Starting...
+✓ Ready in 1043ms
+○ Compiling /article/[slug] ...
+[2025-12-21T21:59:30.508Z]  @firebase/firestore: Firestore (12.6.0): GrpcConnection RPC 'Listen' stream 0x54c30e6f error. Code: 7 Message: 7 PERMISSION_DENIED: Permission denied on resource project dummy-project.
+[2025-12-21T21:59:30.511Z]  @firebase/firestore: Firestore (12.6.0): Could not reach Cloud Firestore backend. Connection failed 1 times. Most recent error: FirebaseError: [code=permission-denied]: 7 PERMISSION_DENIED: Permission denied on resource project dummy-project.
+This typically indicates that your device does not have a healthy Internet connection at the moment. The client will operate in offline mode until it is able to successfully connect to the backend.
+ GET /article/test-article-slug 404 in 7.2s (compile: 6.1s, render: 1030ms)
