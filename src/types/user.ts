@@ -1,16 +1,19 @@
 export type UserRole =
   | 'admin'
-  | 'business_owner'
-  | 'editor_in_chief'
+  | 'business-owner'
+  | 'editor-in-chief'
   | 'editor'
-  | 'content_contributor'
+  | 'content-contributor'
   | 'commenter'
   | 'reader';
 
 export interface User {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
+  id: string;
+  email: string;
+  displayName?: string;
   role: UserRole;
-  photoURL?: string | null;
+  status: 'active' | 'blocked';
+  photoURL?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

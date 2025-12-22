@@ -1,75 +1,50 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-// Cast to any to avoid type errors during build without env vars
-const typedAuth = auth as any;
-const typedDb = db as any;
-import { User, UserRole } from '@/types/user';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  logout: async () => {},
 });
+
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(typedAuth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        // Fetch user role from Firestore
-        const userDocRef = doc(typedDb, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            role: userData.role as UserRole,
-          });
-        } else {
-          // If user doesn't exist in Firestore, create a default entry (e.g., Reader)
-          // Ideally this should be handled by a cloud function or proper registration flow
-          const defaultRole: UserRole = 'reader';
-          await setDoc(userDocRef, {
-            email: firebaseUser.email,
-            role: defaultRole,
-            createdAt: new Date().toISOString(),
-          });
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            role: defaultRole,
-          });
-        }
-      } else {
-        setUser(null);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);
