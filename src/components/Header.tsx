@@ -1,151 +1,271 @@
 "use client";
 
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import WeatherWidget from "./WeatherWidget";
+import BreakingNews from "./BreakingNews";
 
-export default function Header() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+// Header banner ad
+const BANNER_IMAGE = "/banners/farrington-dev.svg";
+const BANNER_LINK = "https://farringtondevelopment.com";
 
-  const categories = [
-    { name: "Local News", href: "/category/local" },
-    { name: "Sports", href: "/category/sports" },
-    { name: "Politics", href: "/category/politics" },
-    { name: "Business", href: "/category/business" },
-  ];
+const TOP_NAV = [
+  { label: "Home", path: "/" },
+  { label: "Advertise", path: "/contact" },
+  { label: "Directory", path: "/directory" },
+  { label: "Community", path: "/community" },
+  { label: "Contact", path: "/contact" },
+];
+
+const MAIN_NAV = [
+  { label: "News", path: "/category/news" },
+  { label: "Sports", path: "/category/sports" },
+  { label: "Business", path: "/category/business" },
+  { label: "Entertainment", path: "/category/entertainment" },
+  { label: "Lifestyle", path: "/category/lifestyle" },
+  { label: "Outdoors", path: "/category/outdoors" },
+];
+
+interface SiteSettings {
+  tagline: string;
+  logoUrl: string;
+  brandingMode: 'text' | 'logo';
+  showTagline: boolean;
+  primaryColor: string;
+}
+
+const Header: React.FC = () => {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState("light");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const router = useRouter();
+  const { currentUser, signOut } = useAuth();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const [settings, setSettings] = useState<SiteSettings>({
+    tagline: "Engaging Our Community",
+    logoUrl: "",
+    brandingMode: "text",
+    showTagline: true,
+    primaryColor: "#1d4ed8",
+  });
+
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  // Load settings from Firestore
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, "settings", "config"));
+        if (settingsDoc.exists()) {
+          const data = settingsDoc.data();
+          console.log("[Header] Loaded settings - brandingMode:", data.brandingMode, "logoUrl exists:", !!data.logoUrl, "logoUrl length:", data.logoUrl?.length || 0);
+          setSettings(prev => ({
+            ...prev,
+            tagline: data.tagline || prev.tagline,
+            logoUrl: data.logoUrl || "",
+            brandingMode: data.brandingMode || "text",
+            showTagline: data.showTagline !== undefined ? data.showTagline : true,
+            primaryColor: data.primaryColor || "#1d4ed8",
+          }));
+        } else {
+          console.log("[Header] No settings document found in Firestore");
+        }
+      } catch (error) {
+        console.error("[Header] Failed to load settings:", error);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    setUserMenuOpen(false);
+    router.push("/");
+  };
+
+  const showLogoImage = settings.brandingMode === "logo" && settings.logoUrl;
+  const isDataUrl = settings.logoUrl?.startsWith("data:");
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          {/* Logo Section */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="text-2xl font-serif font-bold text-gray-900 hover:text-gray-700">
-              WNC Times
-            </Link>
+    <header className="flex flex-col w-full bg-white dark:bg-slate-900 font-sans relative z-40">
+      {/* Top Bar */}
+      <div className="bg-slate-900 text-gray-300 text-xs border-b border-gray-800">
+        <div className="container mx-auto px-4 h-10 flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <WeatherWidget />
+            <span className="hidden md:inline text-gray-500">|</span>
+            <span className="hidden md:block text-gray-400">{today}</span>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-8 items-center">
-            <Link href="/" className="text-gray-900 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
-              Home
-            </Link>
+          <div className="flex items-center space-x-4">
+            <nav className="hidden md:flex items-center space-x-4">
+              {TOP_NAV.map((item) => (
+                <Link key={item.label} href={item.path} className="hover:text-white uppercase text-[10px] lg:text-xs font-medium">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
 
-            {/* Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
-                className="text-gray-900 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium inline-flex items-center"
-              >
-                Categories
-                <svg
-                  className={`ml-2 h-4 w-4 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+            <div className="flex items-center space-x-3 pl-4 border-l border-gray-700">
+              <button onClick={() => setTheme(t => t === "light" ? "dark" : "light")} className="hover:text-white">
+                {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
               </button>
 
-              {isDropdownOpen && (
-                <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-                  {categories.map((category) => (
-                    <Link
-                      key={category.name}
-                      href={category.href}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      {category.name}
+              <div className="relative" ref={menuRef}>
+                {currentUser ? (
+                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center text-amber-400 font-bold hover:text-white">
+                    <UserIcon size={14} className="mr-1" />
+                    <span className="hidden md:inline">{currentUser.displayName?.split(" ")[0] || "User"}</span>
+                  </button>
+                ) : (
+                  <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white">
+                    <UserIcon size={14} className="mr-1" />
+                    <span className="hidden md:inline">Login</span>
+                  </Link>
+                )}
+
+                {userMenuOpen && currentUser && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded shadow-xl border overflow-hidden z-50">
+                    <div className="px-4 py-3 border-b">
+                      <p className="text-xs text-gray-500">Signed in as</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{currentUser.email}</p>
+                    </div>
+                    <Link href="/admin" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
+                      <LayoutDashboard size={14} className="mr-2 text-blue-600" /> Admin Panel
                     </Link>
-                  ))}
-                </div>
-              )}
+                    <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 flex items-center hover:bg-red-50 border-t">
+                      <LogOut size={14} className="mr-2" /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-
-            <Link href="/about" className="text-gray-900 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
-              About
-            </Link>
-          </nav>
-
-          {/* Mobile Menu Button */}
-          <div className="flex items-center md:hidden">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              aria-expanded="false"
-            >
-              <span className="sr-only">Open main menu</span>
-              {/* Icon when menu is closed */}
-              {!isMobileMenuOpen ? (
-                <svg
-                  className="block h-6 w-6"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              ) : (
-                /* Icon when menu is open */
-                <svg
-                  className="block h-6 w-6"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link
-              href="/"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50"
-            >
-              Home
-            </Link>
+      {/* Breaking News Ticker */}
+      <BreakingNews />
 
-            <div className="px-3 py-2">
-                <span className="block text-base font-medium text-gray-900 mb-2">Categories</span>
-                <div className="pl-4 space-y-1">
-                    {categories.map((category) => (
-                        <Link
-                        key={category.name}
-                        href={category.href}
-                        className="block px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        >
-                        {category.name}
-                        </Link>
-                    ))}
-                </div>
+      {/* Logo Area with Weather Module */}
+      <div className="container mx-auto px-4 py-3 flex items-center bg-white dark:bg-slate-900">
+        {/* Logo - Left justified, fixed 300x100 container */}
+        <Link href="/" className="w-[300px] h-[100px] flex items-center shrink-0">
+          {showLogoImage ? (
+            isDataUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt="Site Logo"
+                className="max-w-full max-h-full w-auto h-auto object-contain object-left"
+              />
+            ) : (
+              <Image
+                src={settings.logoUrl}
+                alt="Site Logo"
+                width={300}
+                height={100}
+                className="max-w-full max-h-full w-auto h-auto object-contain object-left"
+              />
+            )
+          ) : (
+            <div className="flex flex-col items-start justify-center h-full">
+              <h1 className="text-4xl md:text-5xl font-serif font-black tracking-tight text-gray-900 dark:text-white leading-none">
+                WNC TIMES
+              </h1>
+              {settings.showTagline && (
+                <span
+                  className="mt-1.5 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-white"
+                  style={{ backgroundColor: settings.primaryColor }}
+                >
+                  {settings.tagline}
+                </span>
+              )}
+            </div>
+          )}
+        </Link>
+
+        {/* Weather Module - Flexible center space */}
+        <div className="hidden md:flex flex-1 justify-center px-6">
+          <WeatherWidget variant="full" />
+        </div>
+
+        {/* Banner Ad - Right justified */}
+        <div className="hidden lg:flex shrink-0">
+          <a href={BANNER_LINK} target="_blank" rel="noopener noreferrer">
+            <img
+              src={BANNER_IMAGE}
+              alt="Farrington Development - Web Design"
+              width={728}
+              height={90}
+              className="rounded"
+            />
+          </a>
+        </div>
+      </div>
+
+      {/* Main Navigation */}
+      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: settings.primaryColor }}>
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-12">
+            <div className="hidden md:flex items-center space-x-1">
+              {MAIN_NAV.map((item, index) => (
+                <Link
+                  key={item.label}
+                  href={item.path}
+                  className="group relative px-4 py-2 text-sm font-bold text-white uppercase tracking-wider transition-all duration-300 hover:text-amber-300"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <span className="relative z-10">{item.label}</span>
+                  {/* Animated underline */}
+                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-amber-400 transition-all duration-300 ease-out group-hover:w-4/5 group-hover:left-[10%]"></span>
+                  {/* Subtle glow on hover */}
+                  <span className="absolute inset-0 bg-white/0 group-hover:bg-white/10 rounded transition-all duration-300"></span>
+                </Link>
+              ))}
             </div>
 
-            <Link
-              href="/about"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50"
-            >
-              About
-            </Link>
+            <div className="md:hidden flex items-center justify-between w-full">
+              <span className="text-white font-bold uppercase text-sm">Sections</span>
+              <button onClick={() => setMobileOpen(!mobileOpen)} className="text-white p-1 hover:bg-white/20 rounded">
+                {mobileOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+            </div>
           </div>
         </div>
-      )}
+
+        {mobileOpen && (
+          <div className="md:hidden bg-white dark:bg-slate-900 absolute w-full left-0 shadow-xl">
+            <div className="container mx-auto px-4 py-4 space-y-1">
+              {[...TOP_NAV, ...MAIN_NAV].map((item) => (
+                <Link key={item.label} href={item.path} className="block px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 rounded border-b border-gray-100 last:border-0" onClick={() => setMobileOpen(false)}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </nav>
     </header>
   );
-}
+};
+
+export default Header;

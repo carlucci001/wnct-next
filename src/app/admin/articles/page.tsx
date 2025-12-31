@@ -2,14 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Sparkles, X } from 'lucide-react';
 import { Article, ArticleStatus } from '@/types/article';
-import { getAllArticles, deleteArticle } from '@/lib/articles';
+import { getAllArticles, deleteArticle, batchFormatArticles } from '@/lib/articles';
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<ArticleStatus | 'all'>('all');
+
+  // Format all articles state
+  const [isFormatting, setIsFormatting] = useState(false);
+  const [formatProgress, setFormatProgress] = useState({ current: 0, total: 0, message: '' });
+  const [showFormatModal, setShowFormatModal] = useState(false);
 
   useEffect(() => {
     fetchArticles();
@@ -43,6 +49,51 @@ export default function ArticlesPage() {
     }
   };
 
+  const handleFormatAllArticles = async () => {
+    if (!window.confirm(
+      'This will format and clean up ALL articles in the database.\n\n' +
+      '• Remove empty paragraphs and divs\n' +
+      '• Clean up excessive line breaks\n' +
+      '• Remove garbage styling from pasted content\n' +
+      '• Normalize excerpts\n\n' +
+      'Continue?'
+    )) {
+      return;
+    }
+
+    setShowFormatModal(true);
+    setIsFormatting(true);
+    setFormatProgress({ current: 0, total: 0, message: 'Starting...' });
+
+    try {
+      const result = await batchFormatArticles((current, total, message) => {
+        setFormatProgress({ current, total, message });
+      });
+
+      if (result.errors.length > 0) {
+        console.error('Format errors:', result.errors);
+      }
+
+      // Refresh articles list
+      await fetchArticles();
+
+      setFormatProgress({
+        current: result.updated,
+        total: result.updated,
+        message: `Complete! ${result.updated} articles formatted.${result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''}`
+      });
+    } catch (err) {
+      console.error('Format failed:', err);
+      setFormatProgress({
+        current: 0,
+        total: 0,
+        message: `Error: ${err}`
+      });
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
   const filteredArticles = articles.filter(article => {
     if (filterStatus === 'all') return true;
     return article.status === filterStatus;
@@ -63,12 +114,23 @@ export default function ArticlesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Articles</h1>
-        <Link
-          href="/admin/articles/new"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
-        >
-          New Article
-        </Link>
+        <div className="flex gap-3">
+          <button
+            onClick={handleFormatAllArticles}
+            disabled={isFormatting}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white px-4 py-2 rounded-md transition-colors"
+            title="Format & clean up all articles"
+          >
+            <Sparkles size={18} />
+            Format All
+          </button>
+          <Link
+            href="/admin/articles/new"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
+          >
+            New Article
+          </Link>
+        </div>
       </div>
 
       <div className="mb-6 flex gap-4">
@@ -141,14 +203,14 @@ export default function ArticlesPage() {
                         ${article.status === 'published' ? 'bg-green-100 text-green-800' :
                           article.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-gray-100 text-gray-800'}`}>
-                        {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
+                        {(article.status || 'draft').charAt(0).toUpperCase() + (article.status || 'draft').slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {article.author || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {article.publishedAt ? formatDate(article.publishedAt) : formatDate(article.createdAt)}
+                      {article.publishedAt ? formatDate(article.publishedAt) : (article.createdAt ? formatDate(article.createdAt) : 'N/A')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
@@ -171,6 +233,62 @@ export default function ArticlesPage() {
           </table>
         </div>
       </div>
+
+      {/* Format Progress Modal */}
+      {showFormatModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles className="text-amber-500" size={20} />
+                Formatting Articles
+              </h3>
+              {!isFormatting && (
+                <button
+                  onClick={() => setShowFormatModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">{formatProgress.message}</p>
+              {formatProgress.total > 0 && (
+                <>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-amber-500 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${(formatProgress.current / formatProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    {formatProgress.current} / {formatProgress.total}
+                  </p>
+                </>
+              )}
+            </div>
+
+            {!isFormatting && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowFormatModal(false)}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {isFormatting && (
+              <div className="flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

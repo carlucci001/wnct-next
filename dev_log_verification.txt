@@ -1,0 +1,125 @@
+
+> wnct-next@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.0 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.151:3000
+- Environments: .env.local
+
+✓ Starting...
+✓ Ready in 1256ms
+○ Compiling / ...
+ GET / 200 in 4.3s (compile: 3.8s, render: 457ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /category/news 200 in 4.4s (compile: 956ms, render: 3.5s)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /category/sports 200 in 692ms (compile: 16ms, render: 676ms)
+ GET /category/business 200 in 477ms (compile: 15ms, render: 462ms)
+ GET /category/outdoors 200 in 734ms (compile: 13ms, render: 721ms)
+✓ Compiled in 80ms
+✓ Compiled in 64ms
+ GET / 200 in 111ms (compile: 7ms, render: 104ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /category/outdoors 200 in 3.3s (compile: 208ms, render: 3.1s)
+ GET / 200 in 30ms (compile: 6ms, render: 24ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET / 200 in 94ms (compile: 5ms, render: 89ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /admin 200 in 606ms (compile: 580ms, render: 26ms)
+ GET /admin 200 in 32ms (compile: 3ms, render: 28ms)
+✓ Compiled in 452ms
+ GET / 200 in 84ms (compile: 7ms, render: 77ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /category/outdoors 200 in 245ms (compile: 203ms, render: 43ms)
+ GET /category/lifestyle 200 in 43ms (compile: 14ms, render: 29ms)
+ GET /category/entertainment 200 in 42ms (compile: 15ms, render: 27ms)
+ GET /category/business 200 in 38ms (compile: 13ms, render: 25ms)
+ GET /category/sports 200 in 38ms (compile: 13ms, render: 25ms)
+ GET /category/news 200 in 39ms (compile: 12ms, render: 27ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+ GET /admin 200 in 33ms (compile: 5ms, render: 28ms)
+ GET / 200 in 89ms (compile: 7ms, render: 82ms)
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+⨯ upstream image response failed for https://oaidalleapiprodscus.blob.core.windows.net/private/org-E8CmBJhizhxuYgoalhIeLoU8/user-IObNnUQ8ukR8iYOutgNMbNao/img-ZYeMFSo6UFuUhuG7v7g0PHsP.png?st=2025-12-30T20%3A55%3A20Z&se=2025-12-30T22%3A55%3A20Z&sp=r&sv=2024-08-04&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-12-30T21%3A55%3A20Z&ske=2025-12-31T21%3A55%3A20Z&sks=b&skv=2024-08-04&sig=5cVlBDdv/1zylR9jxLjOtDHFtYZ40wj9s73KC7k8yV8%3D 403
+✓ Compiled in 991ms
+✓ Compiled in 961ms
+✓ Compiled in 1104ms
+✓ Compiled in 747ms
+✓ Compiled in 782ms
+✓ Compiled in 719ms
+✓ Compiled in 983ms
+✓ Compiled in 1066ms
+✓ Compiled in 945ms
+✓ Compiled in 1087ms
+✓ Compiled in 1081ms
+✓ Compiled in 995ms
+✓ Compiled in 1057ms
+✓ Compiled in 1001ms
+✓ Compiled in 973ms
+✓ Compiled in 1125ms
+✓ Compiled in 1311ms
+ GET /admin 200 in 458ms (compile: 125ms, render: 333ms)
+ GET /admin 200 in 48ms (compile: 4ms, render: 44ms)
+ GET / 200 in 23ms (compile: 5ms, render: 19ms)
+ GET / 200 in 59ms (compile: 4ms, render: 56ms)
+ GET /category/news 200 in 51ms (compile: 17ms, render: 34ms)
+ GET /category/lifestyle 200 in 38ms (compile: 13ms, render: 25ms)
+ GET / 200 in 25ms (compile: 4ms, render: 22ms)
+ GET /category/lifestyle 200 in 37ms (compile: 11ms, render: 27ms)
+ GET /category/outdoors 200 in 37ms (compile: 12ms, render: 25ms)
+ GET /category/entertainment 200 in 44ms (compile: 11ms, render: 33ms)
+ GET / 200 in 20ms (compile: 4ms, render: 16ms)
+ GET / 200 in 63ms (compile: 4ms, render: 59ms)
+ GET / 200 in 76ms (compile: 4ms, render: 72ms)
+ GET / 200 in 96ms (compile: 6ms, render: 90ms)
+✓ Compiled in 404ms
+ GET /category/news 200 in 45ms (compile: 16ms, render: 29ms)
+ GET / 200 in 138ms (compile: 106ms, render: 32ms)
+ GET /category/entertainment 200 in 47ms (compile: 16ms, render: 31ms)
+⨯ upstream image response failed for https://source.unsplash.com/1536x1024/?asheville%2Cnorth-carolina%2Cashevilles%2Cbest%2Ccraft%2Cbreweries 503
+ GET / 200 in 23ms (compile: 4ms, render: 19ms)
+ GET /article/56fd0e8f-6f4b-497e-8ec4-4ffea837f7cc 200 in 1929ms (compile: 1400ms, render: 529ms)
+ GET /category/sports 200 in 43ms (compile: 14ms, render: 29ms)
+ GET /category/outdoors 200 in 46ms (compile: 16ms, render: 30ms)
+ GET /category/lifestyle 200 in 37ms (compile: 11ms, render: 26ms)
+ GET /category/entertainment 200 in 40ms (compile: 14ms, render: 26ms)
+ GET /category/business 200 in 36ms (compile: 12ms, render: 25ms)
+ GET /category/sports 200 in 60ms (compile: 17ms, render: 43ms)
+ GET /category/news 200 in 35ms (compile: 10ms, render: 24ms)
+✓ Compiled in 186ms
+✓ Compiled in 153ms
+✓ Compiled in 377ms
+ GET /category/news 200 in 476ms (compile: 112ms, render: 364ms)
+ GET /category/outdoors 200 in 47ms (compile: 17ms, render: 30ms)
+ GET /category/lifestyle 200 in 35ms (compile: 11ms, render: 24ms)
+ GET /category/entertainment 200 in 37ms (compile: 11ms, render: 26ms)
+ GET /category/news 200 in 44ms (compile: 14ms, render: 30ms)
+ GET /category/news 200 in 97ms (compile: 13ms, render: 85ms)
+✓ Compiled in 272ms
+ GET /category/news 200 in 919ms (compile: 346ms, render: 572ms)
+✓ Compiled in 286ms
+ GET /category/news 200 in 622ms (compile: 183ms, render: 439ms)
+ GET /admin 200 in 633ms (compile: 15ms, render: 618ms)
+ GET /category/news 200 in 404ms (compile: 6ms, render: 398ms)
+✓ Compiled in 786ms
+✓ Compiled in 990ms
+✓ Compiled in 187ms
+✓ Compiled in 886ms
+✓ Compiled in 984ms
+✓ Compiled in 1080ms
+ GET /category/news 200 in 482ms (compile: 140ms, render: 342ms)
+ GET /category/news 200 in 101ms (compile: 13ms, render: 87ms)
+ GET /admin 200 in 412ms (compile: 110ms, render: 302ms)
+✓ Compiled in 304ms
+✓ Compiled in 134ms
+✓ Compiled in 135ms
+✓ Compiled in 163ms
+✓ Compiled in 105ms
+✓ Compiled in 135ms

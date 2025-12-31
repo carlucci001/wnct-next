@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, updateDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { Article } from '@/types/article';
 
 interface ArticleFormProps {
@@ -22,8 +22,17 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
   const [slug, setSlug] = useState(initialData?.slug || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [tags, setTags] = useState<string>(initialData?.tags?.join(', ') || '');
-  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>(initialData?.status || 'draft');
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>(() => {
+    const s = initialData?.status?.toLowerCase();
+    if (s === 'published') return 'published';
+    if (s === 'archived') return 'archived';
+    return 'draft';
+  });
   const [featuredImage, setFeaturedImage] = useState(initialData?.featuredImage || '');
+  const [isFeatured, setIsFeatured] = useState(initialData?.isFeatured || false);
+  const [isBreakingNews, setIsBreakingNews] = useState(initialData?.isBreakingNews || false);
+  const [author, setAuthor] = useState(initialData?.author || '');
+  const [excerpt, setExcerpt] = useState(initialData?.excerpt || '');
 
   // Auto-generate slug from title if not editing manually
   useEffect(() => {
@@ -50,8 +59,19 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         status,
         featuredImage,
+        author,
+        excerpt,
+        isFeatured,
+        isBreakingNews,
         updatedAt: new Date().toISOString(),
       };
+
+      // Set breaking news timestamp when marking as breaking
+      if (isBreakingNews && !initialData?.breakingNewsTimestamp) {
+        articleData.breakingNewsTimestamp = new Date().toISOString();
+      } else if (!isBreakingNews) {
+        articleData.breakingNewsTimestamp = undefined;
+      }
 
       if (status === 'published' && (!initialData?.publishedAt)) {
           articleData.publishedAt = new Date().toISOString();
@@ -147,28 +167,83 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label htmlFor="author" className="block text-sm font-medium text-gray-700">Author</label>
+          <input
+            type="text"
+            id="author"
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="Author name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="featuredImage" className="block text-sm font-medium text-gray-700">Featured Image URL</label>
+          <input
+            type="url"
+            id="featuredImage"
+            value={featuredImage}
+            onChange={(e) => setFeaturedImage(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <label htmlFor="featuredImage" className="block text-sm font-medium text-gray-700">Featured Image URL</label>
-        <input
-          type="url"
-          id="featuredImage"
-          value={featuredImage}
-          onChange={(e) => setFeaturedImage(e.target.value)}
+        <label htmlFor="excerpt" className="block text-sm font-medium text-gray-700">Excerpt</label>
+        <textarea
+          id="excerpt"
+          value={excerpt}
+          onChange={(e) => setExcerpt(e.target.value)}
+          rows={2}
+          placeholder="Brief summary of the article..."
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
-        <select
-          id="status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-        </select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+          <select
+            id="status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+
+        <div className="space-y-4 pt-6">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isFeatured"
+              checked={isFeatured}
+              onChange={(e) => setIsFeatured(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-700">
+              Mark as Featured Article
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="isBreakingNews"
+              checked={isBreakingNews}
+              onChange={(e) => setIsBreakingNews(e.target.checked)}
+              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isBreakingNews" className="ml-2 block text-sm text-gray-700">
+              Mark as Breaking News
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="flex justify-end space-x-4 pt-4">

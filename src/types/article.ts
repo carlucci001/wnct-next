@@ -1,17 +1,68 @@
-export type ArticleStatus = 'draft' | 'published' | 'archived';
+export type ArticleStatus = 'draft' | 'review' | 'published' | 'archived';
 
 export interface Article {
   id: string;
   title: string;
-  content: string; // HTML or Markdown content
+  content?: string;
   slug: string;
-  author: string; // Could be a user ID or name, sticking to string for now as per description
+  author: string;
   category: string;
-  tags: string[];
-  status: 'draft' | 'published' | 'archived'; // Assuming these status values
-  publishedAt: string; // ISO date string
-  createdAt: string; // ISO date string
-  updatedAt: string; // ISO date string
-  featuredImage: string; // URL to the image
-  excerpt?: string; // Optional short description
+  categoryColor?: string;
+  tags?: string[];
+  status?: 'draft' | 'review' | 'published' | 'archived' | 'Published' | 'Draft' | 'Review';
+  imageCredit?: string;
+  textToSpeechEnabled?: boolean;
+  textToSpeechProvider?: 'free' | 'google';
+  publishedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  date?: string;
+  featuredImage?: string;
+  imageUrl?: string;
+  excerpt?: string;
+  isFeatured?: boolean;
+  isBreakingNews?: boolean;
+  breakingNewsTimestamp?: string;
+  views?: number;
+}
+
+export interface CategoryData {
+  id: string;
+  name: string;
+  slug: string;
+  count: number;
+  color?: string;
+}
+
+// Community Types
+export interface CommunityPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  content: string;
+  timestamp: string;
+  likes: number;
+  comments: number;
+  type: 'general' | 'alert' | 'event' | 'question' | 'crime';
+  location?: {
+    lat: number;
+    lng: number;
+    name: string;
+  };
+}
+
+// Business Directory Types
+export interface Business {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  address: string;
+  phone: string;
+  imageUrl: string;
+  rating: number;
+  tier?: 'standard' | 'premium';
+  slug?: string;
+  ownerId?: string;
 }
