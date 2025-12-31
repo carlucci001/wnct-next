@@ -890,7 +890,7 @@ Return ONLY the article body text, no title or metadata.`;
                   title: '',
                   content: '',
                   excerpt: '',
-                  author: user?.displayName || user?.email || 'Staff Writer',
+                  author: currentUser?.displayName || currentUser?.email || 'Staff Writer',
                   category: 'News',
                   status: 'draft',
                   featuredImage: '',
