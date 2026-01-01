@@ -529,8 +529,14 @@ Return ONLY valid JSON array with no markdown:
 
       const data = await response.json();
       if (data.data?.[0]?.url) {
-        setAgentArticle({ ...agentArticle, imageUrl: data.data[0].url, featuredImage: data.data[0].url });
-        setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ **Image Generated!** A professional featured image has been created for your article.` }]);
+        const tempUrl = data.data[0].url;
+        setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ **Image Generated!** Saving to permanent storage...` }]);
+
+        // Persist the image to Firebase Storage before it expires
+        const permanentUrl = await storageService.uploadAssetFromUrl(tempUrl);
+
+        setAgentArticle({ ...agentArticle, imageUrl: permanentUrl, featuredImage: permanentUrl });
+        setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Image Saved!** Your featured image has been permanently stored.` }]);
       } else {
         throw new Error(data.error?.message || 'Failed to generate image');
       }
@@ -738,7 +744,13 @@ Return ONLY the article body text, no title or metadata.`;
             })
           });
           const imageData = await imageResponse.json();
-          imageUrl = imageData.data?.[0]?.url || '';
+          const tempImageUrl = imageData.data?.[0]?.url || '';
+
+          // Persist image to Firebase Storage before it expires
+          if (tempImageUrl) {
+            setStatusModalMessage('Saving image to permanent storage...');
+            imageUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
+          }
         } catch {
           // Image generation failed, continue without image
         }

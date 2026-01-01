@@ -2,8 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Article } from "@/types/article";
+import ImageWithFallback from "./ImageWithFallback";
 
 interface HeroSectionProps {
   mainArticle: Article;
@@ -21,14 +21,14 @@ const HeroSection: React.FC<HeroSectionProps> = ({ mainArticle, subArticles }) =
 
     return (
       <div className="relative group overflow-hidden h-full w-full">
-        <Image
+        <ImageWithFallback
           src={imageUrl}
           alt={article.title}
           fill
           className="object-cover transition duration-700 group-hover:scale-105"
           sizes={isMain ? "(max-width: 768px) 100vw, 66vw" : "(max-width: 768px) 100vw, 33vw"}
         />
-        <div className={`absolute inset-0 bg-linear-to-t ${isMain ? "from-black/80 via-black/30" : "from-black/90 via-black/40"} to-transparent`}></div>
+        <div className={`absolute inset-0 bg-gradient-to-t ${isMain ? "from-black/80 via-black/30" : "from-black/90 via-black/40"} to-transparent`}></div>
         <div className={`absolute bottom-0 left-0 w-full ${isMain ? "p-6 md:p-10" : "p-4 md:p-6"}`}>
           <span
             className={`inline-block font-bold text-white uppercase tracking-wider shadow-sm rounded-sm ${isMain ? "text-xs px-3 py-1 mb-3" : "text-[9px] md:text-[10px] px-2 py-0.5 mb-2"}`}

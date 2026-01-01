@@ -12,7 +12,7 @@ import WeatherWidget from "./WeatherWidget";
 import BreakingNews from "./BreakingNews";
 
 // Header banner ad
-const BANNER_IMAGE = "/banners/farrington-dev.svg";
+const BANNER_IMAGE = "/banners/farrington-banner.png";
 const BANNER_LINK = "https://farringtondevelopment.com";
 
 const TOP_NAV = [

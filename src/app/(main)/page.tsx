@@ -7,6 +7,7 @@ import { getArticles } from "@/lib/articles";
 import { Article } from "@/types/article";
 import HeroSection from "@/components/HeroSection";
 import Sidebar from "@/components/Sidebar";
+import ImageWithFallback from "@/components/ImageWithFallback";
 
 // Category display order
 const CATEGORY_ORDER = ['news', 'sports', 'business', 'entertainment', 'lifestyle', 'outdoors'];
@@ -163,14 +164,16 @@ export default function Home() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left: Featured Article */}
                     <Link href={`/article/${featuredArticle.slug || featuredArticle.id}`} className="group">
-                      <div className="relative overflow-hidden rounded-lg mb-3">
-                        <img
+                      <div className="relative overflow-hidden rounded-lg mb-3 h-64">
+                        <ImageWithFallback
                           src={featuredArticle.featuredImage || featuredArticle.imageUrl || '/placeholder.jpg'}
                           alt={featuredArticle.title}
-                          className="w-full h-64 object-cover transition duration-500 group-hover:scale-105"
+                          fill
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, 33vw"
                         />
                         <span
-                          className="absolute top-3 left-3 text-white text-xs font-bold px-3 py-1 uppercase rounded shadow-md"
+                          className="absolute top-3 left-3 z-10 text-white text-xs font-bold px-3 py-1 uppercase rounded shadow-md"
                           style={{ backgroundColor: categoryColor }}
                         >
                           {category}
@@ -197,11 +200,13 @@ export default function Home() {
                           href={`/article/${article.slug || article.id}`}
                           className="flex gap-3 pb-4 border-b border-gray-200 last:border-0 last:pb-0 group"
                         >
-                          <div className="w-24 h-24 flex-shrink-0 overflow-hidden rounded">
-                            <img
+                          <div className="w-24 h-24 flex-shrink-0 overflow-hidden rounded relative">
+                            <ImageWithFallback
                               src={article.featuredImage || article.imageUrl || '/placeholder.jpg'}
                               alt={article.title}
-                              className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                              fill
+                              className="object-cover transition duration-500 group-hover:scale-105"
+                              sizes="96px"
                             />
                           </div>
                           <div className="flex-grow">
