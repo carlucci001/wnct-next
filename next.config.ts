@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
         hostname: '**',
       },
     ],
-    unoptimized: false,
+    unoptimized: true,  // Bypass Next.js image optimization - load directly from source
   },
   // Temporarily disabled turbopack due to crash
   // turbopack: {

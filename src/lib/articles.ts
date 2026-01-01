@@ -337,3 +337,84 @@ export async function batchFormatArticles(
     return { updated, errors };
   }
 }
+
+/**
+ * Batch migrate all article images to Firebase Storage
+ * This will fetch images from temporary URLs and save them permanently
+ */
+export async function batchMigrateImages(
+  onProgress?: (current: number, total: number, message: string) => void
+): Promise<{ migrated: number; failed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let migrated = 0;
+  let failed = 0;
+
+  try {
+    // Dynamically import storage service to avoid circular deps
+    const { storageService } = await import('./storage');
+
+    onProgress?.(0, 0, 'Fetching all articles...');
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const total = querySnapshot.docs.length;
+
+    if (total === 0) {
+      return { migrated: 0, failed: 0, errors: ['No articles found'] };
+    }
+
+    onProgress?.(0, total, `Found ${total} articles. Starting image migration...`);
+
+    for (let i = 0; i < querySnapshot.docs.length; i++) {
+      const docSnapshot = querySnapshot.docs[i];
+      const data = docSnapshot.data();
+      const imageUrl = data.featuredImage || data.imageUrl;
+
+      // Skip if no image or already in Firebase Storage
+      if (!imageUrl) {
+        onProgress?.(i + 1, total, `Article ${i + 1}: No image, skipping`);
+        continue;
+      }
+
+      if (imageUrl.includes('firebasestorage.googleapis.com') ||
+          imageUrl.includes('storage.googleapis.com')) {
+        onProgress?.(i + 1, total, `Article ${i + 1}: Already in Storage, skipping`);
+        continue;
+      }
+
+      try {
+        onProgress?.(i + 1, total, `Article ${i + 1}: Migrating image...`);
+
+        // Try to fetch and upload the image
+        const permanentUrl = await storageService.uploadAssetFromUrl(imageUrl);
+
+        // If we got a different URL back, update the article
+        if (permanentUrl !== imageUrl && permanentUrl.includes('firebasestorage.googleapis.com')) {
+          await updateDoc(doc(db, ARTICLES_COLLECTION, docSnapshot.id), {
+            featuredImage: permanentUrl,
+            imageUrl: permanentUrl,
+            updatedAt: new Date().toISOString()
+          });
+          migrated++;
+          onProgress?.(i + 1, total, `Article ${i + 1}: ✓ Image migrated successfully`);
+        } else {
+          failed++;
+          errors.push(`Article ${data.title || docSnapshot.id}: Could not migrate image`);
+          onProgress?.(i + 1, total, `Article ${i + 1}: ✗ Migration failed`);
+        }
+      } catch (err) {
+        failed++;
+        const errorMsg = `Article ${data.title || docSnapshot.id}: ${err}`;
+        errors.push(errorMsg);
+        onProgress?.(i + 1, total, `Article ${i + 1}: ✗ Error - ${err}`);
+      }
+    }
+
+    onProgress?.(total, total, `Complete! Migrated: ${migrated}, Failed: ${failed}`);
+    return { migrated, failed, errors };
+
+  } catch (error) {
+    const errorMsg = `Batch migration failed: ${error}`;
+    console.error(errorMsg);
+    errors.push(errorMsg);
+    return { migrated, failed, errors };
+  }
+}
