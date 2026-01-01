@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Article } from '@/types/article';
+import ImageWithFallback from './ImageWithFallback';
 
 interface CategoryFeaturedSliderProps {
   articles: Article[];
@@ -34,14 +34,14 @@ const CategoryFeaturedSlider: React.FC<CategoryFeaturedSliderProps> = ({ article
           const imageUrl = article.featuredImage || article.imageUrl || '/placeholder.jpg';
           return (
             <div key={article.id} className="relative h-full overflow-hidden group/card">
-              <Image
+              <ImageWithFallback
                 src={imageUrl}
                 alt={article.title}
                 fill
                 className="object-cover transition duration-700 group-hover/card:scale-105"
                 sizes="33vw"
               />
-              <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/20 to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
               <div className="absolute bottom-0 left-0 p-6 w-full">
                 <span
                   className="text-[10px] font-bold uppercase tracking-wider mb-2 inline-block px-2 py-0.5 rounded-sm text-white"
@@ -70,14 +70,14 @@ const CategoryFeaturedSlider: React.FC<CategoryFeaturedSliderProps> = ({ article
             const imageUrl = article.featuredImage || article.imageUrl || '/placeholder.jpg';
             return (
               <div key={article.id} className="min-w-full h-full relative">
-                <Image
+                <ImageWithFallback
                   src={imageUrl}
                   alt={article.title}
                   fill
                   className="object-cover"
                   sizes="100vw"
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/20 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 p-6 w-full">
                   <span
                     className="text-[10px] font-bold uppercase tracking-wider mb-2 inline-block px-2 py-0.5 rounded-sm text-white"

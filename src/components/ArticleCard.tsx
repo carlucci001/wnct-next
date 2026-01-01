@@ -2,9 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Clock } from "lucide-react";
 import { Article } from "@/types/article";
+import ImageWithFallback from "./ImageWithFallback";
 
 interface ArticleCardProps {
   article: Article;
@@ -21,7 +21,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical"
     return (
       <div className="flex flex-col md:flex-row gap-4 mb-6 group">
         <div className="w-full md:w-1/3 aspect-video overflow-hidden rounded-sm relative">
-          <Image src={imageUrl} alt={article.title} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 33vw" />
+          <ImageWithFallback src={imageUrl} alt={article.title} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="(max-width: 768px) 100vw, 33vw" />
         </div>
         <div className="w-full md:w-2/3 flex flex-col justify-center">
           <span className="text-xs font-bold uppercase mb-1 tracking-wider" style={{ color: catColor }}>{article.category}</span>
@@ -44,7 +44,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical"
     return (
       <div className="flex gap-3 mb-4 group border-b border-gray-100 pb-4 last:border-0">
         <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-sm relative">
-          <Image src={imageUrl} alt={article.title} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="80px" />
+          <ImageWithFallback src={imageUrl} alt={article.title} fill className="object-cover transition duration-500 group-hover:scale-105" sizes="80px" />
         </div>
         <div>
           <Link href={`/article/${article.slug || article.id}`}>
@@ -63,7 +63,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical"
         <span className="absolute top-2 left-2 z-10 text-white text-[10px] font-bold px-2 py-1 uppercase rounded-sm shadow-md" style={{ backgroundColor: catColor }}>
           {article.category}
         </span>
-        <Image src={imageUrl} alt={article.title} fill className="object-cover transition duration-700 group-hover:scale-110" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
+        <ImageWithFallback src={imageUrl} alt={article.title} fill className="object-cover transition duration-700 group-hover:scale-110" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
       </div>
       <div className="p-5 flex flex-col flex-grow">
         <div className="flex items-center text-xs text-gray-500 mb-2">

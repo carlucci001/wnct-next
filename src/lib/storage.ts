@@ -115,43 +115,70 @@ export const storageService = {
     });
   },
 
-  // Upload from URL (for migrations)
+  // Upload from URL (for DALL-E images and migrations)
   uploadAssetFromUrl: async (sourceUrl: string): Promise<string> => {
-    const settings = getStorageSettings();
-    if (!settings || !isValidBucketName(settings.bucketName)) {
+    // Skip if already a Firebase Storage or GCS URL
+    if (sourceUrl.includes('firebasestorage.googleapis.com') ||
+        sourceUrl.includes('storage.googleapis.com')) {
       return sourceUrl;
     }
 
     try {
+      console.log('[Storage] Fetching image from URL to persist...');
       const sourceResponse = await fetch(sourceUrl);
       if (!sourceResponse.ok) throw new Error("Failed to fetch source image");
       const blob = await sourceResponse.blob();
 
-      const fileName = `migrated-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-      const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${settings.bucketName}/o?uploadType=media&name=${fileName}`;
+      // Determine file extension from content type
+      const contentType = blob.type || 'image/png';
+      const extension = contentType.split('/')[1] || 'png';
+      const fileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
 
-      const headers: Record<string, string> = {
-        'Content-Type': blob.type,
-      };
+      // Try Firebase Storage first
+      try {
+        const storage = getStorage(app);
+        const storageRef = ref(storage, fileName);
 
-      if (settings.token) {
-        headers['Authorization'] = `Bearer ${settings.token}`;
+        console.log('[Storage] Uploading to Firebase Storage:', fileName);
+        const snapshot = await uploadBytes(storageRef, blob);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        console.log('[Storage] Image persisted successfully:', downloadUrl);
+        return downloadUrl;
+      } catch (firebaseError) {
+        console.warn('[Storage] Firebase Storage upload failed, trying GCS fallback:', firebaseError);
       }
 
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: headers,
-        body: blob
-      });
+      // Fallback to Google Cloud Storage if configured
+      const settings = getStorageSettings();
+      if (settings && isValidBucketName(settings.bucketName)) {
+        const gcsFileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+        const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${settings.bucketName}/o?uploadType=media&name=${gcsFileName}`;
 
-      if (!uploadResponse.ok) {
-        console.warn("GCS Upload failed during migration, using original URL.");
-        return sourceUrl;
+        const headers: Record<string, string> = {
+          'Content-Type': contentType,
+        };
+
+        if (settings.token) {
+          headers['Authorization'] = `Bearer ${settings.token}`;
+        }
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: headers,
+          body: blob
+        });
+
+        if (uploadResponse.ok) {
+          const permanentUrl = `https://storage.googleapis.com/${settings.bucketName}/${gcsFileName}`;
+          console.log('[Storage] Image persisted to GCS:', permanentUrl);
+          return permanentUrl;
+        }
       }
 
-      return `https://storage.googleapis.com/${settings.bucketName}/${fileName}`;
+      console.warn('[Storage] All upload methods failed, returning original URL');
+      return sourceUrl;
     } catch (error) {
-      console.error("Asset Migration Error", error);
+      console.error('[Storage] Asset upload error:', error);
       return sourceUrl;
     }
   }

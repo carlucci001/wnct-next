@@ -8,6 +8,7 @@ import { getArticleBySlug, getArticlesByCategory } from '@/lib/articles';
 import { Article } from '@/types/article';
 import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import ImageWithFallback from '@/components/ImageWithFallback';
 
 // Category colors
 const CATEGORY_COLORS: Record<string, string> = {
@@ -94,6 +95,7 @@ export default function ArticlePage() {
 
   const categoryColor = getCategoryColor(article.category);
   const articleDate = formatDate(article.publishedAt || article.createdAt || article.date);
+  const featuredImageUrl = article.featuredImage || article.imageUrl || '/placeholder.jpg';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -160,12 +162,15 @@ export default function ArticlePage() {
               </div>
 
               {/* Featured Image */}
-              {article.featuredImage && (
-                <div className="w-full">
-                  <img
-                    src={article.featuredImage}
+              {(article.featuredImage || article.imageUrl) && (
+                <div className="w-full relative h-[400px] md:h-[500px]">
+                  <ImageWithFallback
+                    src={featuredImageUrl}
                     alt={article.title}
-                    className="w-full h-auto max-h-[500px] object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 66vw"
+                    priority
                   />
                 </div>
               )}
@@ -217,31 +222,34 @@ export default function ArticlePage() {
                   <span style={{ color: categoryColor }}>{article.category}</span>
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {relatedArticles.map((related) => (
-                    <Link
-                      key={related.id}
-                      href={`/article/${related.slug || related.id}`}
-                      className="group bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition"
-                    >
-                      {related.featuredImage && (
-                        <div className="aspect-video overflow-hidden">
-                          <img
-                            src={related.featuredImage}
+                  {relatedArticles.map((related) => {
+                    const relatedImageUrl = related.featuredImage || related.imageUrl || '/placeholder.jpg';
+                    return (
+                      <Link
+                        key={related.id}
+                        href={`/article/${related.slug || related.id}`}
+                        className="group bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition"
+                      >
+                        <div className="aspect-video overflow-hidden relative">
+                          <ImageWithFallback
+                            src={relatedImageUrl}
                             alt={related.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                            fill
+                            className="object-cover group-hover:scale-105 transition duration-500"
+                            sizes="(max-width: 768px) 100vw, 33vw"
                           />
                         </div>
-                      )}
-                      <div className="p-4">
-                        <h3 className="font-serif font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-2">
-                          {related.title}
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-2">
-                          {formatDate(related.publishedAt || related.createdAt)}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
+                        <div className="p-4">
+                          <h3 className="font-serif font-bold text-gray-900 group-hover:text-blue-600 transition line-clamp-2">
+                            {related.title}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-2">
+                            {formatDate(related.publishedAt || related.createdAt)}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}
