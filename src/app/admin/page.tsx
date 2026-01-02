@@ -19,6 +19,27 @@ import {
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
+import { batchFormatArticles, batchMigrateImages, formatArticleContent } from '@/lib/articles';
+
+// shadcn/ui components
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminHeader } from '@/components/admin/AdminHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Toaster, toast } from 'sonner';
 
 type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL';
 
@@ -53,6 +74,10 @@ interface SiteSettings {
   dalleSize?: '1024x1024' | '1792x1024' | '1024x1792';
   // Gemini Settings
   geminiModel?: string;
+  // Chat Assistant Settings
+  chatSystemPrompt?: string;
+  chatWelcomeMessage?: string;
+  ttsVoice?: string;
 }
 
 interface AppUser {
@@ -162,6 +187,11 @@ export default function AdminDashboard() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [editorAiLoading, setEditorAiLoading] = useState(false);
   const [workflowAction, setWorkflowAction] = useState<'research' | 'draft' | 'review' | 'grammar' | 'approve' | null>(null);
+
+  // Maintenance states
+  const [migratingImages, setMigratingImages] = useState(false);
+  const [sanitizingArticles, setSanitizingArticles] = useState(false);
+  const [maintenanceProgress, setMaintenanceProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedArticleForAction, setSelectedArticleForAction] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
@@ -259,8 +289,11 @@ export default function AdminDashboard() {
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 3000);
+    if (type === 'success') {
+      toast.success(text);
+    } else {
+      toast.error(text);
+    }
   };
 
   const handleDeleteArticle = async (articleId: string) => {
@@ -319,8 +352,85 @@ export default function AdminDashboard() {
     showMessage('success', 'Data exported successfully');
   };
 
+  // Migrate all article images to Firebase Storage
+  const handleMigrateImages = async () => {
+    if (migratingImages) return;
+    setMigratingImages(true);
+    setMaintenanceProgress({ current: 0, total: 0, message: 'Starting image migration...' });
+
+    try {
+      const result = await batchMigrateImages((current, total, message) => {
+        setMaintenanceProgress({ current, total, message });
+      });
+
+      if (result.migrated > 0) {
+        toast.success(`Migrated ${result.migrated} images to Firebase Storage`);
+        loadData(); // Refresh articles
+      } else if (result.failed > 0) {
+        toast.error(`Migration completed with ${result.failed} failures`);
+      } else {
+        toast.info('All images already migrated');
+      }
+
+      if (result.errors.length > 0) {
+        console.error('Migration errors:', result.errors);
+      }
+    } catch (error) {
+      console.error('Image migration failed:', error);
+      toast.error('Image migration failed');
+    } finally {
+      setMigratingImages(false);
+      setMaintenanceProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  // Sanitize all article content and excerpts
+  const handleSanitizeArticles = async () => {
+    if (sanitizingArticles) return;
+    setSanitizingArticles(true);
+    setMaintenanceProgress({ current: 0, total: 0, message: 'Starting content sanitization...' });
+
+    try {
+      const result = await batchFormatArticles((current, total, message) => {
+        setMaintenanceProgress({ current, total, message });
+      });
+
+      if (result.updated > 0) {
+        toast.success(`Sanitized ${result.updated} articles`);
+        loadData(); // Refresh articles
+      } else {
+        toast.info('All articles already clean');
+      }
+
+      if (result.errors.length > 0) {
+        console.error('Sanitization errors:', result.errors);
+      }
+    } catch (error) {
+      console.error('Article sanitization failed:', error);
+      toast.error('Article sanitization failed');
+    } finally {
+      setSanitizingArticles(false);
+      setMaintenanceProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
   const toggleMenuSection = (section: keyof MenuSections) => {
-    setMenuSections(prev => ({ ...prev, [section]: !prev[section] }));
+    // Accordion behavior: close all sections except the one being toggled
+    setMenuSections(prev => {
+      const isCurrentlyOpen = prev[section];
+      // If opening a section, close all others
+      if (!isCurrentlyOpen) {
+        return {
+          ai: section === 'ai',
+          content: section === 'content',
+          components: section === 'components',
+          users: section === 'users',
+          systemSettings: section === 'systemSettings',
+        };
+      }
+      // If closing, just toggle it
+      return { ...prev, [section]: false };
+    });
   };
 
   // AI Agent helpers
@@ -453,6 +563,9 @@ Return ONLY valid JSON array with no markdown:
     }
 
     try {
+      // Format content to proper HTML paragraphs before saving
+      const formattedContent = formatArticleContent(agentArticle.content || '');
+
       const articleToSave: Article = {
         ...agentArticle,
         id: agentArticle.id || `art-${Date.now()}`,
@@ -464,7 +577,8 @@ Return ONLY valid JSON array with no markdown:
         category: agentArticle.category || 'News',
         featuredImage: agentArticle.featuredImage || agentArticle.imageUrl || '',
         imageUrl: agentArticle.imageUrl || agentArticle.featuredImage || '',
-        excerpt: agentArticle.excerpt || (agentArticle.content ? agentArticle.content.substring(0, 150) + '...' : ''),
+        content: formattedContent,
+        excerpt: agentArticle.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
       };
 
       // Save to Firestore
@@ -881,1015 +995,1241 @@ Return ONLY the article body text, no title or metadata.`;
   // Dashboard Content
   const renderDashboard = () => (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with your newsroom</p>
-      </div>
-
-      {/* Quick Actions Bar */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-4 border border-blue-100 shadow-sm">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Zap size={16} className="text-blue-600" />
-            Quick Actions
-          </h2>
-          <div className="flex gap-2 flex-1 justify-end flex-wrap">
-            <button
-              onClick={() => {
-                setActiveTab('JOURNALIST');
-                setAgentArticle({
-                  id: '',
-                  title: '',
-                  content: '',
-                  excerpt: '',
-                  author: currentUser?.displayName || currentUser?.email || 'Staff Writer',
-                  category: 'News',
-                  status: 'draft',
-                  featuredImage: '',
-                  tags: [],
-                  slug: ''
-                });
-                setChatHistory([]);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 hover:shadow-md transition-all duration-300 text-sm font-medium"
-            >
-              <Plus size={16} /> New Article
-            </button>
-            <button
-              onClick={() => setActiveTab('articles')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-50 hover:shadow-md transition-all duration-300 text-sm font-medium"
-            >
-              <Eye size={16} /> Review Queue
-              {stats.reviewArticles > 0 && (
-                <span className="ml-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
-                  {stats.reviewArticles}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('users')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 hover:shadow-md transition-all duration-300 text-sm font-medium"
-            >
-              <Users size={16} /> Manage Users
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back! Here&apos;s what&apos;s happening with your newsroom</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={loadData}>
+            <RefreshCw size={16} className="mr-2" />
+            Refresh
+          </Button>
+          <Button size="sm" onClick={handleExportData}>
+            <Download size={16} className="mr-2" />
+            Export
+          </Button>
         </div>
       </div>
+
+      {/* Quick Actions */}
+      <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 border-primary/20">
+        <CardContent className="py-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Zap size={16} className="text-primary" />
+              Quick Actions
+            </div>
+            <div className="flex gap-2 flex-1 justify-end flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setActiveTab('JOURNALIST');
+                  setAgentArticle({
+                    id: '',
+                    title: '',
+                    content: '',
+                    excerpt: '',
+                    author: currentUser?.displayName || currentUser?.email || 'Staff Writer',
+                    category: 'News',
+                    status: 'draft',
+                    featuredImage: '',
+                    tags: [],
+                    slug: ''
+                  });
+                  setChatHistory([]);
+                }}
+              >
+                <Plus size={16} className="mr-2" />
+                New Article
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setActiveTab('articles')}
+              >
+                <Eye size={16} className="mr-2" />
+                Review Queue
+                {stats.reviewArticles > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {stats.reviewArticles}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setActiveTab('users')}
+              >
+                <Users size={16} className="mr-2" />
+                Manage Users
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Articles Card */}
-        <button
-          onClick={() => setActiveTab('articles')}
-          className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-lg hover:scale-[1.02] hover:border-blue-300 transition-all duration-300 text-left group"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg group-hover:from-blue-100 group-hover:to-blue-200 transition-all duration-300">
-              <FileText size={22} className="text-blue-600" />
-            </div>
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          </div>
-          <h3 className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-1.5">Articles</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-2">{stats.totalArticles}</div>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between text-gray-600">
-              <span>{stats.publishedArticles} published</span>
-              <CheckCircle size={12} className="text-green-500" />
-            </div>
-            <div className="flex items-center justify-between text-gray-600">
-              <span>{stats.draftArticles} drafts</span>
-              <PenTool size={12} className="text-blue-500" />
-            </div>
-            <div className="flex items-center justify-between text-gray-600">
-              <span>{stats.reviewArticles} in review</span>
-              <Eye size={12} className="text-amber-500" />
-            </div>
-          </div>
-        </button>
-
-        {/* Users Card */}
-        <button
-          onClick={() => setActiveTab('users')}
-          className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-lg hover:scale-[1.02] hover:border-purple-300 transition-all duration-300 text-left group"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2.5 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg group-hover:from-purple-100 group-hover:to-purple-200 transition-all duration-300">
-              <Users size={22} className="text-purple-600" />
-            </div>
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          </div>
-          <h3 className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-1.5">Users</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-2">{users.length}</div>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between text-gray-600">
-              <span>{users.length} registered</span>
-              <Activity size={12} className="text-green-500" />
-            </div>
-          </div>
-        </button>
-
-        {/* Views Card */}
-        <button
-          onClick={() => setActiveTab('articles')}
-          className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-lg hover:scale-[1.02] hover:border-cyan-300 transition-all duration-300 text-left group"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2.5 bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg group-hover:from-cyan-100 group-hover:to-cyan-200 transition-all duration-300">
-              <TrendingUp size={22} className="text-cyan-600" />
-            </div>
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          </div>
-          <h3 className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-1.5">Total Views</h3>
-          <div className="text-3xl font-bold text-gray-900 mb-2">{stats.totalViews.toLocaleString()}</div>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between text-gray-600">
-              <span>All time views</span>
-              <BarChart3 size={12} className="text-cyan-500" />
-            </div>
-          </div>
-        </button>
-      </div>
-
-      {/* Category Breakdown */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Articles by Category</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {Object.entries(stats.categoryCounts).map(([category, count]) => (
-            <div key={category} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-              <p className="text-xs text-gray-500 capitalize truncate">{category}</p>
-              <p className="text-xl font-bold text-gray-900">{count}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {articles.slice(0, 5).map((article, i) => (
-            <div key={article.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className={`p-2 rounded-lg ${i === 0 ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                <FileText size={16} className={i === 0 ? 'text-blue-600' : 'text-gray-500'} />
+        <Card className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all" onClick={() => setActiveTab('articles')}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Articles</CardTitle>
+            <FileText className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.totalArticles}</div>
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{stats.publishedArticles} published</span>
+                <Badge variant="secondary" className="bg-green-100 text-green-700">Live</Badge>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{article.title}</p>
-                <p className="text-xs text-gray-500">{article.category} • {article.status}</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{stats.draftArticles} drafts</span>
+                <Badge variant="outline">Draft</Badge>
               </div>
-              <span className="text-xs text-gray-400">
-                {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'Draft'}
-              </span>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{stats.reviewArticles} in review</span>
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700">Review</Badge>
+              </div>
             </div>
-          ))}
-        </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all" onClick={() => setActiveTab('users')}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
+            <Users className="h-5 w-5 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{users.length}</div>
+            <div className="mt-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                {users.length} registered users
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all" onClick={() => setActiveTab('articles')}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Views</CardTitle>
+            <TrendingUp className="h-5 w-5 text-cyan-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.totalViews.toLocaleString()}</div>
+            <div className="mt-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BarChart3 size={14} />
+                All time pageviews
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Category Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Articles by Category</CardTitle>
+            <CardDescription>Distribution of content across categories</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(stats.categoryCounts).map(([category, count]) => (
+                <div key={category} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <span className="text-sm font-medium capitalize">{category}</span>
+                  <Badge variant="secondary">{count}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest articles in your newsroom</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {articles.slice(0, 5).map((article, i) => (
+                <div key={article.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <div className={`p-2 rounded-lg ${i === 0 ? 'bg-primary/10' : 'bg-muted'}`}>
+                    <FileText size={16} className={i === 0 ? 'text-primary' : 'text-muted-foreground'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{article.title}</p>
+                    <p className="text-xs text-muted-foreground">{article.category}</p>
+                  </div>
+                  <Badge variant={article.status === 'published' ? 'default' : 'outline'} className="shrink-0">
+                    {article.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Maintenance Tools */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database size={20} />
+            Maintenance Tools
+          </CardTitle>
+          <CardDescription>Database cleanup and migration utilities</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Image Migration */}
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+                  <ImageIcon size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium">Migrate Images</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Move all article images from temporary URLs (Supabase, DALL-E, etc.) to Firebase Storage for permanent hosting.
+                  </p>
+                  {migratingImages && maintenanceProgress.message && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw size={12} className="animate-spin" />
+                        {maintenanceProgress.message}
+                      </div>
+                      {maintenanceProgress.total > 0 && (
+                        <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 transition-all"
+                            style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3"
+                    onClick={handleMigrateImages}
+                    disabled={migratingImages || sanitizingArticles}
+                  >
+                    {migratingImages ? (
+                      <>
+                        <RefreshCw size={14} className="mr-2 animate-spin" />
+                        Migrating...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} className="mr-2" />
+                        Migrate Images
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Sanitization */}
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
+                  <Sparkles size={20} className="text-green-600 dark:text-green-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium">Sanitize Content</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Clean up article HTML, remove empty tags, fix formatting issues, and regenerate clean excerpts.
+                  </p>
+                  {sanitizingArticles && maintenanceProgress.message && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw size={12} className="animate-spin" />
+                        {maintenanceProgress.message}
+                      </div>
+                      {maintenanceProgress.total > 0 && (
+                        <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 transition-all"
+                            style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3"
+                    onClick={handleSanitizeArticles}
+                    disabled={migratingImages || sanitizingArticles}
+                  >
+                    {sanitizingArticles ? (
+                      <>
+                        <RefreshCw size={14} className="mr-2 animate-spin" />
+                        Sanitizing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} className="mr-2" />
+                        Sanitize Articles
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 
   // Articles Content
   const renderArticles = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 min-w-fit">
-            <FileText size={20} className="text-blue-600" />
-            <h2 className="text-xl font-bold text-gray-800">Articles</h2>
-          </div>
-          <div className="relative flex-grow max-w-md">
-            <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search articles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            <option value="published">Published</option>
-            <option value="draft">Draft</option>
-            <option value="review">Review</option>
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Categories</option>
-            {Object.keys(stats.categoryCounts).map(cat => (
-              <option key={cat} value={cat.toLowerCase()}>{cat}</option>
-            ))}
-          </select>
-          <div className="flex-grow"></div>
-          <button
-            onClick={() => {
-              const newArticle: Article = {
-                id: `art-${Date.now()}`,
-                title: '',
-                slug: '',
-                excerpt: '',
-                category: 'News',
-                author: currentUser?.displayName || 'Staff Writer',
-                publishedAt: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
-                imageUrl: '',
-                featuredImage: '',
-                content: '',
-                status: 'draft'
-              };
-              setAgentArticle(newArticle);
-              setAgentTab('settings');
-              setActiveTab('JOURNALIST');
-              setChatHistory([]);
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center shadow-sm transition-colors"
-          >
-            <Plus size={16} className="mr-2" /> New Article
-          </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Articles</h1>
+          <p className="text-muted-foreground">Manage your news content</p>
         </div>
+        <Button
+          onClick={() => {
+            const newArticle: Article = {
+              id: `art-${Date.now()}`,
+              title: '',
+              slug: '',
+              excerpt: '',
+              category: 'News',
+              author: currentUser?.displayName || 'Staff Writer',
+              publishedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              imageUrl: '',
+              featuredImage: '',
+              content: '',
+              status: 'draft'
+            };
+            setAgentArticle(newArticle);
+            setAgentTab('settings');
+            setActiveTab('JOURNALIST');
+            setChatHistory([]);
+          }}
+        >
+          <Plus size={16} className="mr-2" />
+          New Article
+        </Button>
       </div>
-      <div className="flex-grow overflow-auto bg-gray-50">
-        <table className="w-full text-left text-sm bg-white">
-          <thead className="bg-gray-100 text-gray-500 font-bold uppercase text-xs sticky top-0 border-b">
-            <tr>
-              <th
-                className="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none"
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search articles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="status-filter" className="text-sm text-muted-foreground whitespace-nowrap">Status:</Label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All</option>
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+                <option value="review">Review</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="category-filter" className="text-sm text-muted-foreground whitespace-nowrap">Category:</Label>
+              <select
+                id="category-filter"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All</option>
+                {Object.keys(stats.categoryCounts).map(cat => (
+                  <option key={cat} value={cat.toLowerCase()}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1" />
+            <p className="text-sm text-muted-foreground">
+              {filteredArticles.length} article{filteredArticles.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => {
                   if (sortField === 'title') setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
                   else { setSortField('title'); setSortDirection('asc'); }
                 }}
               >
-                <span className="flex items-center gap-1">
-                  Title {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </span>
-              </th>
-              <th
-                className="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none"
+                Title {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => {
                   if (sortField === 'category') setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
                   else { setSortField('category'); setSortDirection('asc'); }
                 }}
               >
-                <span className="flex items-center gap-1">
-                  Category {sortField === 'category' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </span>
-              </th>
-              <th
-                className="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none"
+                Category {sortField === 'category' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => {
                   if (sortField === 'status') setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
                   else { setSortField('status'); setSortDirection('asc'); }
                 }}
               >
-                <span className="flex items-center gap-1">
-                  Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </span>
-              </th>
-              <th
-                className="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none"
+                Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => {
                   if (sortField === 'date') setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
                   else { setSortField('date'); setSortDirection('desc'); }
                 }}
               >
-                <span className="flex items-center gap-1">
-                  Date {sortField === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </span>
-              </th>
-              <th className="px-6 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+                Date {sortField === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filteredArticles.length > 0 ? filteredArticles.slice(0, 50).map(article => (
-              <tr key={article.id} className="hover:bg-blue-50/50">
-                <td className="px-6 py-4 font-medium">{article.title}</td>
-                <td className="px-6 py-4">
-                  <span className="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-700 capitalize">
-                    {article.category}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    article.status?.toLowerCase() === 'published' ? 'bg-green-100 text-green-700' :
-                    article.status?.toLowerCase() === 'draft' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
+              <TableRow key={article.id}>
+                <TableCell className="font-medium max-w-[300px] truncate">{article.title}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="capitalize">{article.category}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={article.status?.toLowerCase() === 'published' ? 'default' : 'outline'}
+                    className={
+                      article.status?.toLowerCase() === 'published' ? 'bg-green-100 text-green-700 hover:bg-green-100' :
+                      article.status?.toLowerCase() === 'draft' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' :
+                      article.status?.toLowerCase() === 'review' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' :
+                      ''
+                    }
+                  >
                     {article.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-gray-500 text-xs">
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
                   {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'N/A'}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleTogglePublish(article)}
-                      className="p-1 text-gray-400 hover:text-blue-600"
                       title={article.status?.toLowerCase() === 'published' ? 'Unpublish' : 'Publish'}
                     >
                       {article.status?.toLowerCase() === 'published' ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => {
                         setAgentArticle(article);
                         setAgentTab('settings');
                         setActiveTab('JOURNALIST');
                         setChatHistory([]);
                       }}
-                      className="p-1 text-gray-400 hover:text-blue-600"
-                      title="Edit article"
+                      title="Edit"
                     >
                       <Edit size={16} />
-                    </button>
-                    <button onClick={() => handleDeleteArticle(article.id)} className="p-1 text-gray-400 hover:text-red-500">
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteArticle(article.id)}
+                      className="text-destructive hover:text-destructive"
+                      title="Delete"
+                    >
                       <Trash2 size={16} />
-                    </button>
+                    </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )) : (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                  <FileText size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>No articles found matching your filters.</p>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <FileText size={48} className="mb-4 opacity-20" />
+                    <p>No articles found matching your filters.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      {filteredArticles.length > 50 && (
-        <div className="p-4 border-t border-gray-200 bg-gray-50 text-center text-sm text-gray-500">
-          Showing 50 of {filteredArticles.length} articles
-        </div>
-      )}
+          </TableBody>
+        </Table>
+        {filteredArticles.length > 50 && (
+          <div className="p-4 border-t text-center text-sm text-muted-foreground">
+            Showing 50 of {filteredArticles.length} articles
+          </div>
+        )}
+      </Card>
     </div>
   );
 
   // Users Content
   const renderUsers = () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Users size={20} className="text-blue-600" />
-          <h2 className="text-xl font-bold text-gray-800">Users</h2>
-          <div className="flex-grow"></div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center shadow-sm transition-colors">
-            <UserPlus size={16} className="mr-2" /> Add User
-          </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground">Manage user accounts and permissions</p>
         </div>
+        <Button>
+          <UserPlus size={16} className="mr-2" />
+          Add User
+        </Button>
       </div>
-      <div className="flex-grow overflow-auto bg-gray-50">
-        <table className="w-full text-left text-sm bg-white">
-          <thead className="bg-gray-100 text-gray-500 font-bold uppercase text-xs sticky top-0 border-b">
-            <tr>
-              <th className="px-6 py-3">User</th>
-              <th className="px-6 py-3">Role</th>
-              <th className="px-6 py-3">Status</th>
-              <th className="px-6 py-3">Joined</th>
-              <th className="px-6 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{users.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Admins</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Contributors</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{users.filter(u => u.role === 'content-contributor' || u.role === 'editor').length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Joined</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.length > 0 ? users.map(user => (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">
+              <TableRow key={user.id}>
+                <TableCell>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                    <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
                       {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{user.displayName || 'N/A'}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <p className="font-medium">{user.displayName || 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="px-2 py-1 rounded text-xs font-bold bg-purple-100 text-purple-700 capitalize">
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="capitalize bg-purple-100 text-purple-700">
                     {user.role || 'reader'}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">
-                    Active
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-gray-500 text-xs">
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
                   {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <button className="px-3 py-1.5 rounded text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
-                    Edit
-                  </button>
-                </td>
-              </tr>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="outline" size="sm">Edit</Button>
+                </TableCell>
+              </TableRow>
             )) : (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                  <Users size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>No users found.</p>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <Users size={48} className="mb-4 opacity-20" />
+                    <p>No users found.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 
   // Settings Content
   const renderSettings = () => (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Site Settings</h1>
+          <p className="text-muted-foreground">Configure your publication&apos;s appearance and behavior</p>
+        </div>
+        <Button onClick={handleSaveSettings} disabled={saving}>
+          {saving ? <RefreshCw className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
+          Save Settings
+        </Button>
+      </div>
+
       {/* Visual Identity Section */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-          <Palette size={20} className="text-blue-600" />
-          Visual Identity
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Site Name</label>
-            <input
-              type="text"
-              value={settings.siteName}
-              onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Primary Color</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="color"
-                value={settings.primaryColor}
-                onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
-                className="w-12 h-10 border rounded cursor-pointer"
-              />
-              <input
-                type="text"
-                value={settings.primaryColor}
-                onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette size={20} className="text-primary" />
+            Visual Identity
+          </CardTitle>
+          <CardDescription>Configure how your publication appears to readers</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="siteName">Site Name</Label>
+              <Input
+                id="siteName"
+                value={settings.siteName}
+                onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
               />
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Tagline</label>
-            <input
-              type="text"
-              value={settings.tagline}
-              onChange={(e) => setSettings({ ...settings, tagline: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="mt-2 flex items-center">
-              <input
-                type="checkbox"
-                id="showTagline"
-                checked={settings.showTagline !== false}
-                onChange={(e) => setSettings({ ...settings, showTagline: e.target.checked })}
-                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            <div className="space-y-2">
+              <Label htmlFor="primaryColor">Primary Color</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={settings.primaryColor}
+                  onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                  className="w-12 h-9 border rounded cursor-pointer"
+                />
+                <Input
+                  id="primaryColor"
+                  value={settings.primaryColor}
+                  onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                  className="flex-1"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tagline">Tagline</Label>
+              <Input
+                id="tagline"
+                value={settings.tagline}
+                onChange={(e) => setSettings({ ...settings, tagline: e.target.value })}
               />
-              <label htmlFor="showTagline" className="ml-2 text-sm text-gray-600">Show tagline in header</label>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="showTagline"
+                  checked={settings.showTagline !== false}
+                  onChange={(e) => setSettings({ ...settings, showTagline: e.target.checked })}
+                  className="w-4 h-4 rounded border-input"
+                />
+                <Label htmlFor="showTagline" className="text-sm font-normal text-muted-foreground">
+                  Show tagline in header
+                </Label>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Display Mode</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={settings.brandingMode !== 'logo' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSettings({ ...settings, brandingMode: 'text' })}
+                >
+                  Text Logo
+                </Button>
+                <Button
+                  type="button"
+                  variant={settings.brandingMode === 'logo' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSettings({ ...settings, brandingMode: 'logo' })}
+                >
+                  Image Logo
+                </Button>
+              </div>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Display Mode</label>
-            <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-              <button
-                onClick={() => setSettings({ ...settings, brandingMode: 'text' })}
-                className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${settings.brandingMode !== 'logo' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Text Logo
-              </button>
-              <button
-                onClick={() => setSettings({ ...settings, brandingMode: 'logo' })}
-                className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${settings.brandingMode === 'logo' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Image Logo
-              </button>
-            </div>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Logo (300x100px recommended)</label>
+          <div className="space-y-2">
+            <Label htmlFor="logoUrl">Logo (300x100px recommended)</Label>
             <div className="flex items-start gap-3">
-              {/* URL Input - Primary Method */}
-              <input
-                type="text"
+              <Input
+                id="logoUrl"
                 value={settings.logoUrl || ''}
                 onChange={(e) => setSettings({ ...settings, logoUrl: e.target.value, brandingMode: 'logo' })}
-                placeholder="Paste image URL here (e.g., from Imgur, Supabase, etc.)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Paste image URL or upload below"
+                className="flex-1"
               />
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setUploadingLogo(true);
+                      try {
+                        const url = await storageService.uploadLogo(file);
+                        setSettings({ ...settings, logoUrl: url, brandingMode: 'logo' });
+                        setMessage({ type: 'success', text: 'Logo uploaded successfully!' });
+                      } catch (err) {
+                        setMessage({ type: 'error', text: 'Failed to upload logo' });
+                      } finally {
+                        setUploadingLogo(false);
+                      }
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" disabled={uploadingLogo} asChild>
+                  <span>{uploadingLogo ? 'Uploading...' : 'Upload'}</span>
+                </Button>
+              </label>
               {settings.logoUrl && (
                 <>
-                  <div className="w-[150px] h-[50px] border rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+                  <div className="w-[150px] h-[50px] border rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
                     <img src={settings.logoUrl} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setSettings({ ...settings, logoUrl: '', brandingMode: 'text' })}
-                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium"
+                    className="text-destructive"
                   >
                     Clear
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Paste an image URL from any image hosting service (Imgur, Supabase, Google Drive, etc.).
-              Best size: 300x100 pixels. After pasting, click &quot;Save All Settings&quot; below.
+            <p className="text-sm text-muted-foreground">
+              Upload an image or paste a URL. Best size: 300x100 pixels.
             </p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Editorial Settings Section */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-          <Settings size={20} className="text-green-600" />
-          Editorial Settings
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Articles Per Page</label>
-            <input
-              type="number"
-              value={settings.articlesPerPage}
-              onChange={(e) => setSettings({ ...settings, articlesPerPage: parseInt(e.target.value) || 10 })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings size={20} className="text-green-600" />
+            Editorial Settings
+          </CardTitle>
+          <CardDescription>Configure content and publishing preferences</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="articlesPerPage">Articles Per Page</Label>
+              <Input
+                id="articlesPerPage"
+                type="number"
+                value={settings.articlesPerPage}
+                onChange={(e) => setSettings({ ...settings, articlesPerPage: parseInt(e.target.value) || 10 })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="serviceArea">Service Area</Label>
+              <Input
+                id="serviceArea"
+                value={settings.serviceArea}
+                onChange={(e) => setSettings({ ...settings, serviceArea: e.target.value })}
+                placeholder="e.g. Asheville, Western North Carolina"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetAudience">Target Audience</Label>
+              <Input
+                id="targetAudience"
+                value={settings.targetAudience}
+                onChange={(e) => setSettings({ ...settings, targetAudience: e.target.value })}
+                placeholder="e.g. Locals, Tourists, Retirees"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="defaultStatus">Default Article Status</Label>
+              <select
+                id="defaultStatus"
+                value={settings.defaultArticleStatus || 'draft'}
+                onChange={(e) => setSettings({ ...settings, defaultArticleStatus: e.target.value })}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="draft">Draft</option>
+                <option value="review">Review</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Service Area (City/Region)</label>
-            <input
-              type="text"
-              value={settings.serviceArea}
-              onChange={(e) => setSettings({ ...settings, serviceArea: e.target.value })}
-              placeholder="e.g. Asheville, Western North Carolina"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Target Audience</label>
-            <input
-              type="text"
-              value={settings.targetAudience}
-              onChange={(e) => setSettings({ ...settings, targetAudience: e.target.value })}
-              placeholder="e.g. Locals, Tourists, Retirees"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Default Article Status</label>
-            <select
-              value={settings.defaultArticleStatus || 'draft'}
-              onChange={(e) => setSettings({ ...settings, defaultArticleStatus: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="draft">Draft</option>
-              <option value="review">Review</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-bold transition-colors shadow-lg"
-        >
-          {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
-          Save All Settings
-        </button>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 
   // API Configuration Content
   const renderApiConfig = () => (
-    <div className="h-full overflow-y-auto pb-20">
-      <div className="space-y-8 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center border-b pb-4">
-          <div>
-            <h2 className="text-2xl font-serif font-bold text-gray-900">API Configuration</h2>
-            <p className="text-gray-500">Configure third-party service integrations for your newspaper</p>
-          </div>
-          <div className="flex items-center text-sm text-green-600 font-bold">
-            <CheckCircle size={16} className="mr-1"/> Settings Auto-Save
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">API Configuration</h1>
+          <p className="text-muted-foreground">Configure third-party service integrations</p>
         </div>
-
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setApiConfigTab('openai')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all ${
-                apiConfigTab === 'openai'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} />
-                <span>OpenAI / DALL-E</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setApiConfigTab('google')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all ${
-                apiConfigTab === 'google'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} />
-                <span>Google AI / Gemini</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setApiConfigTab('weather')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all ${
-                apiConfigTab === 'weather'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Cloud size={18} />
-                <span>Weather API</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setApiConfigTab('payments')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all ${
-                apiConfigTab === 'payments'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <DollarSign size={18} />
-                <span>Payment Processors</span>
-              </div>
-            </button>
-          </nav>
-        </div>
-
-        {/* OpenAI Tab */}
-        {apiConfigTab === 'openai' && (
-          <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Sparkles className="text-green-700" size={24} />
-              </div>
-              <div className="flex-grow">
-                <h3 className="font-bold text-lg mb-2">OpenAI API Configuration</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Powers AI image generation (DALL-E 3) and optional text features.
-                  <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
-                    Get your API key here
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            {/* API Key Input */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">OpenAI API Key *</label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={settings.openaiApiKey || ''}
-                  onChange={(e) => {
-                    setSettings({ ...settings, openaiApiKey: e.target.value });
-                    localStorage.setItem('openai_api_key', e.target.value);
-                  }}
-                  placeholder="sk-..."
-                  className="flex-grow border border-gray-300 rounded p-3 font-mono text-sm"
-                />
-                <button
-                  onClick={async () => {
-                    if (!settings.openaiApiKey) {
-                      showMessage('error', 'Please enter an API key first');
-                      return;
-                    }
-                    try {
-                      const response = await fetch('https://api.openai.com/v1/models', {
-                        headers: { 'Authorization': `Bearer ${settings.openaiApiKey}` }
-                      });
-                      if (response.ok) {
-                        showMessage('success', '✓ API Key Valid! OpenAI services are ready.');
-                      } else {
-                        showMessage('error', '✗ API Key Invalid. Please check your key.');
-                      }
-                    } catch {
-                      showMessage('error', '✗ API Key Test Failed');
-                    }
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded text-sm font-bold hover:bg-green-700 whitespace-nowrap"
-                >
-                  Test Key
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Required for AI image generation. Your key is stored securely in browser localStorage.
-              </p>
-            </div>
-
-            {/* DALL-E Settings */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
-                <ImageIcon size={18} /> DALL-E 3 Image Generation Settings
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Default Image Quality</label>
-                  <select
-                    value={settings.dalleQuality || 'standard'}
-                    onChange={(e) => setSettings({ ...settings, dalleQuality: e.target.value as 'standard' | 'hd' })}
-                    className="w-full border border-gray-300 rounded p-2"
-                  >
-                    <option value="standard">Standard ($0.04 per image)</option>
-                    <option value="hd">HD Quality ($0.08 per image)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Image Style</label>
-                  <select
-                    value={settings.dalleStyle || 'natural'}
-                    onChange={(e) => setSettings({ ...settings, dalleStyle: e.target.value as 'natural' | 'vivid' })}
-                    className="w-full border border-gray-300 rounded p-2"
-                  >
-                    <option value="natural">Natural (Realistic, photojournalism style)</option>
-                    <option value="vivid">Vivid (Dramatic, eye-catching)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Default Image Size</label>
-                  <select
-                    value={settings.dalleSize || '1792x1024'}
-                    onChange={(e) => setSettings({ ...settings, dalleSize: e.target.value as '1024x1024' | '1792x1024' | '1024x1792' })}
-                    className="w-full border border-gray-300 rounded p-2"
-                  >
-                    <option value="1024x1024">Square (1024×1024)</option>
-                    <option value="1792x1024">Landscape (1792×1024 - Recommended for articles)</option>
-                    <option value="1024x1792">Portrait (1024×1792)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Pricing Info */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <h4 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
-                <AlertCircle size={18} /> Pricing & Usage
-              </h4>
-              <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
-                <li><strong>DALL-E 3 Standard:</strong> $0.040 per image (1024×1024)</li>
-                <li><strong>DALL-E 3 Standard:</strong> $0.080 per image (1024×1792 or 1792×1024)</li>
-                <li><strong>DALL-E 3 HD:</strong> 2× the standard price</li>
-                <li>Images are generated on-demand when requested</li>
-                <li>Generated images are temporary URLs (valid for 1 hour)</li>
-              </ul>
-            </div>
-          </section>
-        )}
-
-        {/* Google AI Tab */}
-        {apiConfigTab === 'google' && (
-          <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Sparkles className="text-blue-700" size={24} />
-              </div>
-              <div className="flex-grow">
-                <h3 className="font-bold text-lg mb-2">Google Generative AI (Gemini)</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Powers the chat assistant, AI article generation, and content tools.
-                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
-                    Get your API key here
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            {/* API Key Input */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Gemini API Key *</label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={settings.geminiApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                  placeholder="AIza..."
-                  className="flex-grow border border-gray-300 rounded p-3 font-mono text-sm"
-                />
-                <button
-                  onClick={async () => {
-                    if (!settings.geminiApiKey) {
-                      showMessage('error', 'Please enter an API key first');
-                      return;
-                    }
-                    try {
-                      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${settings.geminiApiKey}`);
-                      if (response.ok) {
-                        showMessage('success', '✓ API Key Valid! Gemini AI services are ready.');
-                      } else {
-                        showMessage('error', '✗ API Key Invalid. Please check your key.');
-                      }
-                    } catch {
-                      showMessage('error', '✗ API Key Test Failed');
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 whitespace-nowrap"
-                >
-                  Test Key
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Required for AI article writing, chat assistant, and content tools.
-              </p>
-            </div>
-
-            {/* Status Indicator */}
-            <div className={`border rounded p-4 text-sm ${settings.geminiApiKey ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-              <p className={settings.geminiApiKey ? 'text-green-800' : 'text-amber-800'}>
-                <strong>Status:</strong>
-                <code className="bg-white px-2 py-1 rounded text-xs ml-2">
-                  {settings.geminiApiKey ? '✓ API Key Configured' : '✗ No API Key - AI features disabled'}
-                </code>
-              </p>
-            </div>
-
-            {/* Model Selection */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Default Model</label>
-              <select
-                value={settings.geminiModel || 'gemini-2.5-flash'}
-                onChange={(e) => setSettings({ ...settings, geminiModel: e.target.value })}
-                className="w-full border border-gray-300 rounded p-2"
-              >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast, cost-effective)</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Balanced)</option>
-                <option value="gemini-pro">Gemini Pro (Most capable)</option>
-              </select>
-            </div>
-
-            {/* Free Tier Info */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 className="font-bold text-green-900 mb-2">Free Tier Limits</h4>
-              <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
-                <li>15 requests per minute</li>
-                <li>1,500 requests per day</li>
-                <li>1 million tokens per day</li>
-              </ul>
-            </div>
-          </section>
-        )}
-
-        {/* Weather Tab */}
-        {apiConfigTab === 'weather' && (
-          <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-cyan-100 rounded-lg">
-                <Cloud className="text-cyan-700" size={24} />
-              </div>
-              <div className="flex-grow">
-                <h3 className="font-bold text-lg mb-2">OpenWeatherMap API</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Provides real-time weather data for your location.
-                  <a href="https://openweathermap.org/api" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
-                    Get your free API key here
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            {/* API Key */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">API Key</label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={settings.weatherApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, weatherApiKey: e.target.value })}
-                  placeholder="Enter your OpenWeatherMap API key"
-                  className="flex-grow border border-gray-300 rounded p-3 font-mono text-sm"
-                />
-                <button
-                  onClick={async () => {
-                    if (!settings.weatherApiKey) {
-                      showMessage('error', 'Please enter an API key first');
-                      return;
-                    }
-                    try {
-                      const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=London&units=imperial&appid=${settings.weatherApiKey}`);
-                      if (response.ok) {
-                        showMessage('success', '✓ API Key Valid! Weather widget will now work.');
-                      } else {
-                        showMessage('error', '✗ API Key Invalid. Please check your key.');
-                      }
-                    } catch {
-                      showMessage('error', '✗ Connection failed. Check your API key.');
-                    }
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded text-sm font-bold hover:bg-green-700 whitespace-nowrap"
-                >
-                  Test Key
-                </button>
-              </div>
-            </div>
-
-            {/* Default Location */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Default Location</label>
-              <input
-                type="text"
-                value={settings.defaultLocation || 'Asheville, NC'}
-                onChange={(e) => setSettings({ ...settings, defaultLocation: e.target.value })}
-                placeholder="City, State or Coordinates"
-                className="w-full border border-gray-300 rounded p-2"
-              />
-              <p className="text-xs text-gray-500 mt-1">Fallback location when geolocation is unavailable.</p>
-            </div>
-
-            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
-              <h4 className="font-bold text-cyan-900 mb-2">Free Tier</h4>
-              <ul className="text-sm text-cyan-800 space-y-1 list-disc list-inside">
-                <li>1,000 API calls per day</li>
-                <li>60 calls per minute</li>
-                <li>Perfect for local news sites</li>
-              </ul>
-            </div>
-          </section>
-        )}
-
-        {/* Payments Tab */}
-        {apiConfigTab === 'payments' && (
-          <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <DollarSign className="text-purple-700" size={24} />
-              </div>
-              <div className="flex-grow">
-                <h3 className="font-bold text-lg mb-2">Payment Processor Integration</h3>
-                <p className="text-sm text-gray-600">
-                  Configure Stripe, PayPal, or other payment systems for subscriptions and business listings.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 border border-gray-200 rounded p-6 text-center">
-              <DollarSign className="mx-auto text-gray-400 mb-3" size={48} />
-              <p className="text-gray-500 text-sm mb-2">Payment integrations coming soon</p>
-              <p className="text-xs text-gray-400">Stripe, PayPal, and other payment processors will be available in a future update.</p>
-            </div>
-          </section>
-        )}
-
-        {/* Global Help Section */}
-        <section className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-          <h3 className="font-bold text-lg mb-2 text-purple-900 flex items-center">
-            <Info size={20} className="mr-2"/> API Security Best Practices
-          </h3>
-          <ul className="text-sm text-purple-800 space-y-2 list-disc list-inside">
-            <li><strong>Store Keys Securely:</strong> All API keys are saved securely to your database.</li>
-            <li><strong>Use Environment Variables:</strong> For production deployments, configure API keys in your <code className="bg-white px-1 py-0.5 rounded">.env</code> file.</li>
-            <li><strong>Monitor Usage:</strong> Check your API provider dashboards regularly to monitor usage and costs.</li>
-            <li><strong>Rotate Keys:</strong> Periodically regenerate API keys for enhanced security.</li>
-            <li><strong>Never Share:</strong> Keep your API keys confidential. Never commit them to version control.</li>
-          </ul>
-        </section>
-
-        {/* Save Button */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 -mx-4 mt-8">
-          <div className="flex justify-end">
-            <button
-              onClick={handleSaveSettings}
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-bold transition-colors shadow-lg"
-            >
-              {saving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-              {saving ? 'Saving...' : 'Save API Configuration'}
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+            <CheckCircle size={14} className="mr-1" /> Auto-Save Enabled
+          </Badge>
+          <Button onClick={handleSaveSettings} disabled={saving}>
+            {saving ? <RefreshCw className="animate-spin mr-2" size={16} /> : <Save size={16} className="mr-2" />}
+            Save Settings
+          </Button>
         </div>
       </div>
+
+      {/* Tabs Navigation */}
+      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'weather' | 'payments')} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="openai" className="flex items-center gap-2">
+            <Sparkles size={16} /> OpenAI
+          </TabsTrigger>
+          <TabsTrigger value="google" className="flex items-center gap-2">
+            <Sparkles size={16} /> Google AI
+          </TabsTrigger>
+          <TabsTrigger value="weather" className="flex items-center gap-2">
+            <Cloud size={16} /> Weather
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="flex items-center gap-2">
+            <DollarSign size={16} /> Payments
+          </TabsTrigger>
+        </TabsList>
+
+        {/* OpenAI Tab */}
+        <TabsContent value="openai" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <Sparkles className="text-green-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>OpenAI API Configuration</CardTitle>
+                  <CardDescription>
+                    Powers AI image generation (DALL-E 3) and optional text features.{' '}
+                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key Input */}
+              <div className="space-y-2">
+                <Label htmlFor="openaiKey">OpenAI API Key *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="openaiKey"
+                    type="password"
+                    value={settings.openaiApiKey || ''}
+                    onChange={(e) => {
+                      setSettings({ ...settings, openaiApiKey: e.target.value });
+                      localStorage.setItem('openai_api_key', e.target.value);
+                    }}
+                    placeholder="sk-..."
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.openaiApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch('https://api.openai.com/v1/models', {
+                          headers: { 'Authorization': `Bearer ${settings.openaiApiKey}` }
+                        });
+                        if (response.ok) {
+                          showMessage('success', 'API Key Valid! OpenAI services are ready.');
+                        } else {
+                          showMessage('error', 'API Key Invalid. Please check your key.');
+                        }
+                      } catch {
+                        showMessage('error', 'API Key Test Failed');
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Required for AI image generation. Your key is stored securely.
+                </p>
+              </div>
+
+              {/* DALL-E Settings */}
+              <Card className="bg-blue-50/50 border-blue-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+                    <ImageIcon size={18} /> DALL-E 3 Image Generation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dalleQuality">Image Quality</Label>
+                      <select
+                        id="dalleQuality"
+                        value={settings.dalleQuality || 'standard'}
+                        onChange={(e) => setSettings({ ...settings, dalleQuality: e.target.value as 'standard' | 'hd' })}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="standard">Standard ($0.04)</option>
+                        <option value="hd">HD ($0.08)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dalleStyle">Image Style</Label>
+                      <select
+                        id="dalleStyle"
+                        value={settings.dalleStyle || 'natural'}
+                        onChange={(e) => setSettings({ ...settings, dalleStyle: e.target.value as 'natural' | 'vivid' })}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="natural">Natural (Realistic)</option>
+                        <option value="vivid">Vivid (Dramatic)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dalleSize">Default Size</Label>
+                      <select
+                        id="dalleSize"
+                        value={settings.dalleSize || '1792x1024'}
+                        onChange={(e) => setSettings({ ...settings, dalleSize: e.target.value as '1024x1024' | '1792x1024' | '1024x1792' })}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="1024x1024">Square (1024×1024)</option>
+                        <option value="1792x1024">Landscape (1792×1024)</option>
+                        <option value="1024x1792">Portrait (1024×1792)</option>
+                      </select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pricing Info */}
+              <Card className="bg-amber-50/50 border-amber-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-amber-900">
+                    <AlertCircle size={18} /> Pricing & Usage
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                    <li><strong>Standard:</strong> $0.040 per image (1024×1024), $0.080 (larger)</li>
+                    <li><strong>HD:</strong> 2× standard price</li>
+                    <li>Images are generated on-demand, URLs valid for 1 hour</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Google AI Tab */}
+        <TabsContent value="google" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Sparkles className="text-blue-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>Google Generative AI (Gemini)</CardTitle>
+                  <CardDescription>
+                    Powers the chat assistant, AI article generation, and content tools.{' '}
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key Input */}
+              <div className="space-y-2">
+                <Label htmlFor="geminiKey">Gemini API Key *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="geminiKey"
+                    type="password"
+                    value={settings.geminiApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                    placeholder="AIza..."
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.geminiApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${settings.geminiApiKey}`);
+                        if (response.ok) {
+                          showMessage('success', 'API Key Valid! Gemini AI services are ready.');
+                        } else {
+                          showMessage('error', 'API Key Invalid. Please check your key.');
+                        }
+                      } catch {
+                        showMessage('error', 'API Key Test Failed');
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Required for AI article writing, chat assistant, and content tools.
+              </p>
+            </div>
+
+              {/* Status Badge */}
+              <div className={`flex items-center gap-2 p-3 rounded-lg ${settings.geminiApiKey ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+                <Badge variant={settings.geminiApiKey ? 'default' : 'secondary'} className={settings.geminiApiKey ? 'bg-green-600' : 'bg-amber-600'}>
+                  {settings.geminiApiKey ? 'Configured' : 'Not Configured'}
+                </Badge>
+                <span className={`text-sm ${settings.geminiApiKey ? 'text-green-700' : 'text-amber-700'}`}>
+                  {settings.geminiApiKey ? 'AI features are ready' : 'AI features disabled'}
+                </span>
+              </div>
+
+              {/* Model Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="geminiModel">Default Model</Label>
+                  <select
+                    id="geminiModel"
+                    value={settings.geminiModel || 'gemini-2.5-flash'}
+                    onChange={(e) => setSettings({ ...settings, geminiModel: e.target.value })}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast)</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (Balanced)</option>
+                    <option value="gemini-pro">Gemini Pro (Most capable)</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ttsVoice">Text-to-Speech Voice</Label>
+                  <select
+                    id="ttsVoice"
+                    value={settings.ttsVoice || 'en-US-Neural2-F'}
+                    onChange={(e) => setSettings({ ...settings, ttsVoice: e.target.value })}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <optgroup label="Female Voices">
+                      <option value="en-US-Neural2-F">Neural2-F (Warm)</option>
+                      <option value="en-US-Neural2-C">Neural2-C (Clear)</option>
+                      <option value="en-US-Neural2-E">Neural2-E (Expressive)</option>
+                    </optgroup>
+                    <optgroup label="Male Voices">
+                      <option value="en-US-Neural2-A">Neural2-A (Deep)</option>
+                      <option value="en-US-Neural2-D">Neural2-D (Friendly)</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              {/* Free Tier Info */}
+              <Card className="bg-green-50/50 border-green-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-green-900">Free Tier Limits</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
+                    <li>15 requests per minute</li>
+                    <li>1,500 requests per day</li>
+                    <li>1 million tokens per day</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Weather Tab */}
+        <TabsContent value="weather" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-cyan-100 rounded-lg">
+                  <Cloud className="text-cyan-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>OpenWeatherMap API</CardTitle>
+                  <CardDescription>
+                    Provides real-time weather data for your location.{' '}
+                    <a href="https://openweathermap.org/api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your free API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key */}
+              <div className="space-y-2">
+                <Label htmlFor="weatherKey">API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="weatherKey"
+                    type="password"
+                    value={settings.weatherApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, weatherApiKey: e.target.value })}
+                    placeholder="Enter your OpenWeatherMap API key"
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.weatherApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=London&units=imperial&appid=${settings.weatherApiKey}`);
+                        if (response.ok) {
+                          showMessage('success', 'API Key Valid! Weather widget will now work.');
+                        } else {
+                          showMessage('error', 'API Key Invalid. Please check your key.');
+                        }
+                      } catch {
+                        showMessage('error', 'Connection failed. Check your API key.');
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+              </div>
+
+              {/* Default Location */}
+              <div className="space-y-2">
+                <Label htmlFor="defaultLocation">Default Location</Label>
+                <Input
+                  id="defaultLocation"
+                  value={settings.defaultLocation || 'Asheville, NC'}
+                  onChange={(e) => setSettings({ ...settings, defaultLocation: e.target.value })}
+                  placeholder="City, State or Coordinates"
+                />
+                <p className="text-sm text-muted-foreground">Fallback location when geolocation is unavailable.</p>
+              </div>
+
+              {/* Free Tier Info */}
+              <Card className="bg-cyan-50/50 border-cyan-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-cyan-900">Free Tier</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm text-cyan-800 space-y-1 list-disc list-inside">
+                    <li>1,000 API calls per day</li>
+                    <li>60 calls per minute</li>
+                    <li>Perfect for local news sites</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <DollarSign className="text-purple-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>Payment Processor Integration</CardTitle>
+                  <CardDescription>
+                    Configure Stripe, PayPal, or other payment systems for subscriptions and business listings.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted/50 border rounded-lg p-8 text-center">
+                <DollarSign className="mx-auto text-muted-foreground mb-3" size={48} />
+                <p className="text-muted-foreground font-medium mb-1">Payment integrations coming soon</p>
+                <p className="text-sm text-muted-foreground">Stripe, PayPal, and other payment processors will be available in a future update.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* API Security Best Practices */}
+      <Card className="bg-purple-50/50 border-purple-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-purple-900">
+            <Info size={18} /> API Security Best Practices
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="text-sm text-purple-800 space-y-2 list-disc list-inside">
+            <li><strong>Store Keys Securely:</strong> All API keys are saved securely to your database.</li>
+            <li><strong>Use Environment Variables:</strong> For production, configure API keys in your <code className="bg-white px-1 py-0.5 rounded">.env</code> file.</li>
+            <li><strong>Monitor Usage:</strong> Check your API provider dashboards regularly.</li>
+            <li><strong>Rotate Keys:</strong> Periodically regenerate API keys for security.</li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 
@@ -1900,43 +2240,37 @@ Return ONLY the article body text, no title or metadata.`;
 
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-serif font-bold text-gray-900">Roles & Permissions</h2>
-            <p className="text-gray-500">Configure what each user role can do in the system</p>
+            <h1 className="text-3xl font-bold tracking-tight">Roles & Permissions</h1>
+            <p className="text-muted-foreground">Configure what each user role can do in the system</p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleResetRolePermissions}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium flex items-center gap-2"
-            >
-              <RefreshCw size={16} /> Reset to Defaults
-            </button>
-            <button
-              onClick={handleSaveRolePermissions}
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 disabled:opacity-50"
-            >
-              {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+            <Button variant="outline" onClick={handleResetRolePermissions}>
+              <RefreshCw size={16} className="mr-2" /> Reset to Defaults
+            </Button>
+            <Button onClick={handleSaveRolePermissions} disabled={saving}>
+              {saving ? <RefreshCw size={16} className="animate-spin mr-2" /> : <Save size={16} className="mr-2" />}
               Save Changes
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Role Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {roles.map(role => (
-            <div key={role} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+            <Card key={role} className="overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-gray-900">{ROLE_LABELS[role]}</h3>
-                    <p className="text-xs text-gray-500">{ROLE_DESCRIPTIONS[role]}</p>
+                    <CardTitle className="text-base">{ROLE_LABELS[role]}</CardTitle>
+                    <CardDescription className="text-xs">{ROLE_DESCRIPTIONS[role]}</CardDescription>
                   </div>
                   <Shield className="text-blue-600" size={20} />
                 </div>
-              </div>
-              <div className="p-4 max-h-80 overflow-y-auto">
+              </CardHeader>
+              <CardContent className="p-4 max-h-80 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-2">
                   {permissionKeys.map(permKey => {
                     const value = customRolePermissions[role][permKey];
@@ -1944,52 +2278,56 @@ Return ONLY the article body text, no title or metadata.`;
                     const isPartial = value === 'own';
 
                     return (
-                      <button
+                      <Button
                         key={permKey}
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleTogglePermission(role, permKey)}
-                        className={`flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors ${
+                        className={`justify-between h-auto py-2 px-3 text-xs font-medium ${
                           isEnabled
-                            ? 'bg-green-100 text-green-800 border border-green-200'
+                            ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                             : isPartial
-                            ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                            : 'bg-gray-100 text-gray-500 border border-gray-200'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
                         }`}
                       >
                         <span className="truncate pr-2">{PERMISSION_LABELS[permKey]}</span>
                         {isEnabled ? (
                           <CheckCircle size={14} className="flex-shrink-0" />
                         ) : isPartial ? (
-                          <span className="text-[10px]">OWN</span>
+                          <Badge variant="secondary" className="text-[10px] px-1 h-4">OWN</Badge>
                         ) : (
                           <X size={14} className="flex-shrink-0" />
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
         {/* Legend */}
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <h4 className="font-bold text-sm text-gray-700 mb-2">Legend</h4>
-          <div className="flex gap-6 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-green-100 border border-green-200 rounded"></span>
-              <span>Full Permission</span>
+        <Card className="bg-muted/30">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-8">
+              <span className="font-medium text-sm">Legend:</span>
+              <div className="flex items-center gap-2">
+                <span className="w-4 h-4 bg-green-100 border border-green-200 rounded"></span>
+                <span className="text-sm">Full Permission</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded"></span>
+                <span className="text-sm">Own Content Only</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-4 h-4 bg-muted border rounded"></span>
+                <span className="text-sm">No Permission</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded"></span>
-              <span>Own Content Only</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-gray-100 border border-gray-200 rounded"></span>
-              <span>No Permission</span>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     );
   };
@@ -2005,172 +2343,182 @@ Return ONLY the article body text, no title or metadata.`;
       return (
         <div className="h-full flex flex-col overflow-hidden">
           {/* Agent Header */}
-          <div className="bg-white border-b border-slate-200 px-8 py-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-slate-100 rounded-xl">
-                  {getAgentIcon(agentKey)}
+          <Card className="rounded-none border-x-0 border-t-0">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-primary/10 rounded-xl">
+                    {getAgentIcon(agentKey)}
+                  </div>
+                  <div>
+                    <CardTitle className="text-2xl">{agentData.label}</CardTitle>
+                    <CardDescription className="mt-1 max-w-2xl">{agentData.instruction}</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-2xl font-semibold text-slate-900">{agentData.label}</h1>
-                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">{agentData.instruction}</p>
-                </div>
+                <Button
+                  onClick={() => setAgentArticle({
+                    id: '',
+                    title: '',
+                    slug: '',
+                    excerpt: '',
+                    category: 'News',
+                    author: currentUser?.displayName || 'Staff',
+                    publishedAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
+                    imageUrl: '',
+                    featuredImage: '',
+                    content: '',
+                    status: 'draft'
+                  })}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Plus size={18} className="mr-2" /> New Article
+                </Button>
               </div>
-              <button
-                onClick={() => setAgentArticle({
-                  id: '',
-                  title: '',
-                  slug: '',
-                  excerpt: '',
-                  category: 'News',
-                  author: currentUser?.displayName || 'Staff',
-                  publishedAt: new Date().toISOString(),
-                  createdAt: new Date().toISOString(),
-                  imageUrl: '',
-                  featuredImage: '',
-                  content: '',
-                  status: 'draft'
-                })}
-                className="px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
-              >
-                <Plus size={18} /> New Article
-              </button>
-            </div>
-          </div>
+            </CardHeader>
+          </Card>
 
           {/* Main Content: Chat + Tool Panels */}
           <div className="flex-grow flex gap-6 p-6 overflow-hidden">
             {/* Chat Panel */}
-            <div className="flex-grow bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-              <div className="flex-grow p-6 overflow-y-auto space-y-4">
-                {chatHistory.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] p-5 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 shadow-sm border border-slate-200'}`}>
-                      {msg.role === 'user' ? (
-                        <div className="leading-relaxed">{msg.text}</div>
-                      ) : (
-                        <div dangerouslySetInnerHTML={{ __html: formatAiResponse(msg.text) }} className="prose prose-sm max-w-none" />
-                      )}
+            <Card className="flex-grow flex flex-col overflow-hidden">
+              <ScrollArea className="flex-grow p-6">
+                <div className="space-y-4">
+                  {chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] p-4 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                        {msg.role === 'user' ? (
+                          <div className="leading-relaxed">{msg.text}</div>
+                        ) : (
+                          <div dangerouslySetInnerHTML={{ __html: formatAiResponse(msg.text) }} className="prose prose-sm max-w-none" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {isChatLoading && (
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <RefreshCw size={14} className="animate-spin" />
-                    <span>Thinking...</span>
-                  </div>
-                )}
-              </div>
-              <div className="p-5 border-t border-slate-200 bg-slate-50">
+                  ))}
+                  {isChatLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Thinking...</span>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+              <div className="p-4 border-t bg-muted/30">
                 <div className="flex gap-3">
-                  <input
+                  <Input
                     value={chatInput}
                     onChange={e => setChatInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAiChat()}
                     placeholder="Type your message..."
-                    className="flex-grow border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200"
+                    className="flex-grow"
                   />
-                  <button
+                  <Button
                     onClick={handleAiChat}
                     disabled={isChatLoading}
-                    className="bg-slate-900 text-white px-5 py-3 rounded-xl hover:bg-slate-800 transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
                   >
                     <MessageSquare size={18}/>
-                  </button>
+                  </Button>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {/* Right Sidebar: Agent-Specific Tools */}
             <div className="w-[420px] flex flex-col gap-4 overflow-y-auto pr-2">
               {/* MASTER Agent Tools */}
               {activeTab === 'MASTER' && (
                 <>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                      <Terminal size={18} className="text-slate-600" /> Editor-in-Chief Tools
-                    </h3>
-                    <div className="space-y-3">
-                      <button onClick={handleBroadcastDirective} className="w-full py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 transition-all duration-200 flex items-center justify-center gap-2">
-                        <Sparkles size={16} /> Broadcast Directives
-                      </button>
-                      <button onClick={handleReviewCalendar} className="w-full py-3 bg-slate-100 text-slate-900 font-medium rounded-xl hover:bg-slate-200 transition-all duration-200">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Terminal size={18} className="text-muted-foreground" /> Editor-in-Chief Tools
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button onClick={handleBroadcastDirective} className="w-full">
+                        <Sparkles size={16} className="mr-2" /> Broadcast Directives
+                      </Button>
+                      <Button variant="secondary" onClick={handleReviewCalendar} className="w-full">
                         Review Editorial Calendar
-                      </button>
-                      <button onClick={handleApprovePublication} className="w-full py-3 bg-slate-100 text-slate-900 font-medium rounded-xl hover:bg-slate-200 transition-all duration-200">
+                      </Button>
+                      <Button variant="secondary" onClick={handleApprovePublication} className="w-full">
                         Approve for Publication
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-                    <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Current Queue</h4>
-                    <div className="space-y-2 text-sm">
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Queue</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-700">Articles in Review</span>
-                        <span className="font-semibold text-slate-900">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</span>
+                        <span className="text-muted-foreground">Articles in Review</span>
+                        <Badge variant="secondary">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</Badge>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-700">Ready to Publish</span>
-                        <span className="font-semibold text-emerald-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</span>
+                        <span className="text-muted-foreground">Ready to Publish</span>
+                        <Badge className="bg-emerald-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</Badge>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </>
               )}
 
               {/* JOURNALIST Agent Tools */}
               {activeTab === 'JOURNALIST' && (
                 <>
-                  <div className="bg-gradient-to-r from-emerald-600 to-blue-600 rounded-xl shadow-md p-4 mb-4">
-                    <button
-                      onClick={() => {
-                        const newArticle: Article = {
-                          id: 'article-' + Date.now(),
-                          title: '',
-                          slug: '',
-                          excerpt: '',
-                          category: 'News',
-                          author: currentUser?.displayName || 'Staff',
-                          publishedAt: new Date().toISOString(),
-                          createdAt: new Date().toISOString(),
-                          imageUrl: '',
-                          featuredImage: '',
-                          content: '',
-                          status: 'draft'
-                        };
-                        setAgentArticle(newArticle);
-                        setAgentTab('settings');
-                      }}
-                      className="w-full py-3 bg-white text-slate-900 font-bold rounded-lg hover:bg-slate-50 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <Sparkles size={18} className="text-emerald-600" /> Create New Article
-                    </button>
-                    <p className="text-xs text-white mt-2 text-center opacity-90">Use AI to generate ideas or write manually</p>
-                  </div>
+                  <Card className="bg-gradient-to-r from-emerald-600 to-blue-600 border-0">
+                    <CardContent className="pt-6">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          const newArticle: Article = {
+                            id: 'article-' + Date.now(),
+                            title: '',
+                            slug: '',
+                            excerpt: '',
+                            category: 'News',
+                            author: currentUser?.displayName || 'Staff',
+                            publishedAt: new Date().toISOString(),
+                            createdAt: new Date().toISOString(),
+                            imageUrl: '',
+                            featuredImage: '',
+                            content: '',
+                            status: 'draft'
+                          };
+                          setAgentArticle(newArticle);
+                          setAgentTab('settings');
+                        }}
+                        className="w-full bg-white text-primary hover:bg-white/90"
+                      >
+                        <Sparkles size={18} className="mr-2 text-emerald-600" /> Create New Article
+                      </Button>
+                      <p className="text-xs text-white/90 mt-2 text-center">Use AI to generate ideas or write manually</p>
+                    </CardContent>
+                  </Card>
 
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-5 py-4 border-b border-slate-200">
-                      <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                        <FileText size={16} className="text-slate-600" /> Submit Draft
-                      </h3>
-                    </div>
-                    <div className="p-5 space-y-4">
+                  <Card>
+                    <CardHeader className="bg-muted/50 pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText size={16} className="text-muted-foreground" /> Submit Draft
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4">
                       {articles.filter(a => a.status?.toLowerCase() === 'draft').length === 0 ? (
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center">
-                          <FileText size={32} className="mx-auto text-slate-400 mb-3" />
-                          <p className="text-sm text-slate-600 mb-2 font-medium">No Draft Articles</p>
-                          <p className="text-xs text-slate-500">Create a draft using the button above.</p>
+                        <div className="bg-muted/50 border rounded-lg p-6 text-center">
+                          <FileText size={32} className="mx-auto text-muted-foreground mb-3" />
+                          <p className="text-sm font-medium mb-1">No Draft Articles</p>
+                          <p className="text-xs text-muted-foreground">Create a draft using the button above.</p>
                         </div>
                       ) : (
                         <>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs">
                               Select Draft Article ({articles.filter(a => a.status?.toLowerCase() === 'draft').length} available)
-                            </label>
+                            </Label>
                             <select
                               value={selectedArticleForAction}
                               onChange={e => setSelectedArticleForAction(e.target.value)}
-                              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 bg-white"
+                              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="">Choose article...</option>
                               {articles.filter(a => a.status?.toLowerCase() === 'draft').map(article => (
@@ -2178,73 +2526,77 @@ Return ONLY the article body text, no title or metadata.`;
                               ))}
                             </select>
                           </div>
-                          <button
+                          <Button
                             onClick={handleSubmitForReview}
                             disabled={!selectedArticleForAction}
-                            className="w-full py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-amber-500 hover:bg-amber-600"
                           >
-                            <ArrowRight size={14} /> Submit for Review
-                          </button>
+                            <ArrowRight size={14} className="mr-2" /> Submit for Review
+                          </Button>
                         </>
                       )}
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 p-5">
-                    <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Your Pipeline</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-white rounded-lg p-3 border border-slate-200">
-                        <div className="text-2xl font-bold text-slate-900">{articles.filter(a => a.status?.toLowerCase() === 'draft').length}</div>
-                        <div className="text-xs text-slate-600 mt-1">Drafts</div>
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your Pipeline</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold">{articles.filter(a => a.status?.toLowerCase() === 'draft').length}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Drafts</div>
+                        </div>
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold text-amber-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</div>
+                          <div className="text-xs text-muted-foreground mt-1">In Review</div>
+                        </div>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-slate-200">
-                        <div className="text-2xl font-bold text-amber-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</div>
-                        <div className="text-xs text-slate-600 mt-1">In Review</div>
-                      </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </>
               )}
 
               {/* EDITOR Agent Tools */}
               {activeTab === 'EDITOR' && (
                 <>
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-5 py-4 border-b border-slate-200">
-                      <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                        <Eye size={16} className="text-slate-600" /> Quick Actions
-                      </h3>
-                    </div>
-                    <div className="p-5 space-y-3">
-                      <button onClick={handleReviewQueue} className="w-full py-2.5 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-all duration-200 flex items-center justify-center gap-2">
-                        <Eye size={14} /> View Review Queue
-                      </button>
-                    </div>
-                  </div>
+                  <Card>
+                    <CardHeader className="bg-muted/50 pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Eye size={16} className="text-muted-foreground" /> Quick Actions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <Button onClick={handleReviewQueue} className="w-full">
+                        <Eye size={14} className="mr-2" /> View Review Queue
+                      </Button>
+                    </CardContent>
+                  </Card>
 
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-5 py-4 border-b border-slate-200">
-                      <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                        <CheckCircle size={16} className="text-slate-600" /> Editorial Review
-                      </h3>
-                    </div>
-                    <div className="p-5 space-y-4">
+                  <Card>
+                    <CardHeader className="bg-muted/50 pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <CheckCircle size={16} className="text-muted-foreground" /> Editorial Review
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4">
                       {articles.filter(a => a.status?.toLowerCase() === 'review').length === 0 ? (
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center">
-                          <Eye size={32} className="mx-auto text-slate-400 mb-3" />
-                          <p className="text-sm text-slate-600 mb-2 font-medium">Review Queue Empty</p>
-                          <p className="text-xs text-slate-500">No articles are currently awaiting review.</p>
+                        <div className="bg-muted/50 border rounded-lg p-6 text-center">
+                          <Eye size={32} className="mx-auto text-muted-foreground mb-3" />
+                          <p className="text-sm font-medium mb-1">Review Queue Empty</p>
+                          <p className="text-xs text-muted-foreground">No articles are currently awaiting review.</p>
                         </div>
                       ) : (
                         <>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs">
                               Select Article to Review ({articles.filter(a => a.status?.toLowerCase() === 'review').length} in queue)
-                            </label>
+                            </Label>
                             <select
                               value={selectedArticleForAction}
                               onChange={e => setSelectedArticleForAction(e.target.value)}
-                              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 bg-white"
+                              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="">Choose article...</option>
                               {articles.filter(a => a.status?.toLowerCase() === 'review').map(article => (
@@ -2254,42 +2606,46 @@ Return ONLY the article body text, no title or metadata.`;
                               ))}
                             </select>
                           </div>
-                          <button
+                          <Button
                             onClick={handleCheckGrammar}
                             disabled={editorAiLoading || !selectedArticleForAction}
-                            className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full"
                           >
                             {workflowAction === 'grammar' ? (
-                              <><RefreshCw size={14} className="animate-spin" /> Reviewing...</>
+                              <><RefreshCw size={14} className="animate-spin mr-2" /> Reviewing...</>
                             ) : (
-                              <><CheckCircle size={14} /> Run Editorial Review</>
+                              <><CheckCircle size={14} className="mr-2" /> Run Editorial Review</>
                             )}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={handleForwardToChief}
                             disabled={!selectedArticleForAction}
-                            className="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700"
                           >
-                            <ArrowRight size={14} /> Approve & Publish
-                          </button>
+                            <ArrowRight size={14} className="mr-2" /> Approve & Publish
+                          </Button>
                         </>
                       )}
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 p-5">
-                    <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Review Queue</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-white rounded-lg p-3 border border-slate-200">
-                        <div className="text-2xl font-bold text-amber-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</div>
-                        <div className="text-xs text-slate-600 mt-1">Pending</div>
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Review Queue</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold text-amber-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Pending</div>
+                        </div>
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold text-emerald-600">{articles.filter(a => a.status?.toLowerCase() === 'published').length}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Published</div>
+                        </div>
                       </div>
-                      <div className="bg-white rounded-lg p-3 border border-slate-200">
-                        <div className="text-2xl font-bold text-emerald-600">{articles.filter(a => a.status?.toLowerCase() === 'published').length}</div>
-                        <div className="text-xs text-slate-600 mt-1">Published</div>
-                      </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </>
               )}
             </div>
@@ -2475,17 +2831,6 @@ Return ONLY the article body text, no title or metadata.`;
               {agentTab === 'settings' && (
                 <div className="space-y-6">
                   <div className="space-y-5">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Category</label>
-                      <select value={agentArticle.category || 'News'} onChange={e => setAgentArticle({...agentArticle, category: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white">
-                        <option value="News">News</option>
-                        <option value="Sports">Sports</option>
-                        <option value="Business">Business</option>
-                        <option value="Entertainment">Entertainment</option>
-                        <option value="Lifestyle">Lifestyle</option>
-                        <option value="Outdoors">Outdoors</option>
-                      </select>
-                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Workflow Status</label>
                       <select value={agentArticle.status || 'draft'} onChange={e => setAgentArticle({...agentArticle, status: e.target.value as 'draft' | 'review' | 'published'})} className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white">
@@ -2885,238 +3230,31 @@ Return ONLY the article body text, no title or metadata.`;
   );
 
   return (
-    <div className="fixed inset-0 bg-gray-100 flex flex-col font-sans text-gray-900">
-      {/* Message Toast */}
-      {message && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
-          message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {message.text}
-        </div>
-      )}
+    <div className="fixed inset-0 bg-background flex flex-col">
+      <Toaster position="top-right" richColors />
 
       {/* Global Header */}
-      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
-        <div className="flex items-center gap-4">
-          {settings.brandingMode === 'logo' && settings.logoUrl ? (
-            <img
-              src={settings.logoUrl}
-              alt={settings.siteName || 'Site Logo'}
-              className="max-h-10 w-auto object-contain"
-            />
-          ) : (
-            <span className="font-serif font-bold text-xl text-gray-800">{settings.siteName || 'WNC Times'}</span>
-          )}
-          <span className="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded font-mono">Newsroom OS v{NEWSROOM_VERSION}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => setActiveTab('settings')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-blue-600 transition-colors" title="Settings">
-            <Settings size={20} />
-          </button>
-          <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition-colors" title="Help">
-            <HelpCircle size={20} />
-          </button>
-          <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition-colors relative" title="Notifications">
-            <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-          <button className="p-2 rounded-lg hover:bg-gray-100 text-blue-500 hover:text-blue-700 transition-colors" title="Messages">
-            <MessageCircle size={20} />
-          </button>
-          <Link href="/" target="_blank" className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-blue-600 transition-colors" title="Open Frontend">
-            <ExternalLink size={20} />
-          </Link>
-
-          <div className="w-px h-8 bg-gray-200 mx-2"></div>
-
-          {/* Avatar with Dropdown */}
-          <div className="relative" ref={profileMenuRef}>
-            <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="relative">
-                <div className="w-10 h-10 bg-blue-600 rounded-full text-white flex items-center justify-center font-bold text-sm border-2 border-gray-200">
-                  {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'A'}
-                </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
-              </div>
-            </button>
-
-            {showProfileMenu && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="font-bold text-gray-900">{currentUser?.displayName || 'Admin'}</p>
-                  <p className="text-xs text-gray-500">{currentUser?.email}</p>
-                </div>
-                <button onClick={() => setActiveTab('settings')} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-                  <Settings size={16} /> Account Settings
-                </button>
-                <div className="border-t border-gray-100 my-2"></div>
-                <button
-                  onClick={() => { setShowProfileMenu(false); signOut(); }}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
-                >
-                  <LogOut size={16} /> Logout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <AdminHeader
+        settings={settings}
+        currentUser={currentUser}
+        onSettingsClick={() => setActiveTab('settings')}
+        onSignOut={signOut}
+        version={NEWSROOM_VERSION}
+      />
 
       <div className="flex flex-grow overflow-hidden">
         {/* Sidebar Navigation */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-          {/* Dashboard Link */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${
-                activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <LayoutDashboard size={16} className="mr-3" /> Admin Dashboard
-            </button>
-          </div>
-
-          {/* AI Workforce Section - TOP */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => toggleMenuSection('ai')}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 hover:text-gray-600 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Sparkles size={12} className="text-purple-500" />
-                AI Workforce
-              </span>
-              <ChevronDown size={14} className={`transform transition-transform ${menuSections.ai ? 'rotate-0' : '-rotate-90'}`} />
-            </button>
-            {menuSections.ai && (
-              <nav className="space-y-1">
-                <button onClick={() => { setActiveTab('MASTER'); setChatHistory([]); }} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'MASTER' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <ShieldAlert size={16} className="mr-3 text-indigo-600" /> Editor-in-Chief
-                </button>
-                <button onClick={() => { setActiveTab('JOURNALIST'); setChatHistory([]); }} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'JOURNALIST' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <PenTool size={16} className="mr-3 text-blue-600" /> Journalist
-                </button>
-                <button onClick={() => { setActiveTab('EDITOR'); setChatHistory([]); }} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'EDITOR' ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <CheckCircle size={16} className="mr-3 text-green-600" /> Editor
-                </button>
-                <button onClick={() => { setActiveTab('SEO'); setChatHistory([]); }} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'SEO' ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Search size={16} className="mr-3 text-purple-600" /> SEO Specialist
-                </button>
-                <button onClick={() => { setActiveTab('SOCIAL'); setChatHistory([]); }} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'SOCIAL' ? 'bg-pink-50 text-pink-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Share2 size={16} className="mr-3 text-pink-600" /> Social Media
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* Content Section - SECOND */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => toggleMenuSection('content')}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 hover:text-gray-600 transition-colors"
-            >
-              <span>Content</span>
-              <ChevronDown size={14} className={`transform transition-transform ${menuSections.content ? 'rotate-0' : '-rotate-90'}`} />
-            </button>
-            {menuSections.content && (
-              <nav className="space-y-1">
-                <button onClick={() => setActiveTab('articles')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'articles' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <FileText size={16} className="mr-3" /> Articles
-                </button>
-                <button onClick={() => setActiveTab('categories')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'categories' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <ListOrdered size={16} className="mr-3" /> Categories
-                </button>
-                <button onClick={() => setActiveTab('media')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'media' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <ImageIcon size={16} className="mr-3" /> Media
-                </button>
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <MessageSquare size={16} className="mr-3" /> Comments
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* Components Section - THIRD */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => toggleMenuSection('components')}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 hover:text-gray-600 transition-colors"
-            >
-              <span>Components</span>
-              <ChevronDown size={14} className={`transform transition-transform ${menuSections.components ? 'rotate-0' : '-rotate-90'}`} />
-            </button>
-            {menuSections.components && (
-              <nav className="space-y-1">
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <Database size={16} className="mr-3" /> Business Directory
-                </button>
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <DollarSign size={16} className="mr-3" /> Advertising
-                </button>
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <FileText size={16} className="mr-3" /> Blog
-                </button>
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <Users size={16} className="mr-3" /> Community
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* Users Section */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => toggleMenuSection('users')}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 hover:text-gray-600 transition-colors"
-            >
-              <span>Users</span>
-              <ChevronDown size={14} className={`transform transition-transform ${menuSections.users ? 'rotate-0' : '-rotate-90'}`} />
-            </button>
-            {menuSections.users && (
-              <nav className="space-y-1">
-                <button onClick={() => setActiveTab('users')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Users size={16} className="mr-3" /> All Users
-                </button>
-                <button onClick={() => setActiveTab('roles')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'roles' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Shield size={16} className="mr-3" /> Roles & Permissions
-                </button>
-                <button className="w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium text-gray-400 cursor-not-allowed">
-                  <UserPlus size={16} className="mr-3" /> Add New User
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* System Settings Section */}
-          <div className="p-4">
-            <button
-              onClick={() => toggleMenuSection('systemSettings')}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 hover:text-gray-600 transition-colors"
-            >
-              <span>System Settings</span>
-              <ChevronDown size={14} className={`transform transition-transform ${menuSections.systemSettings ? 'rotate-0' : '-rotate-90'}`} />
-            </button>
-            {menuSections.systemSettings && (
-              <nav className="space-y-1">
-                <button onClick={() => setActiveTab('settings')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'settings' ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Settings size={16} className="mr-3" /> Site Settings
-                </button>
-                <button onClick={() => setActiveTab('api-config')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'api-config' ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Plug size={16} className="mr-3" /> API Configuration
-                </button>
-                <button onClick={() => setActiveTab('infrastructure')} className={`w-full text-left px-3 py-2 rounded flex items-center text-sm font-medium ${activeTab === 'infrastructure' ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}`}>
-                  <Server size={16} className="mr-3" /> Infrastructure
-                </button>
-              </nav>
-            )}
-          </div>
-        </aside>
+        <AdminSidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          menuSections={menuSections}
+          toggleMenuSection={toggleMenuSection}
+          onClearChat={() => setChatHistory([])}
+        />
 
         {/* Main Content Area */}
-        <main className="flex-grow bg-gray-100 overflow-y-auto">
-          <div className="max-w-[1800px] mx-auto px-6 py-6">
+        <main className="flex-grow bg-muted/30 overflow-y-auto">
+          <div className="max-w-[1800px] mx-auto p-6">
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'articles' && renderArticles()}
             {activeTab === 'users' && renderUsers()}
@@ -3133,22 +3271,24 @@ Return ONLY the article body text, no title or metadata.`;
         {/* Status Modal for AI Generation Progress */}
         {showStatusModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center">
-              <div className="text-6xl mb-4 animate-pulse">
-                {statusModalIcon}
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Creating Article
-              </h3>
-              <p className="text-slate-600 mb-4">
-                {statusModalMessage}
-              </p>
-              <div className="flex justify-center gap-1">
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
-              </div>
-            </div>
+            <Card className="max-w-sm w-full mx-4 text-center">
+              <CardContent className="pt-6">
+                <div className="text-6xl mb-4 animate-pulse">
+                  {statusModalIcon}
+                </div>
+                <h3 className="text-lg font-semibold mb-2">
+                  Creating Article
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  {statusModalMessage}
+                </p>
+                <div className="flex justify-center gap-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

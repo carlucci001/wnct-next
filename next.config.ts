@@ -15,10 +15,8 @@ const nextConfig: NextConfig = {
     ],
     unoptimized: true,  // Bypass Next.js image optimization - load directly from source
   },
-  // Temporarily disabled turbopack due to crash
-  // turbopack: {
-  //   root: 'c:/dev/wnct-next',
-  // },
+  // Don't bundle firebase-admin (fixes Turbopack symlink issue on Windows)
+  serverExternalPackages: ['firebase-admin'],
 };
 
 export default nextConfig;

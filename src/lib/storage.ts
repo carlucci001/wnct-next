@@ -125,12 +125,48 @@ export const storageService = {
 
     try {
       console.log('[Storage] Fetching image from URL to persist...');
-      const sourceResponse = await fetch(sourceUrl);
-      if (!sourceResponse.ok) throw new Error("Failed to fetch source image");
-      const blob = await sourceResponse.blob();
+
+      let blob: Blob;
+      let contentType = 'image/png';
+
+      // Use server-side proxy to bypass CORS for external URLs
+      try {
+        console.log('[Storage] Using proxy API to fetch external image...');
+        const proxyResponse = await fetch('/api/proxy-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: sourceUrl })
+        });
+
+        if (proxyResponse.ok) {
+          const proxyData = await proxyResponse.json();
+          if (proxyData.success && proxyData.dataUrl) {
+            // Convert data URL back to blob
+            const base64Data = proxyData.dataUrl.split(',')[1];
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            blob = new Blob([bytes], { type: proxyData.contentType });
+            contentType = proxyData.contentType;
+            console.log('[Storage] Proxy fetch successful, size:', proxyData.size);
+          } else {
+            throw new Error(proxyData.error || 'Proxy returned invalid data');
+          }
+        } else {
+          throw new Error(`Proxy request failed: ${proxyResponse.status}`);
+        }
+      } catch (proxyError) {
+        console.warn('[Storage] Proxy fetch failed, trying direct fetch:', proxyError);
+        // Fallback to direct fetch (may fail due to CORS)
+        const sourceResponse = await fetch(sourceUrl);
+        if (!sourceResponse.ok) throw new Error("Failed to fetch source image");
+        blob = await sourceResponse.blob();
+        contentType = blob.type || 'image/png';
+      }
 
       // Determine file extension from content type
-      const contentType = blob.type || 'image/png';
       const extension = contentType.split('/')[1] || 'png';
       const fileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
 

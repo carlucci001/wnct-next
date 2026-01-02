@@ -148,6 +148,147 @@ export async function getAllArticles(): Promise<Article[]> {
 }
 
 /**
+ * Search parameters for advanced search
+ */
+export interface SearchParams {
+  query: string;
+  category?: string;
+  author?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: 'relevance' | 'date' | 'title';
+}
+
+/**
+ * Search articles by query string and optional filters
+ */
+export async function searchArticles(params: SearchParams): Promise<Article[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const searchTerms = params.query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+
+    let results = querySnapshot.docs
+      .map(convertDocToArticle)
+      .filter(article => {
+        // Only search published articles
+        if (!isPublished(article.status)) return false;
+
+        // Text search across title, content, excerpt, author, tags
+        if (searchTerms.length > 0) {
+          const searchableText = [
+            article.title,
+            article.content,
+            article.excerpt,
+            article.author,
+            ...(article.tags || [])
+          ].join(' ').toLowerCase();
+
+          // All search terms must match
+          const matchesQuery = searchTerms.every(term => searchableText.includes(term));
+          if (!matchesQuery) return false;
+        }
+
+        // Category filter
+        if (params.category && article.category.toLowerCase() !== params.category.toLowerCase()) {
+          return false;
+        }
+
+        // Author filter
+        if (params.author && !article.author.toLowerCase().includes(params.author.toLowerCase())) {
+          return false;
+        }
+
+        // Date range filter
+        const articleDate = getSortDate(article);
+        if (params.dateFrom) {
+          const fromDate = new Date(params.dateFrom).getTime();
+          if (articleDate < fromDate) return false;
+        }
+        if (params.dateTo) {
+          const toDate = new Date(params.dateTo).getTime() + 86400000; // Include end date
+          if (articleDate > toDate) return false;
+        }
+
+        return true;
+      });
+
+    // Sort results
+    if (params.sortBy === 'title') {
+      results.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (params.sortBy === 'relevance' && searchTerms.length > 0) {
+      // Score by number of term matches in title (weighted higher) vs content
+      results.sort((a, b) => {
+        const scoreA = searchTerms.reduce((score, term) => {
+          return score +
+            (a.title.toLowerCase().includes(term) ? 10 : 0) +
+            ((a.excerpt || '').toLowerCase().includes(term) ? 3 : 0) +
+            ((a.content || '').toLowerCase().includes(term) ? 1 : 0);
+        }, 0);
+        const scoreB = searchTerms.reduce((score, term) => {
+          return score +
+            (b.title.toLowerCase().includes(term) ? 10 : 0) +
+            ((b.excerpt || '').toLowerCase().includes(term) ? 3 : 0) +
+            ((b.content || '').toLowerCase().includes(term) ? 1 : 0);
+        }, 0);
+        return scoreB - scoreA;
+      });
+    } else {
+      // Default: sort by date
+      results.sort((a, b) => getSortDate(b) - getSortDate(a));
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error searching articles:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all unique categories from published articles
+ */
+export async function getCategories(): Promise<string[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const categories = new Set<string>();
+
+    querySnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (isPublished(data.status) && data.category) {
+        categories.add(data.category);
+      }
+    });
+
+    return Array.from(categories).sort();
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all unique authors from published articles
+ */
+export async function getAuthors(): Promise<string[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const authors = new Set<string>();
+
+    querySnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (isPublished(data.status) && data.author) {
+        authors.add(data.author);
+      }
+    });
+
+    return Array.from(authors).sort();
+  } catch (error) {
+    console.error('Error fetching authors:', error);
+    return [];
+  }
+}
+
+/**
  * Delete an article by ID
  */
 export async function deleteArticle(id: string): Promise<boolean> {
@@ -162,17 +303,45 @@ export async function deleteArticle(id: string): Promise<boolean> {
 
 /**
  * Format and clean up HTML content for an article
+ * Converts plain text with line breaks to proper HTML paragraphs
  * Removes empty tags, excessive whitespace, and normalizes structure
  */
 export function formatArticleContent(html: string): string {
   if (!html) return '';
 
-  let formatted = html;
+  let formatted = html.trim();
+
+  // Check if content is mostly plain text (no block-level HTML tags)
+  const hasBlockTags = /<(p|div|h[1-6]|ul|ol|li|blockquote|pre|table|article|section)[^>]*>/i.test(formatted);
+
+  if (!hasBlockTags) {
+    // Content is plain text - convert line breaks to paragraphs
+    // First, normalize line endings
+    formatted = formatted.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Split by double newlines (paragraph breaks)
+    const paragraphs = formatted.split(/\n\n+/).filter(p => p.trim());
+
+    if (paragraphs.length > 0) {
+      // Convert each paragraph, preserving single line breaks as <br>
+      formatted = paragraphs.map(p => {
+        // Replace single newlines with <br> within paragraphs
+        const withBreaks = p.trim().replace(/\n/g, '<br>');
+        return `<p>${withBreaks}</p>`;
+      }).join('\n');
+    } else if (formatted.length > 0) {
+      // Single block of text
+      formatted = `<p>${formatted.replace(/\n/g, '<br>')}</p>`;
+    }
+  }
+
+  // Now clean up the HTML
 
   // Remove empty paragraphs and divs
   formatted = formatted.replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '');
   formatted = formatted.replace(/<p>\s*&nbsp;\s*<\/p>/gi, '');
   formatted = formatted.replace(/<p><\/p>/gi, '');
+  formatted = formatted.replace(/<p>\s*<\/p>/gi, '');
   formatted = formatted.replace(/<div>\s*<br\s*\/?>\s*<\/div>/gi, '');
   formatted = formatted.replace(/<div><\/div>/gi, '');
 
@@ -185,36 +354,19 @@ export function formatArticleContent(html: string): string {
 
   // Clean up multiple &nbsp;
   formatted = formatted.replace(/&nbsp;(&nbsp;)+/gi, ' ');
-  formatted = formatted.replace(/&nbsp;/gi, ' ');
 
-  // Remove problematic inline styles
+  // Remove problematic inline styles that break formatting
   formatted = formatted.replace(/\s*style="[^"]*font-family:[^"]*"/gi, '');
   formatted = formatted.replace(/\s*style="[^"]*background-color:\s*transparent[^"]*"/gi, '');
-  formatted = formatted.replace(/\s*style="[^"]*color:\s*rgb\([^)]+\)[^"]*"/gi, '');
 
   // Remove class attributes from common tags (often garbage from pasting)
   formatted = formatted.replace(/<(p|div|span)([^>]*)\s+class="[^"]*"([^>]*)>/gi, '<$1$2$3>');
 
-  // Wrap loose text in paragraphs (text not inside any tag)
-  // This is tricky - we'll skip it for safety
-
-  // Clean up whitespace between tags
-  formatted = formatted.replace(/>\s+</g, '><');
-
-  // Add proper spacing back for readability
-  formatted = formatted.replace(/<\/p><p>/g, '</p>\n<p>');
-  formatted = formatted.replace(/<\/h([1-6])><([hp])/g, '</h$1>\n<$2');
-  formatted = formatted.replace(/<\/blockquote><([hp])/g, '</blockquote>\n<$1');
-  formatted = formatted.replace(/<\/ul><([hp])/g, '</ul>\n<$1');
-  formatted = formatted.replace(/<\/ol><([hp])/g, '</ol>\n<$1');
+  // Clean up extra whitespace but preserve structure
+  formatted = formatted.replace(/>\s+</g, '>\n<');
 
   // Remove leading/trailing whitespace
   formatted = formatted.trim();
-
-  // If content is just plain text (no HTML tags), wrap in paragraph
-  if (!/<[^>]+>/.test(formatted) && formatted.length > 0) {
-    formatted = `<p>${formatted}</p>`;
-  }
 
   return formatted;
 }

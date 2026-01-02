@@ -1,5 +1,5 @@
 import React from 'react';
-import { classNames } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface ErrorProps {
   message?: string;
@@ -10,7 +10,7 @@ interface ErrorProps {
 export default function Error({ message = 'Something went wrong', className, retry }: ErrorProps) {
   return (
     <div
-      className={classNames(
+      className={cn(
         'flex flex-col items-center justify-center p-4 rounded-lg bg-red-50 border border-red-200 text-red-700',
         className
       )}
