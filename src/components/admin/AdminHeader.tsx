@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Settings, HelpCircle, Bell, MessageCircle, ExternalLink, LogOut } from 'lucide-react';
+import { Settings, HelpCircle, Bell, MessageCircle, ExternalLink, LogOut, Sun, Moon, Palette, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -12,7 +12,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +50,8 @@ export function AdminHeader({
   onSignOut,
   version
 }: AdminHeaderProps) {
+  const { theme, setTheme, colorMode, toggleColorMode, availableThemes } = useTheme();
+
   return (
     <TooltipProvider>
       <header className="h-16 border-b bg-card flex items-center justify-between px-6 shrink-0">
@@ -140,6 +147,41 @@ export function AdminHeader({
                 <Settings className="mr-2 h-4 w-4" />
                 Account Settings
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={toggleColorMode}>
+                {colorMode === 'light' ? (
+                  <Moon className="mr-2 h-4 w-4" />
+                ) : (
+                  <Sun className="mr-2 h-4 w-4" />
+                )}
+                {colorMode === 'light' ? 'Dark Mode' : 'Light Mode'}
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Palette className="mr-2 h-4 w-4" />
+                  Color Theme
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="w-48">
+                    {availableThemes.map((t) => (
+                      <DropdownMenuItem
+                        key={t.name}
+                        onClick={() => setTheme(t.name)}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full border"
+                            style={{ backgroundColor: t.preview.primary }}
+                          />
+                          {t.label}
+                        </span>
+                        {theme === t.name && <Check className="h-4 w-4" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />

@@ -4,12 +4,14 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, Search, SlidersHorizontal } from "lucide-react";
+import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, Search, SlidersHorizontal, Palette, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import WeatherWidget from "./WeatherWidget";
 import BreakingNews from "./BreakingNews";
+import ThemeSelector from "./ThemeSelector";
 
 // Header banner ad
 const BANNER_IMAGE = "/banners/farrington-banner.png";
@@ -46,11 +48,12 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [theme, setTheme] = useState("light");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
+  const { colorMode, toggleColorMode } = useTheme();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -118,10 +121,6 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   };
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
-
-  useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
     };
@@ -159,8 +158,8 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
             </nav>
 
             <div className="flex items-center space-x-3 pl-4 border-l border-gray-700">
-              <button onClick={() => setTheme(t => t === "light" ? "dark" : "light")} className="hover:text-white">
-                {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+              <button onClick={toggleColorMode} className="hover:text-white" title={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+                {colorMode === "light" ? <Moon size={14} /> : <Sun size={14} />}
               </button>
 
               <div className="relative" ref={menuRef}>
@@ -177,15 +176,31 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                 )}
 
                 {userMenuOpen && currentUser && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded shadow-xl border overflow-hidden z-50">
-                    <div className="px-4 py-3 border-b">
-                      <p className="text-xs text-gray-500">Signed in as</p>
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border overflow-hidden z-50">
+                    <div className="px-4 py-3 border-b dark:border-slate-700">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Signed in as</p>
                       <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{currentUser.email}</p>
                     </div>
                     <Link href="/admin" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
                       <LayoutDashboard size={14} className="mr-2 text-blue-600" /> Admin Panel
                     </Link>
-                    <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 flex items-center hover:bg-red-50 border-t">
+                    <div className="border-t dark:border-slate-700">
+                      <button
+                        onClick={() => setThemeMenuOpen(!themeMenuOpen)}
+                        className="w-full px-4 py-2 text-sm flex items-center justify-between hover:bg-gray-100 dark:hover:bg-slate-700"
+                      >
+                        <span className="flex items-center">
+                          <Palette size={14} className="mr-2 text-purple-600" /> Color Theme
+                        </span>
+                        <ChevronRight size={14} className={`transition-transform ${themeMenuOpen ? 'rotate-90' : ''}`} />
+                      </button>
+                      {themeMenuOpen && (
+                        <div className="px-2 py-2 bg-gray-50 dark:bg-slate-900 border-t dark:border-slate-700">
+                          <ThemeSelector variant="dropdown" showLabel={false} />
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 flex items-center hover:bg-red-50 dark:hover:bg-red-900/20 border-t dark:border-slate-700">
                       <LogOut size={14} className="mr-2" /> Sign Out
                     </button>
                   </div>
