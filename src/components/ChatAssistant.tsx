@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface Message {
   id: string;
@@ -18,20 +19,22 @@ const ChatAssistant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [primaryColor, setPrimaryColor] = useState('#1d4ed8');
   const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your WNC Times assistant. Ask me about local news, find articles, or get help navigating the site.");
+
+  // Get theme colors from context
+  const { currentTheme, colorMode } = useTheme();
+  const primaryColor = colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Load UI settings (theme, welcome message)
+  // Load UI settings (welcome message)
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
-          if (data.primaryColor) setPrimaryColor(data.primaryColor);
           if (data.chatWelcomeMessage) setWelcomeMessage(data.chatWelcomeMessage);
         }
       } catch (error) {
@@ -40,7 +43,6 @@ const ChatAssistant: React.FC = () => {
         if (savedSettings) {
           try {
             const parsed = JSON.parse(savedSettings);
-            if (parsed.primaryColor) setPrimaryColor(parsed.primaryColor);
             if (parsed.chatWelcomeMessage) setWelcomeMessage(parsed.chatWelcomeMessage);
           } catch (e) {
             console.error("Error parsing localStorage settings", e);
