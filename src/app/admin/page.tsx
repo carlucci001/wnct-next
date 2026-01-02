@@ -20,6 +20,18 @@ import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
 import { batchFormatArticles, batchMigrateImages, formatArticleContent } from '@/lib/articles';
+import dynamic from 'next/dynamic';
+
+// Dynamically import RichTextEditor to avoid SSR issues
+const RichTextEditor = dynamic(() => import('@/components/admin/RichTextEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="border border-slate-200 rounded-xl p-4 min-h-[400px] bg-slate-50 animate-pulse">
+      <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+      <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+    </div>
+  ),
+});
 
 // shadcn/ui components
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
@@ -174,8 +186,15 @@ export default function AdminDashboard() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // Categories and Media states
-  const [categories, setCategories] = useState<CategoryData[]>([]);
+  // Categories and Media states - initialize with defaults since they're not loaded from Firestore yet
+  const [categories, setCategories] = useState<CategoryData[]>([
+    { id: 'cat-news', name: 'News', slug: 'news', count: 0, color: '#2563eb' },
+    { id: 'cat-sports', name: 'Sports', slug: 'sports', count: 0, color: '#dc2626' },
+    { id: 'cat-business', name: 'Business', slug: 'business', count: 0, color: '#059669' },
+    { id: 'cat-entertainment', name: 'Entertainment', slug: 'entertainment', count: 0, color: '#7c3aed' },
+    { id: 'cat-lifestyle', name: 'Lifestyle', slug: 'lifestyle', count: 0, color: '#db2777' },
+    { id: 'cat-outdoors', name: 'Outdoors', slug: 'outdoors', count: 0, color: '#16a34a' },
+  ]);
   const [media, setMedia] = useState<MediaFile[]>([]);
   const [currentFolder, setCurrentFolder] = useState<string>('/');
   const [mediaSearch, setMediaSearch] = useState('');
@@ -490,7 +509,7 @@ export default function AdminDashboard() {
 
   // Get article ideas from AI
   const handleGetArticleIdeas = async () => {
-    if (!selectedResearchTopic || !selectedCategory) {
+    if (!selectedResearchTopic || !agentArticle?.category) {
       showMessage('error', 'Please enter a topic and select a category.');
       return;
     }
@@ -506,10 +525,11 @@ export default function AdminDashboard() {
         return;
       }
 
-      const categoryData = categories.find(c => c.id === selectedCategory);
+      // Use article's category directly
+      const categoryName = agentArticle?.category || 'News';
       const context = settings.serviceArea || 'WNC';
 
-      const query = `Based on the topic "${selectedResearchTopic}" for ${context} local news in the ${categoryData?.name || 'News'} category:
+      const query = `Based on the topic "${selectedResearchTopic}" for ${context} local news in the ${categoryName} category:
 
 Generate 4 different article ideas. Each should have:
 - A compelling headline (55-70 characters)
@@ -802,13 +822,14 @@ Return ONLY valid JSON array with no markdown:
       setStatusModalIcon('📝');
       setStatusModalMessage('Compiling article structure...');
 
-      const categoryData = categories.find(c => c.id === selectedCategory);
+      // Use article's category directly
+      const categoryName = agentArticle?.category || 'News';
       const prompt = `Write a professional local news article with this information:
 
 Title: ${suggestion.title}
 Summary: ${suggestion.summary}
 Angle: ${suggestion.angle}
-Category: ${categoryData?.name || 'News'}
+Category: ${categoryName}
 Location: ${settings.serviceArea || 'Western North Carolina'}
 
 Write in AP style, 400-600 words. Include:
@@ -817,7 +838,14 @@ Write in AP style, 400-600 words. Include:
 - Background context
 - Forward-looking closing
 
-Return ONLY the article body text, no title or metadata.`;
+IMPORTANT: Format the output as clean HTML for a rich text editor:
+- Wrap each paragraph in <p> tags
+- Use <h2> for section subheadings (if needed)
+- Use <blockquote> for quotes
+- Use <strong> for emphasis
+- Do NOT include the article title (it's handled separately)
+- Do NOT wrap in <html>, <body>, or <article> tags
+- Return ONLY the HTML content, no markdown, no code blocks`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -831,7 +859,23 @@ Return ONLY the article body text, no title or metadata.`;
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const data = await response.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      let content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      // Clean up AI response - remove markdown code blocks if present
+      content = content
+        .replace(/^```html\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      // If content doesn't have HTML tags, wrap paragraphs
+      if (!content.includes('<p>') && !content.includes('<h')) {
+        content = content
+          .split(/\n\n+/)
+          .filter((p: string) => p.trim())
+          .map((p: string) => `<p>${p.trim()}</p>`)
+          .join('\n');
+      }
 
       // Update status to image generation
       setStatusModalIcon('🖼️');
@@ -881,7 +925,7 @@ Return ONLY the article body text, no title or metadata.`;
         slug: suggestion.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         content,
         excerpt: suggestion.summary,
-        category: categoryData?.name || 'News',
+        category: categoryName,
         author: currentUser?.displayName || 'Staff Writer',
         status: 'draft',
         publishedAt: new Date().toISOString(),
@@ -2795,12 +2839,10 @@ Return ONLY the article body text, no title or metadata.`;
                 {/* Content Editor */}
                 <div className="border-t border-slate-100 pt-10">
                   <label className="block text-sm font-medium text-slate-600 mb-4">Article Content</label>
-                  <textarea
-                    value={agentArticle.content || ''}
-                    onChange={e => setAgentArticle({...agentArticle, content: e.target.value})}
+                  <RichTextEditor
+                    content={agentArticle.content || ''}
+                    onChange={(html) => setAgentArticle({...agentArticle, content: html})}
                     placeholder="Write your story here..."
-                    rows={20}
-                    className="w-full border border-slate-200 rounded-xl p-4 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white text-sm leading-relaxed"
                   />
                 </div>
               </div>
@@ -2843,6 +2885,15 @@ Return ONLY the article body text, no title or metadata.`;
                       <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Author</label>
                       <input value={agentArticle.author || 'Staff'} onChange={e => setAgentArticle({...agentArticle, author: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Category</label>
+                      <select value={agentArticle.category || ''} onChange={e => setAgentArticle({...agentArticle, category: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white">
+                        <option value="">Select category...</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* AI Article Generator */}
@@ -2856,19 +2907,8 @@ Return ONLY the article body text, no title or metadata.`;
                         <label className="block text-xs font-medium text-slate-600 mb-2">Topic *</label>
                         <input type="text" value={selectedResearchTopic} onChange={e => setSelectedResearchTopic(e.target.value)} placeholder="e.g., 'downtown construction project'" className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" onKeyDown={e => e.key === 'Enter' && handleGetArticleIdeas()} />
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-2">Category *</label>
-                        <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white">
-                          <option value="">Select category...</option>
-                          <option value="news">News</option>
-                          <option value="sports">Sports</option>
-                          <option value="business">Business</option>
-                          <option value="entertainment">Entertainment</option>
-                          <option value="lifestyle">Lifestyle</option>
-                          <option value="outdoors">Outdoors</option>
-                        </select>
-                      </div>
-                      <button onClick={handleGetArticleIdeas} disabled={editorAiLoading || !selectedResearchTopic || !selectedCategory} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-emerald-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
+                      <p className="text-xs text-slate-500">Category: <strong>{agentArticle.category || 'Not selected'}</strong> (change above)</p>
+                      <button onClick={handleGetArticleIdeas} disabled={editorAiLoading || !selectedResearchTopic || !agentArticle.category} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-emerald-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
                         {workflowAction === 'research' ? <><RefreshCw size={16} className="animate-spin" /> Generating Ideas...</> : <><Sparkles size={16} /> Get Article Ideas</>}
                       </button>
                     </div>
