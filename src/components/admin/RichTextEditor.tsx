@@ -49,6 +49,7 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: {
