@@ -14,7 +14,7 @@ import {
   ChevronDown, BarChart3, Clock, TrendingUp, Zap, PenTool,
   MessageSquare, UserPlus, ListOrdered, Server, Plug, Shield,
   Sparkles, DollarSign, AlertCircle, Info, Bot, ShieldAlert, Share2,
-  Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight
+  Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
@@ -90,6 +90,16 @@ interface SiteSettings {
   chatSystemPrompt?: string;
   chatWelcomeMessage?: string;
   ttsVoice?: string;
+  // ElevenLabs Settings
+  elevenLabsApiKey?: string;
+  elevenLabsVoiceId?: string;
+  elevenLabsModel?: 'eleven_turbo_v2' | 'eleven_monolingual_v1' | 'eleven_multilingual_v2';
+  elevenLabsStability?: number;
+  elevenLabsSimilarity?: number;
+  elevenLabsStyle?: number;
+  elevenLabsSpeakerBoost?: boolean;
+  elevenLabsStreaming?: boolean;
+  ttsProvider?: 'google' | 'elevenlabs';
 }
 
 interface AppUser {
@@ -224,7 +234,7 @@ export default function AdminDashboard() {
   const [statusModalIcon, setStatusModalIcon] = useState('🔍');
 
   // API Configuration state
-  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'weather' | 'payments'>('openai');
+  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'elevenlabs' | 'weather' | 'payments'>('openai');
 
   // Roles & Permissions state
   const [customRolePermissions, setCustomRolePermissions] = useState<Record<UserRole, UserPermissions>>(ROLE_PERMISSIONS);
@@ -1875,13 +1885,16 @@ IMPORTANT: Format the output as clean HTML for a rich text editor:
       </div>
 
       {/* Tabs Navigation */}
-      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'weather' | 'payments')} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'elevenlabs' | 'weather' | 'payments')} className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="openai" className="flex items-center gap-2">
             <Sparkles size={16} /> OpenAI
           </TabsTrigger>
           <TabsTrigger value="google" className="flex items-center gap-2">
             <Sparkles size={16} /> Google AI
+          </TabsTrigger>
+          <TabsTrigger value="elevenlabs" className="flex items-center gap-2">
+            <Volume2 size={16} /> ElevenLabs
           </TabsTrigger>
           <TabsTrigger value="weather" className="flex items-center gap-2">
             <Cloud size={16} /> Weather
@@ -2140,6 +2153,339 @@ IMPORTANT: Format the output as clean HTML for a rich text editor:
                     <li>1,500 requests per day</li>
                     <li>1 million tokens per day</li>
                   </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ElevenLabs Tab */}
+        <TabsContent value="elevenlabs" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <Volume2 className="text-purple-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>ElevenLabs Text-to-Speech</CardTitle>
+                  <CardDescription>
+                    High-quality AI voice synthesis for chat assistant.{' '}
+                    <a href="https://elevenlabs.io/app/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key Input */}
+              <div className="space-y-2">
+                <Label htmlFor="elevenLabsKey">ElevenLabs API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="elevenLabsKey"
+                    type="password"
+                    value={settings.elevenLabsApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, elevenLabsApiKey: e.target.value })}
+                    placeholder="Enter your ElevenLabs API key..."
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.elevenLabsApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+                          headers: { 'xi-api-key': settings.elevenLabsApiKey }
+                        });
+                        if (response.ok) {
+                          showMessage('success', 'API Key Valid! ElevenLabs is ready.');
+                        } else {
+                          showMessage('error', 'API Key Invalid. Please check your key.');
+                        }
+                      } catch {
+                        showMessage('error', 'API Key Test Failed');
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your API key is stored securely and used only for voice synthesis.
+                </p>
+              </div>
+
+              {/* Voice Presets */}
+              <div className="space-y-2">
+                <Label>Voice Preset</Label>
+                <select
+                  value={settings.elevenLabsVoiceId || ''}
+                  onChange={(e) => setSettings({ ...settings, elevenLabsVoiceId: e.target.value })}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select a voice preset...</option>
+                  <option value="21m00Tcm4TlvDq8ikWAM">Rachel - News Anchor (Professional, clear)</option>
+                  <option value="pNInz6obpgDQGcFmaJgB">Adam - Authoritative (Deep, confident)</option>
+                  <option value="EXAVITQu4vr4xnSDxMaL">Bella - Friendly (Warm, conversational)</option>
+                  <option value="AZnzlk1XvdvUeBnXmlld">Domi - Energetic (Upbeat, engaging)</option>
+                  <option value="MF3mGyEYCl7XYWbV9V6O">Elli - Young Female (Friendly, casual)</option>
+                  <option value="TxGEqnHWrfWFTfGW9XjX">Josh - Young Male (Casual, relatable)</option>
+                  <option value="custom">Custom Voice ID...</option>
+                </select>
+              </div>
+
+              {/* Custom Voice ID (shown when custom selected) */}
+              {settings.elevenLabsVoiceId === 'custom' && (
+                <div className="space-y-2">
+                  <Label htmlFor="customVoiceId">Custom Voice ID</Label>
+                  <Input
+                    id="customVoiceId"
+                    placeholder="Enter your custom voice ID..."
+                    className="font-mono"
+                    onChange={(e) => setSettings({ ...settings, elevenLabsVoiceId: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Find voice IDs in your{' '}
+                    <a href="https://elevenlabs.io/app/voice-library" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      ElevenLabs Voice Library
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              {/* Model Selection */}
+              <div className="space-y-2">
+                <Label>AI Model</Label>
+                <select
+                  value={settings.elevenLabsModel || 'eleven_turbo_v2'}
+                  onChange={(e) => setSettings({ ...settings, elevenLabsModel: e.target.value as 'eleven_turbo_v2' | 'eleven_monolingual_v1' | 'eleven_multilingual_v2' })}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="eleven_turbo_v2">Turbo v2 - Fastest (Recommended for chat)</option>
+                  <option value="eleven_monolingual_v1">Monolingual v1 - English, balanced</option>
+                  <option value="eleven_multilingual_v2">Multilingual v2 - Highest quality</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Turbo v2 is optimized for real-time applications with lowest latency.
+                </p>
+              </div>
+
+              {/* Voice Settings */}
+              <Card className="bg-muted/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Voice Settings</CardTitle>
+                  <CardDescription>Fine-tune the voice characteristics</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Stability Slider */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Stability</Label>
+                      <span className="text-sm text-muted-foreground">{Math.round((settings.elevenLabsStability ?? 0.5) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={settings.elevenLabsStability ?? 0.5}
+                      onChange={(e) => setSettings({ ...settings, elevenLabsStability: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground">Higher = more consistent, Lower = more expressive</p>
+                  </div>
+
+                  {/* Similarity Slider */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Similarity Boost</Label>
+                      <span className="text-sm text-muted-foreground">{Math.round((settings.elevenLabsSimilarity ?? 0.75) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={settings.elevenLabsSimilarity ?? 0.75}
+                      onChange={(e) => setSettings({ ...settings, elevenLabsSimilarity: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground">How closely to match the original voice</p>
+                  </div>
+
+                  {/* Style Slider (v2 models only) */}
+                  {settings.elevenLabsModel === 'eleven_multilingual_v2' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Style</Label>
+                        <span className="text-sm text-muted-foreground">{Math.round((settings.elevenLabsStyle ?? 0) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={settings.elevenLabsStyle ?? 0}
+                        onChange={(e) => setSettings({ ...settings, elevenLabsStyle: parseFloat(e.target.value) })}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground">Adds expressiveness (only for Multilingual v2)</p>
+                    </div>
+                  )}
+
+                  {/* Toggles */}
+                  <div className="flex flex-col gap-3 pt-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.elevenLabsSpeakerBoost ?? true}
+                        onChange={(e) => setSettings({ ...settings, elevenLabsSpeakerBoost: e.target.checked })}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <div>
+                        <div className="text-sm font-medium">Speaker Boost</div>
+                        <div className="text-xs text-muted-foreground">Enhanced voice clarity and presence</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.elevenLabsStreaming ?? false}
+                        onChange={(e) => setSettings({ ...settings, elevenLabsStreaming: e.target.checked })}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <div>
+                        <div className="text-sm font-medium">Streaming Mode</div>
+                        <div className="text-xs text-muted-foreground">Lower latency, audio starts faster</div>
+                      </div>
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Voice Preview */}
+              <div className="space-y-2">
+                <Label>Voice Preview</Label>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!settings.elevenLabsApiKey || !settings.elevenLabsVoiceId || settings.elevenLabsVoiceId === 'custom'}
+                  onClick={async () => {
+                    if (!settings.elevenLabsApiKey || !settings.elevenLabsVoiceId) return;
+                    showMessage('success', 'Generating preview...');
+                    try {
+                      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${settings.elevenLabsVoiceId}`, {
+                        method: 'POST',
+                        headers: {
+                          'Accept': 'audio/mpeg',
+                          'Content-Type': 'application/json',
+                          'xi-api-key': settings.elevenLabsApiKey,
+                        },
+                        body: JSON.stringify({
+                          text: "Hello! I'm your AI assistant. How can I help you today?",
+                          model_id: settings.elevenLabsModel || 'eleven_turbo_v2',
+                          voice_settings: {
+                            stability: settings.elevenLabsStability ?? 0.5,
+                            similarity_boost: settings.elevenLabsSimilarity ?? 0.75,
+                            style: settings.elevenLabsStyle ?? 0,
+                            use_speaker_boost: settings.elevenLabsSpeakerBoost ?? true,
+                          },
+                        }),
+                      });
+                      if (response.ok) {
+                        const audioBlob = await response.blob();
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const audio = new Audio(audioUrl);
+                        audio.play();
+                        showMessage('success', 'Playing preview...');
+                      } else {
+                        showMessage('error', 'Preview failed. Check your API key.');
+                      }
+                    } catch {
+                      showMessage('error', 'Preview failed');
+                    }
+                  }}
+                >
+                  <Volume2 size={16} className="mr-2" /> Test Voice
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Hear a sample with current settings before saving
+                </p>
+              </div>
+
+              {/* TTS Provider Selection */}
+              <Card className="bg-muted/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Text-to-Speech Provider</CardTitle>
+                  <CardDescription>Choose which service powers the chat assistant voice</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-background transition-colors">
+                      <input
+                        type="radio"
+                        name="ttsProvider"
+                        value="google"
+                        checked={settings.ttsProvider !== 'elevenlabs'}
+                        onChange={() => setSettings({ ...settings, ttsProvider: 'google' })}
+                        className="h-4 w-4"
+                      />
+                      <div>
+                        <div className="font-medium">Google Cloud TTS</div>
+                        <div className="text-xs text-muted-foreground">Free tier available, good quality neural voices</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-background transition-colors">
+                      <input
+                        type="radio"
+                        name="ttsProvider"
+                        value="elevenlabs"
+                        checked={settings.ttsProvider === 'elevenlabs'}
+                        onChange={() => setSettings({ ...settings, ttsProvider: 'elevenlabs' })}
+                        className="h-4 w-4"
+                        disabled={!settings.elevenLabsApiKey || !settings.elevenLabsVoiceId}
+                      />
+                      <div>
+                        <div className="font-medium">ElevenLabs</div>
+                        <div className="text-xs text-muted-foreground">
+                          Premium quality, natural-sounding voices
+                          {(!settings.elevenLabsApiKey || !settings.elevenLabsVoiceId) && (
+                            <span className="text-amber-600 ml-1">(Configure API key and voice first)</span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Status Card */}
+              <Card className={settings.elevenLabsApiKey && settings.elevenLabsVoiceId ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    {settings.elevenLabsApiKey && settings.elevenLabsVoiceId ? (
+                      <>
+                        <CheckCircle className="text-green-600" size={20} />
+                        <div>
+                          <p className="font-medium text-green-800">ElevenLabs Configured</p>
+                          <p className="text-sm text-green-700">Voice ID: {settings.elevenLabsVoiceId}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="text-amber-600" size={20} />
+                        <div>
+                          <p className="font-medium text-amber-800">Setup Required</p>
+                          <p className="text-sm text-amber-700">Add your API key and voice ID to enable ElevenLabs</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </CardContent>
