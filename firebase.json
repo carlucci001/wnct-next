@@ -10,6 +10,9 @@
       "region": "us-east1"
     }
   },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "storage": {
     "rules": "storage.rules"
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -13,19 +13,18 @@ interface Message {
 
 const ChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'init', role: 'model', text: 'Hi! I\'m your WNC Times assistant. Ask me about local news, businesses, or events.' }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [primaryColor, setPrimaryColor] = useState('#1d4ed8');
-  const [apiKey, setApiKey] = useState('');
+  const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your WNC Times assistant. Ask me about local news, find articles, or get help navigating the site.");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Load settings from Firestore (same as Header)
+  // Load UI settings (theme, welcome message)
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -33,41 +32,39 @@ const ChatAssistant: React.FC = () => {
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
           if (data.primaryColor) setPrimaryColor(data.primaryColor);
-          if (data.geminiApiKey) {
-            setApiKey(data.geminiApiKey);
-            console.log('[ChatAssistant] Loaded Gemini API key from Firestore');
-          } else {
-            console.log('[ChatAssistant] No Gemini API key found in settings');
-          }
-        } else {
-          console.log('[ChatAssistant] No settings document found');
+          if (data.chatWelcomeMessage) setWelcomeMessage(data.chatWelcomeMessage);
         }
       } catch (error) {
         console.error('[ChatAssistant] Failed to load settings:', error);
-        // Fallback to localStorage if Firestore fails
         const savedSettings = localStorage.getItem('wnc_settings');
         if (savedSettings) {
           try {
             const parsed = JSON.parse(savedSettings);
             if (parsed.primaryColor) setPrimaryColor(parsed.primaryColor);
-            if (parsed.geminiApiKey) setApiKey(parsed.geminiApiKey);
+            if (parsed.chatWelcomeMessage) setWelcomeMessage(parsed.chatWelcomeMessage);
           } catch (e) {
             console.error("Error parsing localStorage settings", e);
           }
         }
       }
     };
+
     loadSettings();
 
     const savedVoiceEnabled = localStorage.getItem('wnc_voice_enabled') === 'true';
     setIsVoiceEnabled(savedVoiceEnabled);
 
     return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeaking();
     };
   }, []);
+
+  // Set initial welcome message when it's loaded
+  useEffect(() => {
+    if (welcomeMessage && messages.length === 0) {
+      setMessages([{ id: 'init', role: 'model', text: welcomeMessage }]);
+    }
+  }, [welcomeMessage, messages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,31 +80,93 @@ const ChatAssistant: React.FC = () => {
   };
 
   const stopSpeaking = () => {
+    // Stop HTML5 audio (Google Cloud TTS)
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    // Stop browser TTS
     if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
       window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);
   };
 
-  const speakText = (text: string) => {
+  // Speak using Google Cloud TTS with fallback to browser TTS
+  const speakText = async (text: string) => {
     if (!isVoiceEnabled || typeof window === 'undefined') return;
 
-    try {
-      stopSpeaking();
-      setIsSpeaking(true);
+    stopSpeaking();
+    setIsSpeaking(true);
 
+    try {
+      // Try Google Cloud TTS first
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.audioContent) {
+        // Play the Google Cloud TTS audio
+        const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+        audioRef.current = audio;
+
+        audio.onended = () => {
+          setIsSpeaking(false);
+          audioRef.current = null;
+        };
+        audio.onerror = () => {
+          console.error('Audio playback error, falling back to browser TTS');
+          setIsSpeaking(false);
+          audioRef.current = null;
+          speakWithBrowserTTS(text);
+        };
+
+        await audio.play();
+        return;
+      }
+
+      // If Google TTS failed or returned fallback flag, use browser TTS
+      if (data.fallback) {
+        console.log('Google TTS not available, using browser TTS');
+      }
+      speakWithBrowserTTS(text);
+
+    } catch (error) {
+      console.error('TTS Error:', error);
+      // Fallback to browser TTS
+      speakWithBrowserTTS(text);
+    }
+  };
+
+  // Browser TTS fallback
+  const speakWithBrowserTTS = (text: string) => {
+    if (typeof window === 'undefined') return;
+
+    try {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(voice =>
-        voice.lang.startsWith('en-') && voice.name.toLowerCase().includes('female')
-      ) || voices.find(voice => voice.lang.startsWith('en-US'));
+      // Prefer American English voices (en-US)
+      const preferredVoice =
+        voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('samantha')) ||
+        voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('jenny')) ||
+        voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('aria')) ||
+        voices.find(v => v.lang === 'en-US' && !v.name.toLowerCase().includes('zira')) ||
+        voices.find(v => v.lang === 'en-US') ||
+        voices.find(v => v.lang.startsWith('en-US'));
 
       if (preferredVoice) {
         utterance.voice = preferredVoice;
+      } else {
+        utterance.lang = 'en-US';
       }
 
       utterance.onend = () => setIsSpeaking(false);
@@ -115,9 +174,24 @@ const ChatAssistant: React.FC = () => {
 
       window.speechSynthesis.speak(utterance);
     } catch (error) {
-      console.error('TTS Error:', error);
+      console.error('Browser TTS Error:', error);
       setIsSpeaking(false);
     }
+  };
+
+  const resetChat = () => {
+    stopSpeaking();
+    setMessages([{ id: 'init', role: 'model', text: welcomeMessage }]);
+  };
+
+  // Handle input change - stop speaking when user starts typing (interruption)
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    // If user starts typing while assistant is speaking, interrupt
+    if (isSpeaking && newValue.length > input.length) {
+      stopSpeaking();
+    }
+    setInput(newValue);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,32 +201,36 @@ const ChatAssistant: React.FC = () => {
     stopSpeaking();
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: input };
-    setMessages(prev => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      if (!apiKey) {
-        throw new Error("Gemini API Key not configured. Please configure in Admin settings.");
-      }
+      const conversationHistory = updatedMessages
+        .filter(m => m.id !== 'init')
+        .map(m => ({ role: m.role, text: m.text }));
 
-      // Call Gemini API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: `You are a helpful assistant for WNC Times, a local news website covering Western North Carolina. Be friendly, concise, and helpful. User question: ${input}` }
-              ]
-            }
-          ]
-        })
+          message: input,
+          history: conversationHistory.slice(0, -1),
+        }),
       });
 
       const data = await response.json();
-      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Chat service unavailable');
+      }
+
+      const responseText = data.response;
+
+      if (!responseText) {
+        throw new Error('No response received from AI. Please try again.');
+      }
 
       const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: responseText };
       setMessages(prev => [...prev, botMsg]);
@@ -162,7 +240,7 @@ const ChatAssistant: React.FC = () => {
       }
 
     } catch (err) {
-      console.error(err);
+      console.error('[ChatAssistant] Error:', err);
       const errorMsg = err instanceof Error ? err.message : 'An error occurred';
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: errorMsg }]);
     } finally {
@@ -194,6 +272,13 @@ const ChatAssistant: React.FC = () => {
               )}
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={resetChat}
+                className="hover:bg-white/20 p-1.5 rounded transition text-white/70 hover:text-white"
+                title="Reset conversation"
+              >
+                <RotateCcw size={14} />
+              </button>
               <button
                 onClick={toggleVoice}
                 className={`hover:bg-white/20 p-1.5 rounded transition ${isVoiceEnabled ? 'text-white' : 'text-white/50'}`}
@@ -244,7 +329,7 @@ const ChatAssistant: React.FC = () => {
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               placeholder={isVoiceEnabled ? "Ask and I will speak..." : "How can I help you today?"}
               className="grow border border-gray-300 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all bg-gray-50 focus:bg-white"
             />

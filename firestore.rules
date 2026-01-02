@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      return getUserData().role;
+    }
+
+    // Admin-level roles (full access)
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner'];
+    }
+
+    // Editorial leadership (can publish any article, manage team)
+    function isEditorialLead() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief'];
+    }
+
+    // Can edit/publish any article
+    function isEditor() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief', 'editor'];
+    }
+
+    // Can write and publish own articles
+    function isJournalist() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief', 'editor', 'journalist'];
+    }
+
+    // Can write articles (may need approval)
+    function isWriter() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief', 'editor', 'journalist', 'contributor'];
+    }
+
+    // Can moderate comments
+    function isModerator() {
+      return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief', 'editor', 'community-moderator'];
+    }
+
+    // ============================================
+    // ARTICLES
+    // ============================================
+    match /articles/{articleId} {
+      // Anyone can read published articles
+      // Editors can read all articles (including drafts)
+      // Writers can read their own drafts
+      allow read: if resource.data.status == 'published'
+                  || isEditor()
+                  || (isWriter() && resource.data.author == request.auth.token.email);
+
+      // Writers can create articles
+      allow create: if isWriter();
+
+      // Writers can edit own articles
+      // Editors can edit any article
+      allow update: if isEditor()
+                    || (isWriter() && resource.data.author == request.auth.token.email);
+
+      // Editors can delete any article
+      // Writers can delete their own drafts only
+      allow delete: if isEditor()
+                    || (isWriter() && resource.data.author == request.auth.token.email && resource.data.status == 'draft');
+    }
+
+    // ============================================
+    // USERS
+    // ============================================
+    match /users/{userId} {
+      // Users can read their own doc
+      // Editorial leads and admins can read all users
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isEditorialLead());
+
+      // Users can create their own doc on registration
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+
+      // Users can update their own profile (but not role/status)
+      // Admins can update any user
+      // Editorial leads can assign writer roles
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status']))
+        || isAdmin()
+        || (isEditorialLead() && request.resource.data.role in ['contributor', 'journalist', 'editor', 'reader'])
+      );
+
+      // Only admins can delete users
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // SETTINGS (site configuration)
+    // ============================================
+    match /settings/{document=**} {
+      // Everyone can read settings (needed for theme, etc.)
+      allow read: if true;
+
+      // Only admins can write settings
+      allow write: if isAdmin();
+    }
+
+    // ============================================
+    // COMMUNITY (directory, events, etc.)
+    // ============================================
+    match /community/{document=**} {
+      // Anyone can read community content
+      allow read: if true;
+
+      // Moderators and writers can create/update
+      allow create, update: if isModerator() || isWriter();
+
+      // Only editors can delete
+      allow delete: if isEditor();
+    }
+
+    // ============================================
+    // ADS / BANNERS
+    // ============================================
+    match /ads/{document=**} {
+      // Anyone can read ads (they're displayed publicly)
+      allow read: if true;
+
+      // Only ad managers and admins can write
+      allow write: if isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'ad-manager'];
+    }
+
+    // ============================================
+    // COMMENTS
+    // ============================================
+    match /comments/{commentId} {
+      // Anyone can read approved comments
+      // Moderators can read all comments
+      allow read: if resource.data.status == 'approved' || isModerator();
+
+      // Authenticated users can create comments
+      allow create: if isAuthenticated();
+
+      // Users can edit their own comments
+      // Moderators can edit any comment
+      allow update: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid
+        || isModerator()
+      );
+
+      // Users can delete their own comments
+      // Moderators can delete any comment
+      allow delete: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid
+        || isModerator()
+      );
+    }
+  }
+}

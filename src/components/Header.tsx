@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard } from "lucide-react";
+import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, Search, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -40,49 +40,82 @@ interface SiteSettings {
   primaryColor: string;
 }
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  initialSettings?: SiteSettings;
+}
+
+const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState("light");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [settings, setSettings] = useState<SiteSettings>({
-    tagline: "Engaging Our Community",
-    logoUrl: "",
-    brandingMode: "text",
-    showTagline: true,
-    primaryColor: "#1d4ed8",
-  });
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+    }
+  };
+
+  // Use initialSettings from server if provided, otherwise null
+  const [settings, setSettings] = useState<SiteSettings | null>(initialSettings || null);
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-  // Load settings from Firestore
+  // Sync with Firestore for real-time updates and cache to localStorage
   useEffect(() => {
-    const loadSettings = async () => {
+    // If no initialSettings from server, try localStorage as fallback
+    if (!initialSettings) {
+      const cached = localStorage.getItem('wnc_settings');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setSettings({
+            tagline: parsed.tagline || "Engaging Our Community",
+            logoUrl: parsed.logoUrl || "",
+            brandingMode: parsed.brandingMode || "text",
+            showTagline: parsed.showTagline !== undefined ? parsed.showTagline : true,
+            primaryColor: parsed.primaryColor || "#1d4ed8",
+          });
+        } catch {}
+      }
+    }
+
+    // Sync with Firestore for real-time updates
+    const loadFromFirestore = async () => {
       try {
         const settingsDoc = await getDoc(doc(db, "settings", "config"));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
-          console.log("[Header] Loaded settings - brandingMode:", data.brandingMode, "logoUrl exists:", !!data.logoUrl, "logoUrl length:", data.logoUrl?.length || 0);
-          setSettings(prev => ({
-            ...prev,
-            tagline: data.tagline || prev.tagline,
+          const newSettings = {
+            tagline: data.tagline || "Engaging Our Community",
             logoUrl: data.logoUrl || "",
             brandingMode: data.brandingMode || "text",
             showTagline: data.showTagline !== undefined ? data.showTagline : true,
             primaryColor: data.primaryColor || "#1d4ed8",
-          }));
-        } else {
-          console.log("[Header] No settings document found in Firestore");
+          };
+          setSettings(newSettings);
+          localStorage.setItem('wnc_settings', JSON.stringify(data));
         }
       } catch (error) {
         console.error("[Header] Failed to load settings:", error);
       }
     };
-    loadSettings();
-  }, []);
+    loadFromFirestore();
+  }, [initialSettings]);
+
+  // Use settings or fallback to defaults
+  const displaySettings = settings || {
+    tagline: "Engaging Our Community",
+    logoUrl: "",
+    brandingMode: "text" as const,
+    showTagline: true,
+    primaryColor: "#1d4ed8",
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -102,8 +135,8 @@ const Header: React.FC = () => {
     router.push("/");
   };
 
-  const showLogoImage = settings.brandingMode === "logo" && settings.logoUrl;
-  const isDataUrl = settings.logoUrl?.startsWith("data:");
+  const showLogoImage = displaySettings.brandingMode === "logo" && displaySettings.logoUrl;
+  const isDataUrl = displaySettings.logoUrl?.startsWith("data:");
 
   return (
     <header className="flex flex-col w-full bg-white dark:bg-slate-900 font-sans relative z-40">
@@ -173,13 +206,13 @@ const Header: React.FC = () => {
           {showLogoImage ? (
             isDataUrl ? (
               <img
-                src={settings.logoUrl}
+                src={displaySettings.logoUrl}
                 alt="Site Logo"
                 className="max-w-full max-h-full w-auto h-auto object-contain object-left"
               />
             ) : (
               <Image
-                src={settings.logoUrl}
+                src={displaySettings.logoUrl}
                 alt="Site Logo"
                 width={300}
                 height={100}
@@ -191,12 +224,12 @@ const Header: React.FC = () => {
               <h1 className="text-4xl md:text-5xl font-serif font-black tracking-tight text-gray-900 dark:text-white leading-none">
                 WNC TIMES
               </h1>
-              {settings.showTagline && (
+              {displaySettings.showTagline && (
                 <span
                   className="mt-1.5 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-white"
-                  style={{ backgroundColor: settings.primaryColor }}
+                  style={{ backgroundColor: displaySettings.primaryColor }}
                 >
-                  {settings.tagline}
+                  {displaySettings.tagline}
                 </span>
               )}
             </div>
@@ -223,9 +256,10 @@ const Header: React.FC = () => {
       </div>
 
       {/* Main Navigation */}
-      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: settings.primaryColor }}>
+      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: displaySettings.primaryColor }}>
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-12">
+            {/* Left: Navigation Links */}
             <div className="hidden md:flex items-center space-x-1">
               {MAIN_NAV.map((item, index) => (
                 <Link
@@ -243,6 +277,35 @@ const Header: React.FC = () => {
               ))}
             </div>
 
+            {/* Right: Search Bar */}
+            <form onSubmit={handleSearch} className="hidden md:flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-48 lg:w-56 pl-9 pr-3 py-1.5 text-sm border-0 rounded bg-white/20 text-white placeholder-white/70 focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 focus:ring-2 focus:ring-white/50 transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-white/20 text-white text-sm font-bold rounded hover:bg-white/30 transition-colors"
+              >
+                <Search size={16} />
+              </button>
+              <Link
+                href="/search"
+                className="px-3 py-1.5 bg-amber-500 text-white text-sm font-bold rounded hover:bg-amber-600 transition-colors flex items-center gap-1"
+                title="Advanced Search"
+              >
+                <SlidersHorizontal size={14} />
+                <span className="hidden lg:inline">Advanced</span>
+              </Link>
+            </form>
+
+            {/* Mobile: Menu Toggle */}
             <div className="md:hidden flex items-center justify-between w-full">
               <span className="text-white font-bold uppercase text-sm">Sections</span>
               <button onClick={() => setMobileOpen(!mobileOpen)} className="text-white p-1 hover:bg-white/20 rounded">
@@ -255,6 +318,25 @@ const Header: React.FC = () => {
         {mobileOpen && (
           <div className="md:hidden bg-white dark:bg-slate-900 absolute w-full left-0 shadow-xl">
             <div className="container mx-auto px-4 py-4 space-y-1">
+              {/* Mobile Search */}
+              <form onSubmit={(e) => { handleSearch(e); setMobileOpen(false); }} className="flex gap-2 mb-4 pb-4 border-b border-gray-200">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search articles..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded"
+                  />
+                </div>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded">
+                  Go
+                </button>
+                <Link href="/search" className="px-3 py-2 border border-gray-300 rounded" onClick={() => setMobileOpen(false)}>
+                  <SlidersHorizontal size={16} className="text-gray-600" />
+                </Link>
+              </form>
               {[...TOP_NAV, ...MAIN_NAV].map((item) => (
                 <Link key={item.label} href={item.path} className="block px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 rounded border-b border-gray-100 last:border-0" onClick={() => setMobileOpen(false)}>
                   {item.label}

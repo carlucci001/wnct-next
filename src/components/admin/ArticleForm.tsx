@@ -5,6 +5,18 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { Article } from '@/types/article';
+import dynamic from 'next/dynamic';
+
+// Dynamically import editor to avoid SSR issues
+const RichTextEditor = dynamic(() => import('./RichTextEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="border border-gray-300 rounded-lg p-4 min-h-[400px] bg-gray-50 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    </div>
+  ),
+});
 
 interface ArticleFormProps {
   isEditing: boolean;
@@ -130,15 +142,11 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
 
       <div className="space-y-2">
         <label htmlFor="content" className="block text-sm font-medium text-gray-700">Content</label>
-        <textarea
-          id="content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-          rows={10}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono"
+        <RichTextEditor
+          content={content}
+          onChange={setContent}
+          placeholder="Start writing your article..."
         />
-        <p className="text-sm text-gray-500">Supports Markdown (basic implementation)</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

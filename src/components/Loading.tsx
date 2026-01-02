@@ -1,5 +1,5 @@
 import React from 'react';
-import { classNames } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface LoadingProps {
   className?: string;
@@ -14,10 +14,10 @@ export default function Loading({ className, size = 'md' }: LoadingProps) {
   };
 
   return (
-    <div className={classNames('flex justify-center items-center', className)}>
+    <div className={cn('flex justify-center items-center', className)}>
       <div
-        className={classNames(
-          'animate-spin rounded-full border-t-2 border-b-2 border-wnc-blue-600',
+        className={cn(
+          'animate-spin rounded-full border-t-2 border-b-2 border-primary',
           sizeClasses[size]
         )}
       ></div>

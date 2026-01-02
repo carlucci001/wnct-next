@@ -11,7 +11,8 @@ import {
   GoogleAuthProvider,
   User
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 interface AuthContextType {
   currentUser: User | null;
@@ -48,7 +49,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+
+      // Check if user document exists, create if not (first-time Google sign-in)
+      const userDocRef = doc(db, 'users', result.user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          email: result.user.email,
+          displayName: result.user.displayName || '',
+          photoURL: result.user.photoURL || '',
+          role: 'reader', // Default role for new users
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        console.log('[AuthContext] Created user document for Google sign-in');
+      }
     } catch (error) {
       console.error("Error signing in with Google", error);
       throw error;
@@ -68,6 +86,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName });
+
+      // Create Firestore user document with default role
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, {
+        email: userCredential.user.email,
+        displayName,
+        photoURL: '',
+        role: 'reader', // Default role for new users
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      console.log('[AuthContext] Created user document for email registration');
     } catch (error) {
       console.error("Error registering", error);
       throw error;

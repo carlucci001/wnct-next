@@ -13,16 +13,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ trendingArticles = [] }) => {
   return (
     <aside className="w-full">
-      {/* Search Widget */}
-      <div className="mb-8 bg-white p-6 rounded shadow-sm border border-gray-100">
-        <h3 className="font-serif font-bold text-lg mb-4 text-gray-900">Search</h3>
-        <input
-          type="text"
-          placeholder="Search articles..."
-          className="w-full border border-gray-300 rounded pl-3 pr-10 py-2 text-sm focus:border-blue-600 focus:outline-none"
-        />
-      </div>
-
       {/* Advertisement */}
       <div className="mb-8">
         <div className="w-full h-[250px] bg-gray-200 flex items-center justify-center text-gray-400 text-sm border border-gray-300">
