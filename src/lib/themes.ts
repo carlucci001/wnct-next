@@ -5,6 +5,12 @@ export interface Theme {
   name: string;
   label: string;
   description: string;
+  // Hex colors for direct use in components
+  colors: {
+    navBar: string;        // Navigation bar background
+    navBarDark: string;    // Navigation bar background in dark mode
+    highlight: string;     // Highlight/accent color (e.g., hover states)
+  };
   preview: {
     primary: string;
     secondary: string;
@@ -21,6 +27,11 @@ export const themes: Record<string, Theme> = {
     name: 'default',
     label: 'Default',
     description: 'Clean neutral gray theme',
+    colors: {
+      navBar: '#1f2937',
+      navBarDark: '#111827',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#1f2937',
       secondary: '#f3f4f6',
@@ -51,6 +62,11 @@ export const themes: Record<string, Theme> = {
     name: 'blue',
     label: 'Ocean Blue',
     description: 'Professional blue theme',
+    colors: {
+      navBar: '#1d4ed8',
+      navBarDark: '#1e40af',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#1d4ed8',
       secondary: '#dbeafe',
@@ -81,6 +97,11 @@ export const themes: Record<string, Theme> = {
     name: 'green',
     label: 'Forest Green',
     description: 'Natural green theme',
+    colors: {
+      navBar: '#15803d',
+      navBarDark: '#166534',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#15803d',
       secondary: '#dcfce7',
@@ -111,6 +132,11 @@ export const themes: Record<string, Theme> = {
     name: 'purple',
     label: 'Royal Purple',
     description: 'Elegant purple theme',
+    colors: {
+      navBar: '#7c3aed',
+      navBarDark: '#6d28d9',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#7c3aed',
       secondary: '#ede9fe',
@@ -141,6 +167,11 @@ export const themes: Record<string, Theme> = {
     name: 'orange',
     label: 'Sunset Orange',
     description: 'Warm orange theme',
+    colors: {
+      navBar: '#ea580c',
+      navBarDark: '#c2410c',
+      highlight: '#fef08a',
+    },
     preview: {
       primary: '#ea580c',
       secondary: '#ffedd5',
@@ -171,6 +202,11 @@ export const themes: Record<string, Theme> = {
     name: 'rose',
     label: 'Rose Pink',
     description: 'Soft rose theme',
+    colors: {
+      navBar: '#e11d48',
+      navBarDark: '#be123c',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#e11d48',
       secondary: '#ffe4e6',
@@ -201,6 +237,11 @@ export const themes: Record<string, Theme> = {
     name: 'slate',
     label: 'Slate',
     description: 'Modern slate theme',
+    colors: {
+      navBar: '#475569',
+      navBarDark: '#334155',
+      highlight: '#fbbf24',
+    },
     preview: {
       primary: '#475569',
       secondary: '#f1f5f9',

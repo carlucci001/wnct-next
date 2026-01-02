@@ -53,7 +53,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
-  const { colorMode, toggleColorMode } = useTheme();
+  const { colorMode, toggleColorMode, currentTheme } = useTheme();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -242,7 +242,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               {displaySettings.showTagline && (
                 <span
                   className="mt-1.5 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-white"
-                  style={{ backgroundColor: displaySettings.primaryColor }}
+                  style={{ backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar }}
                 >
                   {displaySettings.tagline}
                 </span>
@@ -271,7 +271,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       </div>
 
       {/* Main Navigation */}
-      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: displaySettings.primaryColor }}>
+      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar }}>
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-12">
             {/* Left: Navigation Links */}
