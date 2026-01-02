@@ -59,13 +59,19 @@ service cloud.firestore {
                   || isEditor()
                   || (isWriter() && resource.data.author == request.auth.token.email);
 
-      // Writers can create articles
-      allow create: if isWriter();
+      // Writers can create articles, but must be author and start as draft
+      allow create: if isEditor()
+                    || (isWriter()
+                        && request.resource.data.author == request.auth.token.email
+                        && request.resource.data.status == 'draft');
 
       // Writers can edit own articles
       // Editors can edit any article
       allow update: if isEditor()
-                    || (isWriter() && resource.data.author == request.auth.token.email);
+                    || (isWriter()
+                        && resource.data.author == request.auth.token.email
+                        && request.resource.data.author == request.auth.token.email
+                        && request.resource.data.status == resource.data.status);
 
       // Editors can delete any article
       // Writers can delete their own drafts only
@@ -81,8 +87,10 @@ service cloud.firestore {
       // Editorial leads and admins can read all users
       allow read: if isAuthenticated() && (request.auth.uid == userId || isEditorialLead());
 
-      // Users can create their own doc on registration
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Users can create their own doc on registration, but cannot set role or status fields to anything privileged
+      allow create: if isAuthenticated() && request.auth.uid == userId
+                    && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == 'reader')
+                    && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'active');
 
       // Users can update their own profile (but not role/status)
       // Admins can update any user
