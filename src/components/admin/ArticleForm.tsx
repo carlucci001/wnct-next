@@ -78,10 +78,11 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         updatedAt: new Date().toISOString(),
       };
 
-      // Set breaking news timestamp when marking as breaking
-      if (isBreakingNews && !initialData?.breakingNewsTimestamp) {
+      // Set breaking news timestamp - ALWAYS refresh when isBreakingNews is true
+      // This ensures the 24-hour window starts fresh each time you mark as breaking
+      if (isBreakingNews) {
         articleData.breakingNewsTimestamp = new Date().toISOString();
-      } else if (!isBreakingNews) {
+      } else {
         articleData.breakingNewsTimestamp = undefined;
       }
 
