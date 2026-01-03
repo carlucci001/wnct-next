@@ -305,6 +305,7 @@ export async function deleteArticle(id: string): Promise<boolean> {
  * Format and clean up HTML content for an article
  * Converts plain text with line breaks to proper HTML paragraphs
  * Removes empty tags, excessive whitespace, and normalizes structure
+ * Also splits giant single-paragraph content into multiple paragraphs
  */
 export function formatArticleContent(html: string): string {
   if (!html) return '';
@@ -332,6 +333,48 @@ export function formatArticleContent(html: string): string {
     } else if (formatted.length > 0) {
       // Single block of text
       formatted = `<p>${formatted.replace(/\n/g, '<br>')}</p>`;
+    }
+  }
+
+  // CRITICAL: Split giant single-paragraph content into multiple paragraphs
+  // This handles cases where AI returned everything in one <p> tag
+  const pTagCount = (formatted.match(/<p[^>]*>/gi) || []).length;
+  const textContent = formatted.replace(/<[^>]+>/g, '');
+  const contentLength = textContent.length;
+
+  if (pTagCount <= 1 && contentLength > 500) {
+    // Extract the text content
+    let text = textContent.trim();
+
+    // Split on sentence endings that typically mark paragraph breaks
+    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
+    const paragraphs: string[] = [];
+    let currentParagraph = '';
+    let sentenceCount = 0;
+
+    for (const sentence of sentences) {
+      currentParagraph += sentence;
+      sentenceCount++;
+
+      // Start new paragraph after: quotes end, or every 3-4 sentences, or long enough
+      const isQuoteEnd = sentence.includes('" ') || sentence.includes('." ') || sentence.includes('," ');
+      const isLongEnough = sentenceCount >= 3 && currentParagraph.length > 200;
+
+      if (isQuoteEnd || isLongEnough || sentenceCount >= 4) {
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = '';
+        sentenceCount = 0;
+      }
+    }
+
+    // Don't forget the last paragraph
+    if (currentParagraph.trim()) {
+      paragraphs.push(currentParagraph.trim());
+    }
+
+    // Rebuild with proper paragraph tags if we split successfully
+    if (paragraphs.length > 1) {
+      formatted = paragraphs.map(p => `<p>${p}</p>`).join('\n');
     }
   }
 
