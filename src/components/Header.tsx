@@ -151,25 +151,25 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center space-x-4">
             <nav className="hidden md:flex items-center space-x-4">
               {TOP_NAV.map((item) => (
-                <Link key={item.label} href={item.path} className="hover:text-white uppercase text-[10px] lg:text-xs font-medium">
+                <Link key={item.label} href={item.path} className="hover:text-white uppercase text-[10px] lg:text-xs font-medium transition-colors">
                   {item.label}
                 </Link>
               ))}
             </nav>
 
             <div className="flex items-center space-x-3 pl-4 border-l border-gray-700">
-              <button onClick={toggleColorMode} className="hover:text-white" title={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+              <button onClick={toggleColorMode} className="hover:text-white transition-colors" title={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
                 {colorMode === "light" ? <Moon size={14} /> : <Sun size={14} />}
               </button>
 
               <div className="relative" ref={menuRef}>
                 {currentUser ? (
-                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center text-amber-400 font-bold hover:text-white">
+                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
                     <UserIcon size={14} className="mr-1" />
                     <span className="hidden md:inline">{currentUser.displayName?.split(" ")[0] || "User"}</span>
                   </button>
                 ) : (
-                  <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white">
+                  <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
                     <UserIcon size={14} className="mr-1" />
                     <span className="hidden md:inline">Login</span>
                   </Link>
@@ -281,11 +281,10 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                   key={item.label}
                   href={item.path}
                   className="group relative px-4 py-2 text-sm font-bold text-white uppercase tracking-wider transition-all duration-300 hover:text-amber-300"
-                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <span className="relative z-10">{item.label}</span>
                   {/* Animated underline */}
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-amber-400 transition-all duration-300 ease-out group-hover:w-4/5 group-hover:left-[10%]"></span>
+                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-amber-400 transition-all duration-300 ease-out group-hover:w-4/5 group-hover:left-[10%] opacity-0 group-hover:opacity-100"></span>
                   {/* Subtle glow on hover */}
                   <span className="absolute inset-0 bg-white/0 group-hover:bg-white/10 rounded transition-all duration-300"></span>
                 </Link>
@@ -295,18 +294,19 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
             {/* Right: Search Bar */}
             <form onSubmit={handleSearch} className="hidden md:flex items-center gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search..."
-                  className="w-48 lg:w-56 pl-9 pr-3 py-1.5 text-sm border-0 rounded bg-white/20 text-white placeholder-white/70 focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 focus:ring-2 focus:ring-white/50 transition-all"
+                  className="w-64 lg:w-72 pl-9 pr-3 py-1.5 text-sm border-0 rounded bg-white/20 text-white placeholder-gray-300 focus:bg-white focus:text-gray-900 focus:placeholder-gray-400 focus:ring-2 focus:ring-white/50 transition-all"
                 />
               </div>
               <button
                 type="submit"
                 className="px-3 py-1.5 bg-white/20 text-white text-sm font-bold rounded hover:bg-white/30 transition-colors"
+                title="Search"
               >
                 <Search size={16} />
               </button>
@@ -331,10 +331,10 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         </div>
 
         {mobileOpen && (
-          <div className="md:hidden bg-white dark:bg-slate-900 absolute w-full left-0 shadow-xl">
+          <div className="md:hidden bg-white dark:bg-slate-900 absolute w-full left-0 shadow-xl border-t dark:border-slate-800">
             <div className="container mx-auto px-4 py-4 space-y-1">
               {/* Mobile Search */}
-              <form onSubmit={(e) => { handleSearch(e); setMobileOpen(false); }} className="flex gap-2 mb-4 pb-4 border-b border-gray-200">
+              <form onSubmit={(e) => { handleSearch(e); setMobileOpen(false); }} className="flex gap-2 mb-4 pb-4 border-b border-gray-200 dark:border-slate-800">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
@@ -342,18 +342,18 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search articles..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded">
                   Go
                 </button>
-                <Link href="/search" className="px-3 py-2 border border-gray-300 rounded" onClick={() => setMobileOpen(false)}>
-                  <SlidersHorizontal size={16} className="text-gray-600" />
+                <Link href="/search" className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded" onClick={() => setMobileOpen(false)}>
+                  <SlidersHorizontal size={16} className="text-gray-600 dark:text-gray-300" />
                 </Link>
               </form>
               {[...TOP_NAV, ...MAIN_NAV].map((item) => (
-                <Link key={item.label} href={item.path} className="block px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 rounded border-b border-gray-100 last:border-0" onClick={() => setMobileOpen(false)}>
+                <Link key={item.label} href={item.path} className="block px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 rounded border-b border-gray-100 dark:border-slate-800 last:border-0" onClick={() => setMobileOpen(false)}>
                   {item.label}
                 </Link>
               ))}

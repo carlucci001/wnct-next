@@ -37,23 +37,63 @@ function SearchContent() {
     loadFilters();
   }, []);
 
-  // Run search on initial load if query params exist
+  // Sync state with URL and perform search
   useEffect(() => {
-    if (searchParams.get("q")) {
-      handleSearch();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const fetchResults = async () => {
+      const q = searchParams.get("q") || "";
+      const cat = searchParams.get("category") || "";
+      const auth = searchParams.get("author") || "";
+      const from = searchParams.get("from") || "";
+      const to = searchParams.get("to") || "";
+      const sort = (searchParams.get("sort") as "relevance" | "date" | "title") || "relevance";
 
-  const handleSearch = async (e?: React.FormEvent) => {
+      // Sync local state
+      setQuery(q);
+      setCategory(cat);
+      setAuthor(auth);
+      setDateFrom(from);
+      setDateTo(to);
+      setSortBy(sort);
+
+      // Only fetch if there are parameters
+      if (!q && !cat && !auth && !from && !to) {
+        setResults([]);
+        setSearched(false);
+        return;
+      }
+
+      setLoading(true);
+      setSearched(true);
+
+      const params: SearchParams = {
+        query: q,
+        category: cat || undefined,
+        author: auth || undefined,
+        dateFrom: from || undefined,
+        dateTo: to || undefined,
+        sortBy: sort
+      };
+
+      try {
+        const articles = await searchArticles(params);
+        setResults(articles);
+      } catch (error) {
+        console.error("Search failed:", error);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResults();
+  }, [searchParams]);
+
+  const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    if (!query.trim() && !category && !author) return;
+    if (!query.trim() && !category && !author && !dateFrom && !dateTo) return;
 
-    setLoading(true);
-    setSearched(true);
-
-    // Update URL with search params
+    // Update URL with search params - this will trigger the useEffect
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (category) params.set("category", category);
@@ -63,27 +103,22 @@ function SearchContent() {
     if (sortBy !== "relevance") params.set("sort", sortBy);
 
     router.push(`/search?${params.toString()}`, { scroll: false });
-
-    const searchParams: SearchParams = {
-      query: query.trim(),
-      category: category || undefined,
-      author: author || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      sortBy
-    };
-
-    const articles = await searchArticles(searchParams);
-    setResults(articles);
-    setLoading(false);
   };
 
   const clearFilters = () => {
+    // We clear the form state and update the URL to trigger a reset
     setCategory("");
     setAuthor("");
     setDateFrom("");
     setDateTo("");
     setSortBy("relevance");
+
+    // If there is a query, we keep it but clear other filters
+    // If no query, this effectively clears everything
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+
+    router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
   const hasActiveFilters = category || author || dateFrom || dateTo || sortBy !== "relevance";
