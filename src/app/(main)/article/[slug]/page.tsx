@@ -185,13 +185,7 @@ export default function ArticlePage() {
 
                 {article.content && (
                   <div
-                    className="prose prose-lg max-w-none
-                      prose-headings:font-serif prose-headings:text-gray-900
-                      prose-p:text-gray-700 prose-p:leading-relaxed
-                      prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                      prose-img:rounded-lg prose-img:shadow-md
-                      prose-blockquote:border-l-4 prose-blockquote:border-blue-600 prose-blockquote:bg-gray-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:italic
-                      prose-li:text-gray-700"
+                    className="article-content"
                     dangerouslySetInnerHTML={{ __html: article.content }}
                   />
                 )}

@@ -848,14 +848,23 @@ Write in AP style, 400-600 words. Include:
 - Background context
 - Forward-looking closing
 
-IMPORTANT: Format the output as clean HTML for a rich text editor:
-- Wrap each paragraph in <p> tags
-- Use <h2> for section subheadings (if needed)
-- Use <blockquote> for quotes
-- Use <strong> for emphasis
-- Do NOT include the article title (it's handled separately)
-- Do NOT wrap in <html>, <body>, or <article> tags
-- Return ONLY the HTML content, no markdown, no code blocks`;
+CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
+1. Each paragraph MUST be wrapped in its own <p></p> tags
+2. Use <h2></h2> for section subheadings
+3. Use <blockquote></blockquote> for direct quotes
+4. Use <strong></strong> for emphasis on key terms
+5. NEVER put the entire article in a single <p> tag - break it into multiple paragraphs
+6. Each new thought or topic should be a separate <p> paragraph
+7. Do NOT include the article title
+8. Do NOT use markdown formatting
+9. Return ONLY valid HTML tags, nothing else
+
+Example structure:
+<p>First paragraph with the lede...</p>
+<h2>Section heading</h2>
+<p>Next paragraph...</p>
+<blockquote>"Quote from source," said Name, title.</blockquote>
+<p>More content...</p>`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -885,6 +894,48 @@ IMPORTANT: Format the output as clean HTML for a rich text editor:
           .filter((p: string) => p.trim())
           .map((p: string) => `<p>${p.trim()}</p>`)
           .join('\n');
+      }
+
+      // CRITICAL FIX: If content is one giant paragraph, split it intelligently
+      // Check if there's essentially one <p> tag with tons of content
+      const pTagCount = (content.match(/<p[^>]*>/gi) || []).length;
+      const contentLength = content.replace(/<[^>]+>/g, '').length;
+
+      if (pTagCount <= 1 && contentLength > 500) {
+        // Extract the text, split by sentences that end paragraphs, re-wrap
+        let text = content.replace(/<\/?p[^>]*>/gi, '').trim();
+
+        // Split on sentence endings that typically mark paragraph breaks
+        // (after quotes, after certain phrases, every 2-3 sentences)
+        const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
+        const paragraphs: string[] = [];
+        let currentParagraph = '';
+        let sentenceCount = 0;
+
+        for (const sentence of sentences) {
+          currentParagraph += sentence;
+          sentenceCount++;
+
+          // Start new paragraph after: quotes end, or every 3-4 sentences
+          const isQuoteEnd = sentence.includes('" ') || sentence.includes('." ') || sentence.includes('," ');
+          const isLongEnough = sentenceCount >= 3 && currentParagraph.length > 200;
+
+          if (isQuoteEnd || isLongEnough || sentenceCount >= 4) {
+            paragraphs.push(currentParagraph.trim());
+            currentParagraph = '';
+            sentenceCount = 0;
+          }
+        }
+
+        // Don't forget the last paragraph
+        if (currentParagraph.trim()) {
+          paragraphs.push(currentParagraph.trim());
+        }
+
+        // Rebuild with proper paragraph tags
+        if (paragraphs.length > 1) {
+          content = paragraphs.map(p => `<p>${p}</p>`).join('\n');
+        }
       }
 
       // Update status to image generation
