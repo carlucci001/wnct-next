@@ -609,6 +609,8 @@ Return ONLY valid JSON array with no markdown:
         imageUrl: agentArticle.imageUrl || agentArticle.featuredImage || '',
         content: formattedContent,
         excerpt: agentArticle.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
+        // Set breaking news timestamp when isBreakingNews is true
+        breakingNewsTimestamp: agentArticle.isBreakingNews ? new Date().toISOString() : undefined,
       };
 
       // Save to Firestore
