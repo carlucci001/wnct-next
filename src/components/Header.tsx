@@ -311,7 +311,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                 <Search size={16} />
               </button>
               <Link
-                href="/search"
+                href="/search?advanced=true"
                 className="px-3 py-1.5 bg-amber-500 text-white text-sm font-bold rounded hover:bg-amber-600 transition-colors flex items-center gap-1"
                 title="Advanced Search"
               >

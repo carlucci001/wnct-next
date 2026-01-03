@@ -4,25 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { LayoutGrid, List as ListIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getArticlesByCategory } from '@/lib/articles';
+import { getCategoryColor } from '@/lib/constants';
 import CategoryFeaturedSlider from '@/components/CategoryFeaturedSlider';
 import Sidebar from '@/components/Sidebar';
 import ArticleCard from '@/components/ArticleCard';
 import { Article } from '@/types/article';
-
-// Category colors - must match homepage
-const CATEGORY_COLORS: Record<string, string> = {
-  news: '#1d4ed8',
-  sports: '#dc2626',
-  business: '#059669',
-  entertainment: '#7c3aed',
-  lifestyle: '#db2777',
-  outdoors: '#16a34a',
-};
-
-// Helper to get category color
-const getCategoryColor = (category: string): string => {
-  return CATEGORY_COLORS[category.toLowerCase()] || '#1d4ed8';
-};
 
 // Helper to format date
 const formatDate = (dateString: string | undefined) => {
