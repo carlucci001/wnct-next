@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase-admin';
+import { isSafeUrl } from '@/lib/security';
 
 /**
  * Server-side image proxy to bypass CORS restrictions
@@ -7,6 +9,26 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // 1. Authentication Check
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    try {
+      await getAdminAuth().verifyIdToken(token);
+    } catch (error) {
+      console.error('[Proxy Image] Invalid token:', error);
+      return NextResponse.json(
+        { error: 'Unauthorized: Invalid token' },
+        { status: 401 }
+      );
+    }
+
     const { url } = await request.json();
 
     if (!url) {
@@ -16,12 +38,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate URL format
-    try {
-      new URL(url);
-    } catch {
+    // 2. SSRF Protection & URL Validation
+    if (!isSafeUrl(url)) {
       return NextResponse.json(
-        { error: 'Invalid URL format' },
+        { error: 'Invalid or unsafe URL' },
         { status: 400 }
       );
     }
