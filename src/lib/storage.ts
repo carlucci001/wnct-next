@@ -2,6 +2,7 @@
 // Supports local preview fallback and Firebase Storage when configured
 
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 import app from './firebase';
 
 interface StorageSettings {
@@ -132,9 +133,20 @@ export const storageService = {
       // Use server-side proxy to bypass CORS for external URLs
       try {
         console.log('[Storage] Using proxy API to fetch external image...');
+
+        const auth = getAuth(app);
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('Authentication required for proxy');
+        }
+        const token = await currentUser.getIdToken();
+
         const proxyResponse = await fetch('/api/proxy-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ url: sourceUrl })
         });
 
