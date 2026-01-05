@@ -17,7 +17,7 @@ import {
   Sparkles, DollarSign, AlertCircle, Info, Bot, ShieldAlert, Share2,
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
-  Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle
+  Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
@@ -59,7 +59,7 @@ import {
 } from '@/components/ui/table';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules';
 
 interface DashboardStats {
   totalArticles: number;
@@ -126,6 +126,8 @@ interface MenuSections {
   ai: boolean;
   content: boolean;
   components: boolean;
+  modules: boolean;
+  plugins: boolean;
   users: boolean;
   systemSettings: boolean;
 }
@@ -175,7 +177,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
@@ -219,7 +221,9 @@ export default function AdminDashboard() {
   const [menuSections, setMenuSections] = useState<MenuSections>({
     ai: true,
     content: true,
-    components: true,
+    components: false,
+    modules: false,
+    plugins: false,
     users: true,
     systemSettings: true,
   });
@@ -487,6 +491,8 @@ export default function AdminDashboard() {
           ai: section === 'ai',
           content: section === 'content',
           components: section === 'components',
+          modules: section === 'modules',
+          plugins: section === 'plugins',
           users: section === 'users',
           systemSettings: section === 'systemSettings',
         };
@@ -4332,6 +4338,100 @@ Example structure:
             {activeTab === 'api-config' && renderApiConfig()}
             {activeTab === 'roles' && renderRolesAndPermissions()}
             {isAgentView(activeTab) && renderAgentChat()}
+
+            {/* Components Section Placeholders */}
+            {activeTab === 'directory' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600" />
+                    Business Directory
+                  </CardTitle>
+                  <CardDescription>Manage local business listings and directory entries</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Building2 className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg font-medium">Coming Soon</p>
+                    <p className="text-sm">Directory management features are under development</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {activeTab === 'advertising' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                    Advertising
+                  </CardTitle>
+                  <CardDescription>Manage ad placements, campaigns, and sponsors</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <DollarSign className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg font-medium">Coming Soon</p>
+                    <p className="text-sm">Advertising management features are under development</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {activeTab === 'blog' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PenTool className="h-5 w-5 text-purple-600" />
+                    Blog
+                  </CardTitle>
+                  <CardDescription>Manage blog posts and author content</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <PenTool className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg font-medium">Coming Soon</p>
+                    <p className="text-sm">Blog management features are under development</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {activeTab === 'events' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-pink-600" />
+                    Events
+                  </CardTitle>
+                  <CardDescription>Manage community events and calendar listings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Calendar className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg font-medium">Coming Soon</p>
+                    <p className="text-sm">Events management features are under development</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Modules Section Placeholder */}
+            {activeTab === 'modules' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plug className="h-5 w-5 text-cyan-600" />
+                    Module Manager
+                  </CardTitle>
+                  <CardDescription>Install, configure, and manage system modules</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Plug className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-lg font-medium">Coming Soon</p>
+                    <p className="text-sm">Module management features are under development</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </main>
 
