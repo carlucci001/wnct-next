@@ -85,7 +85,7 @@ export default function CategoryPage({
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
-        <div className="animate-pulse">Loading content...</div>
+        <div className="animate-pulse text-gray-500 dark:text-gray-400">Loading content...</div>
       </div>
     );
   }

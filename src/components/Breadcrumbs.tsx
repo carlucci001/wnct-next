@@ -19,7 +19,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
 
   if (items) {
     return (
-      <nav className="flex text-xs md:text-sm font-medium text-gray-500 mb-6" aria-label="Breadcrumb">
+      <nav className="flex text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-6" aria-label="Breadcrumb">
         <ol className="inline-flex items-center space-x-1 md:space-x-2">
           {items.map((item, index) => {
             const isLast = index === items.length - 1;
@@ -27,19 +27,19 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
 
             return (
               <li key={index} className="inline-flex items-center">
-                {!isFirst && <ChevronRight className="w-4 h-4 text-gray-400 mx-1" />}
+                {!isFirst && <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500 mx-1" />}
 
                 {isFirst ? (
-                  <Link href={item.path || '/'} className="inline-flex items-center hover:text-blue-600">
+                  <Link href={item.path || '/'} className="inline-flex items-center hover:text-blue-600 dark:hover:text-blue-400">
                     <Home className="w-4 h-4 mr-1" />
                     {item.label}
                   </Link>
                 ) : isLast ? (
-                  <span className="text-gray-700 cursor-default font-semibold truncate max-w-[200px] md:max-w-xs">
+                  <span className="text-gray-700 dark:text-gray-200 cursor-default font-semibold truncate max-w-[200px] md:max-w-xs">
                     {item.label}
                   </span>
                 ) : (
-                  <Link href={item.path || '#'} className="hover:text-blue-600">
+                  <Link href={item.path || '#'} className="hover:text-blue-600 dark:hover:text-blue-400">
                     {item.label}
                   </Link>
                 )}
@@ -55,10 +55,10 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
   if (pathnames.length === 0) return null;
 
   return (
-    <nav className="flex text-xs md:text-sm font-medium text-gray-500 mb-6" aria-label="Breadcrumb">
+    <nav className="flex text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-6" aria-label="Breadcrumb">
       <ol className="inline-flex items-center space-x-1 md:space-x-2">
         <li className="inline-flex items-center">
-          <Link href="/" className="inline-flex items-center hover:text-blue-600">
+          <Link href="/" className="inline-flex items-center hover:text-blue-600 dark:hover:text-blue-400">
             <Home className="w-4 h-4 mr-1" />
             Home
           </Link>
@@ -70,13 +70,13 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => {
           return (
             <li key={to}>
               <div className="flex items-center">
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                 {isLast ? (
-                  <span className="ml-1 md:ml-2 text-gray-700 capitalize cursor-default font-semibold">
+                  <span className="ml-1 md:ml-2 text-gray-700 dark:text-gray-200 capitalize cursor-default font-semibold">
                     {value.replace(/-/g, ' ')}
                   </span>
                 ) : (
-                  <Link href={to} className="ml-1 md:ml-2 hover:text-blue-600 capitalize">
+                  <Link href={to} className="ml-1 md:ml-2 hover:text-blue-600 dark:hover:text-blue-400 capitalize">
                     {value.replace(/-/g, ' ')}
                   </Link>
                 )}

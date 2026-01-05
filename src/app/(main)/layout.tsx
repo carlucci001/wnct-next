@@ -45,7 +45,7 @@ export default async function MainLayout({
   const initialSettings = await getSettings();
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">
       <Header initialSettings={initialSettings} />
       <main className="flex-grow">
         {children}
