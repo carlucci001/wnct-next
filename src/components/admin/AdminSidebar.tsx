@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,12 +16,14 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules';
 
 interface MenuSections {
   ai: boolean;
   content: boolean;
   components: boolean;
+  modules: boolean;
+  plugins: boolean;
   users: boolean;
   systemSettings: boolean;
 }
@@ -177,6 +179,8 @@ export function AdminSidebar({
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Content"
+                icon={FileText}
+                iconColor="text-blue-500"
                 isOpen={menuSections.content}
               />
             </CollapsibleTrigger>
@@ -207,11 +211,109 @@ export function AdminSidebar({
 
           <Separator />
 
+          {/* Components Section */}
+          <Collapsible open={menuSections.components} onOpenChange={() => toggleMenuSection('components')}>
+            <CollapsibleTrigger className="w-full">
+              <SectionHeader
+                title="Components"
+                icon={Boxes}
+                iconColor="text-orange-500"
+                isOpen={menuSections.components}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'directory'}
+                onClick={() => setActiveTab('directory')}
+                icon={Building2}
+                iconColor="text-blue-600"
+              >
+                Directory
+              </NavItem>
+              <NavItem
+                active={activeTab === 'advertising'}
+                onClick={() => setActiveTab('advertising')}
+                icon={Megaphone}
+                iconColor="text-green-600"
+              >
+                Advertising
+              </NavItem>
+              <NavItem
+                active={activeTab === 'blog'}
+                onClick={() => setActiveTab('blog')}
+                icon={BookOpen}
+                iconColor="text-purple-600"
+              >
+                Blog
+              </NavItem>
+              <NavItem
+                active={activeTab === 'events'}
+                onClick={() => setActiveTab('events')}
+                icon={CalendarDays}
+                iconColor="text-pink-600"
+              >
+                Events
+              </NavItem>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
+          {/* Modules Section */}
+          <Collapsible open={menuSections.modules} onOpenChange={() => toggleMenuSection('modules')}>
+            <CollapsibleTrigger className="w-full">
+              <SectionHeader
+                title="Modules"
+                icon={Package}
+                iconColor="text-cyan-500"
+                isOpen={menuSections.modules}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'modules'}
+                onClick={() => setActiveTab('modules')}
+                icon={Package}
+                iconColor="text-cyan-600"
+              >
+                Module Manager
+              </NavItem>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
+          {/* Plugins Section */}
+          <Collapsible open={menuSections.plugins} onOpenChange={() => toggleMenuSection('plugins')}>
+            <CollapsibleTrigger className="w-full">
+              <SectionHeader
+                title="Plugins"
+                icon={Plug}
+                iconColor="text-amber-500"
+                isOpen={menuSections.plugins}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'api-config'}
+                onClick={() => setActiveTab('api-config')}
+                icon={Plug}
+                iconColor="text-amber-600"
+              >
+                APIs
+              </NavItem>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
           {/* Users Section */}
           <Collapsible open={menuSections.users} onOpenChange={() => toggleMenuSection('users')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Users & Roles"
+                icon={Users}
+                iconColor="text-green-500"
                 isOpen={menuSections.users}
               />
             </CollapsibleTrigger>
@@ -240,6 +342,8 @@ export function AdminSidebar({
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="System"
+                icon={Settings}
+                iconColor="text-slate-500"
                 isOpen={menuSections.systemSettings}
               />
             </CollapsibleTrigger>
@@ -250,13 +354,6 @@ export function AdminSidebar({
                 icon={Settings}
               >
                 Site Settings
-              </NavItem>
-              <NavItem
-                active={activeTab === 'api-config'}
-                onClick={() => setActiveTab('api-config')}
-                icon={Plug}
-              >
-                API Configuration
               </NavItem>
               <NavItem
                 active={activeTab === 'infrastructure'}
