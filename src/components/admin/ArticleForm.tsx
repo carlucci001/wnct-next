@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { Article } from '@/types/article';
+import { useAuth } from '@/contexts/AuthContext';
 import dynamic from 'next/dynamic';
 
 // Dynamically import editor to avoid SSR issues
@@ -26,6 +27,7 @@ interface ArticleFormProps {
 
 export default function ArticleForm({ isEditing, initialData, articleId }: ArticleFormProps) {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +74,8 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         status,
         featuredImage,
         author,
+        authorId: currentUser?.uid || initialData?.authorId,
+        authorPhotoURL: currentUser?.photoURL || initialData?.authorPhotoURL,
         excerpt,
         isFeatured,
         isBreakingNews,

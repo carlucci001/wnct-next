@@ -6,6 +6,8 @@ export interface Article {
   content?: string;
   slug: string;
   author: string;
+  authorId?: string;
+  authorPhotoURL?: string;
   category: string;
   categoryColor?: string;
   tags?: string[];

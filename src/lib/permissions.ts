@@ -119,6 +119,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     // Manage comments: Own Only.
   ],
   reader: [],
+  guest: [],
 };
 
 // Helper to check if a user has a specific permission

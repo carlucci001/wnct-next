@@ -48,3 +48,6 @@ next-env.d.ts
 *.log
 *_history.txt
 git_status_*.txt
+
+# VS Code
+.vscode/

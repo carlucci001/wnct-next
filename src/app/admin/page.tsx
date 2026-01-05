@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -14,12 +15,17 @@ import {
   ChevronDown, BarChart3, Clock, TrendingUp, Zap, PenTool,
   MessageSquare, UserPlus, ListOrdered, Server, Plug, Shield,
   Sparkles, DollarSign, AlertCircle, Info, Bot, ShieldAlert, Share2,
-  Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2
+  Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
+  CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
+  Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
 import { batchFormatArticles, batchMigrateImages, formatArticleContent } from '@/lib/articles';
+import { AddUserModal } from '@/components/admin/modals/AddUserModal';
+import { EditUserModal } from '@/components/admin/modals/EditUserModal';
+import { createUser, updateUser, getUsers, deleteUser } from '@/lib/users';
 import dynamic from 'next/dynamic';
 
 // Dynamically import RichTextEditor to avoid SSR issues
@@ -105,9 +111,14 @@ interface SiteSettings {
 interface AppUser {
   id: string;
   email: string;
-  displayName: string;
-  role: string;
-  createdAt?: string;
+  displayName?: string;
+  role: UserRole;
+  accountType: 'free' | 'basic' | 'premium' | 'enterprise';
+  status: 'active' | 'blocked';
+  photoURL?: string;
+  phone?: string;
+  createdAt: Date;
+  updatedAt: Date;
   lastLogin?: string;
 }
 
@@ -159,11 +170,34 @@ const DEFAULT_SETTINGS: SiteSettings = {
 const NEWSROOM_VERSION = '2.0';
 
 export default function AdminDashboard() {
-  const { currentUser, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const { currentUser, userProfile, signOut } = useAuth();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    // Initialize from URL param if present
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL'].includes(tabParam)) {
+      return tabParam as TabType;
+    }
+    return 'dashboard';
+  });
   const [loading, setLoading] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [addingUser, setAddingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  // Enhanced User Management State
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<UserRole | 'all'>('all');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'blocked'>('all');
+  const [userAccountFilter, setUserAccountFilter] = useState<'all' | 'free' | 'basic' | 'premium' | 'enterprise'>('all');
+  const [userSortField, setUserSortField] = useState<'displayName' | 'email' | 'role' | 'status' | 'createdAt'>('createdAt');
+  const [userSortDirection, setUserSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [userCurrentPage, setUserCurrentPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(10);
+  const [viewingUser, setViewingUser] = useState<AppUser | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [stats, setStats] = useState<DashboardStats>({
     totalArticles: 0,
@@ -609,6 +643,8 @@ Return ONLY valid JSON array with no markdown:
         imageUrl: agentArticle.imageUrl || agentArticle.featuredImage || '',
         content: formattedContent,
         excerpt: agentArticle.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
+        authorId: currentUser?.uid || agentArticle.authorId,
+        authorPhotoURL: currentUser?.photoURL || agentArticle.authorPhotoURL,
         // Set breaking news timestamp when isBreakingNews is true
         breakingNewsTimestamp: agentArticle.isBreakingNews ? new Date().toISOString() : undefined,
       };
@@ -1609,105 +1645,718 @@ Example structure:
     </div>
   );
 
-  // Users Content
-  const renderUsers = () => (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">Manage user accounts and permissions</p>
+  // Enhanced Users Content
+  const renderUsers = () => {
+    const ROLES: UserRole[] = ['admin', 'business-owner', 'editor-in-chief', 'editor', 'content-contributor', 'commenter', 'reader', 'guest'];
+    const ACCOUNT_TYPES = ['free', 'basic', 'premium', 'enterprise'] as const;
+
+    const ROLE_COLORS: Record<UserRole, string> = {
+      'admin': 'bg-red-100 text-red-800',
+      'business-owner': 'bg-purple-100 text-purple-800',
+      'editor-in-chief': 'bg-blue-100 text-blue-800',
+      'editor': 'bg-cyan-100 text-cyan-800',
+      'content-contributor': 'bg-green-100 text-green-800',
+      'commenter': 'bg-yellow-100 text-yellow-800',
+      'reader': 'bg-gray-100 text-gray-800',
+      'guest': 'bg-slate-100 text-slate-800',
+    };
+
+    const ACCOUNT_TYPE_COLORS: Record<string, string> = {
+      'free': 'bg-gray-100 text-gray-700',
+      'basic': 'bg-blue-100 text-blue-700',
+      'premium': 'bg-amber-100 text-amber-700',
+      'enterprise': 'bg-purple-100 text-purple-700',
+    };
+
+    // Filter and sort users
+    let filteredUsers = [...users];
+
+    // Search filter
+    if (userSearchTerm) {
+      const term = userSearchTerm.toLowerCase();
+      filteredUsers = filteredUsers.filter(
+        (user) =>
+          user.email.toLowerCase().includes(term) ||
+          (user.displayName?.toLowerCase().includes(term) ?? false) ||
+          (user.phone?.includes(term) ?? false)
+      );
+    }
+
+    // Role filter
+    if (userRoleFilter !== 'all') {
+      filteredUsers = filteredUsers.filter((user) => user.role === userRoleFilter);
+    }
+
+    // Status filter
+    if (userStatusFilter !== 'all') {
+      filteredUsers = filteredUsers.filter((user) => user.status === userStatusFilter);
+    }
+
+    // Account type filter
+    if (userAccountFilter !== 'all') {
+      filteredUsers = filteredUsers.filter((user) => user.accountType === userAccountFilter);
+    }
+
+    // Sort
+    filteredUsers.sort((a, b) => {
+      let aVal: string | number | Date;
+      let bVal: string | number | Date;
+
+      switch (userSortField) {
+        case 'displayName':
+          aVal = a.displayName?.toLowerCase() || '';
+          bVal = b.displayName?.toLowerCase() || '';
+          break;
+        case 'email':
+          aVal = a.email.toLowerCase();
+          bVal = b.email.toLowerCase();
+          break;
+        case 'role':
+          aVal = ROLES.indexOf(a.role);
+          bVal = ROLES.indexOf(b.role);
+          break;
+        case 'status':
+          aVal = a.status;
+          bVal = b.status;
+          break;
+        case 'createdAt':
+        default:
+          aVal = new Date(a.createdAt).getTime();
+          bVal = new Date(b.createdAt).getTime();
+      }
+
+      if (aVal < bVal) return userSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return userSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Pagination
+    const totalPages = Math.ceil(filteredUsers.length / userPageSize);
+    const startIndex = (userCurrentPage - 1) * userPageSize;
+    const paginatedUsers = filteredUsers.slice(startIndex, startIndex + userPageSize);
+
+    // Selection helpers
+    const allCurrentPageSelected = paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUsers.has(u.id));
+    const someCurrentPageSelected = paginatedUsers.some(u => selectedUsers.has(u.id));
+
+    const toggleSelectUser = (userId: string, index: number, shiftKey: boolean) => {
+      const newSelected = new Set(selectedUsers);
+
+      if (shiftKey && lastSelectedIndex !== null) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        for (let i = start; i <= end; i++) {
+          if (paginatedUsers[i]) {
+            newSelected.add(paginatedUsers[i].id);
+          }
+        }
+      } else {
+        if (newSelected.has(userId)) {
+          newSelected.delete(userId);
+        } else {
+          newSelected.add(userId);
+        }
+      }
+
+      setSelectedUsers(newSelected);
+      setLastSelectedIndex(index);
+    };
+
+    const toggleSelectAll = () => {
+      const newSelected = new Set(selectedUsers);
+      if (allCurrentPageSelected) {
+        paginatedUsers.forEach(u => newSelected.delete(u.id));
+      } else {
+        paginatedUsers.forEach(u => newSelected.add(u.id));
+      }
+      setSelectedUsers(newSelected);
+    };
+
+    const selectAllFiltered = () => {
+      const newSelected = new Set(selectedUsers);
+      filteredUsers.forEach(u => newSelected.add(u.id));
+      setSelectedUsers(newSelected);
+    };
+
+    const clearSelection = () => setSelectedUsers(new Set());
+
+    // Bulk actions
+    const handleBulkRoleChange = async (newRole: UserRole) => {
+      for (const userId of selectedUsers) {
+        await updateUser(userId, { role: newRole });
+      }
+      const newUsers = await getUsers();
+      setUsers(newUsers);
+      clearSelection();
+      toast.success(`Updated role for ${selectedUsers.size} users`);
+    };
+
+    const handleBulkStatusChange = async (newStatus: 'active' | 'blocked') => {
+      for (const userId of selectedUsers) {
+        await updateUser(userId, { status: newStatus });
+      }
+      const newUsers = await getUsers();
+      setUsers(newUsers);
+      clearSelection();
+      toast.success(`Updated status for ${selectedUsers.size} users`);
+    };
+
+    const handleBulkAccountChange = async (newType: 'free' | 'basic' | 'premium' | 'enterprise') => {
+      for (const userId of selectedUsers) {
+        await updateUser(userId, { accountType: newType });
+      }
+      const newUsers = await getUsers();
+      setUsers(newUsers);
+      clearSelection();
+      toast.success(`Updated account type for ${selectedUsers.size} users`);
+    };
+
+    const handleBulkDelete = async () => {
+      for (const userId of selectedUsers) {
+        await deleteUser(userId);
+      }
+      const newUsers = await getUsers();
+      setUsers(newUsers);
+      clearSelection();
+      setShowDeleteConfirm(false);
+      toast.success(`Deleted ${selectedUsers.size} users`);
+    };
+
+    const handleExport = (format: 'csv' | 'json') => {
+      const dataToExport = selectedUsers.size > 0
+        ? filteredUsers.filter(u => selectedUsers.has(u.id))
+        : filteredUsers;
+
+      if (format === 'csv') {
+        const headers = ['ID', 'Email', 'Name', 'Role', 'Account Type', 'Status', 'Created'];
+        const rows = dataToExport.map(u => [
+          u.id,
+          u.email,
+          u.displayName || '',
+          u.role,
+          u.accountType,
+          u.status,
+          new Date(u.createdAt).toISOString()
+        ]);
+        const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `users-export-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+      } else {
+        const json = JSON.stringify(dataToExport, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `users-export-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+      }
+      toast.success(`Exported ${dataToExport.length} users`);
+    };
+
+    const handleSort = (field: typeof userSortField) => {
+      if (userSortField === field) {
+        setUserSortDirection(userSortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setUserSortField(field);
+        setUserSortDirection('asc');
+      }
+    };
+
+    const SortableHeader = ({ field, label }: { field: typeof userSortField; label: string }) => (
+      <button
+        onClick={() => handleSort(field)}
+        className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+      >
+        {label}
+        {userSortField === field ? (
+          userSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+        ) : (
+          <ArrowUp size={14} className="opacity-30" />
+        )}
+      </button>
+    );
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+            <p className="text-muted-foreground">
+              {users.length} total users • Showing {startIndex + 1}-{Math.min(startIndex + userPageSize, filteredUsers.length)} of {filteredUsers.length} filtered
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setAddingUser(true)}>
+              <UserPlus size={16} className="mr-2" />
+              Add User
+            </Button>
+            <Button variant="outline" onClick={() => handleExport('csv')}>
+              <Download size={16} />
+            </Button>
+            <Button variant="outline" onClick={async () => {
+              const newUsers = await getUsers();
+              setUsers(newUsers);
+              toast.success('Users refreshed');
+            }}>
+              <RefreshCw size={16} />
+            </Button>
+          </div>
         </div>
-        <Button>
-          <UserPlus size={16} className="mr-2" />
-          Add User
-        </Button>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Admins</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Contributors</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.filter(u => u.role === 'content-contributor' || u.role === 'editor').length}</div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Bulk Actions Toolbar */}
+        {selectedUsers.size > 0 && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="py-3 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="text-blue-600" size={20} />
+                <span className="font-medium text-blue-900">{selectedUsers.size} selected</span>
+                <button onClick={selectAllFiltered} className="text-sm text-blue-600 hover:text-blue-800 underline">
+                  Select all {filteredUsers.length}
+                </button>
+                <span className="text-gray-400">|</span>
+                <button onClick={clearSelection} className="text-sm text-gray-600 hover:text-gray-800">
+                  Clear
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 ml-auto">
+                {/* Role Dropdown */}
+                <select
+                  onChange={(e) => e.target.value && handleBulkRoleChange(e.target.value as UserRole)}
+                  className="px-3 py-1.5 text-sm border rounded-lg bg-white"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Change Role</option>
+                  {ROLES.map(role => (
+                    <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                  ))}
+                </select>
+                {/* Status Dropdown */}
+                <select
+                  onChange={(e) => e.target.value && handleBulkStatusChange(e.target.value as 'active' | 'blocked')}
+                  className="px-3 py-1.5 text-sm border rounded-lg bg-white"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Change Status</option>
+                  <option value="active">Activate</option>
+                  <option value="blocked">Block</option>
+                </select>
+                {/* Account Type Dropdown */}
+                <select
+                  onChange={(e) => e.target.value && handleBulkAccountChange(e.target.value as any)}
+                  className="px-3 py-1.5 text-sm border rounded-lg bg-white"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Change Plan</option>
+                  {ACCOUNT_TYPES.map(type => (
+                    <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+                  ))}
+                </select>
+                <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                  <Trash2 size={14} className="mr-1" /> Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Joined</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.length > 0 ? users.map(user => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-                      {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <p className="font-medium">{user.displayName || 'N/A'}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="capitalize bg-purple-100 text-purple-700">
-                    {user.role || 'reader'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="outline" size="sm">Edit</Button>
-                </TableCell>
-              </TableRow>
-            )) : (
+        {/* Filters */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                <Input
+                  placeholder="Search by name, email, or phone..."
+                  value={userSearchTerm}
+                  onChange={(e) => { setUserSearchTerm(e.target.value); setUserCurrentPage(1); }}
+                  className="pl-10"
+                />
+              </div>
+              {/* Role Filter */}
+              <select
+                value={userRoleFilter}
+                onChange={(e) => { setUserRoleFilter(e.target.value as any); setUserCurrentPage(1); }}
+                className="px-3 py-2 border rounded-lg bg-background"
+              >
+                <option value="all">All Roles</option>
+                {ROLES.map(role => (
+                  <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                ))}
+              </select>
+              {/* Status Filter */}
+              <select
+                value={userStatusFilter}
+                onChange={(e) => { setUserStatusFilter(e.target.value as any); setUserCurrentPage(1); }}
+                className="px-3 py-2 border rounded-lg bg-background"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="blocked">Blocked</option>
+              </select>
+              {/* Account Type Filter */}
+              <select
+                value={userAccountFilter}
+                onChange={(e) => { setUserAccountFilter(e.target.value as any); setUserCurrentPage(1); }}
+                className="px-3 py-2 border rounded-lg bg-background"
+              >
+                <option value="all">All Plans</option>
+                {ACCOUNT_TYPES.map(type => (
+                  <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <Card>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center">
-                  <div className="flex flex-col items-center justify-center text-muted-foreground">
-                    <Users size={48} className="mb-4 opacity-20" />
-                    <p>No users found.</p>
-                  </div>
-                </TableCell>
+                <TableHead className="w-12">
+                  <button onClick={toggleSelectAll} className="p-1">
+                    {allCurrentPageSelected ? (
+                      <CheckSquare size={18} className="text-blue-600" />
+                    ) : someCurrentPageSelected ? (
+                      <MinusSquare size={18} className="text-blue-600" />
+                    ) : (
+                      <Square size={18} className="text-gray-400" />
+                    )}
+                  </button>
+                </TableHead>
+                <TableHead><SortableHeader field="displayName" label="User" /></TableHead>
+                <TableHead><SortableHeader field="role" label="Role" /></TableHead>
+                <TableHead><SortableHeader field="status" label="Status" /></TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead><SortableHeader field="createdAt" label="Joined" /></TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-    </div>
-  );
+            </TableHeader>
+            <TableBody>
+              {paginatedUsers.length > 0 ? paginatedUsers.map((user, index) => {
+                const isSelected = selectedUsers.has(user.id);
+                return (
+                  <TableRow
+                    key={user.id}
+                    className={`cursor-pointer ${isSelected ? 'bg-blue-50' : ''}`}
+                    onClick={() => setViewingUser(user)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => toggleSelectUser(user.id, index, e.shiftKey)}
+                        className="p-1"
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={18} className="text-blue-600" />
+                        ) : (
+                          <Square size={18} className="text-gray-400 hover:text-gray-600" />
+                        )}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt={user.displayName || 'User'}
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold ${user.photoURL ? 'hidden' : ''}`}>
+                          {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="font-medium">{user.displayName || 'N/A'}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={ROLE_COLORS[user.role]}>
+                        {ROLE_LABELS[user.role]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                        {user.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={ACCOUNT_TYPE_COLORS[user.accountType || 'free']}>
+                        {(user.accountType || 'free').charAt(0).toUpperCase() + (user.accountType || 'free').slice(1)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="outline" size="sm" onClick={() => setEditingUser(user)}>
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              }) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Users size={48} className="mb-4 opacity-20" />
+                      <p>No users found.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="border-t p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows per page:</span>
+                <select
+                  value={userPageSize}
+                  onChange={(e) => { setUserPageSize(Number(e.target.value)); setUserCurrentPage(1); }}
+                  className="px-2 py-1 border rounded text-sm"
+                >
+                  {[10, 25, 50, 100].map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserCurrentPage(1)}
+                  disabled={userCurrentPage === 1}
+                >
+                  <ChevronsLeft size={16} />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={userCurrentPage === 1}
+                >
+                  <ChevronLeft size={16} />
+                </Button>
+                <span className="text-sm px-2">
+                  Page {userCurrentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={userCurrentPage === totalPages}
+                >
+                  <ChevronRight size={16} />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUserCurrentPage(totalPages)}
+                  disabled={userCurrentPage === totalPages}
+                >
+                  <ChevronsRight size={16} />
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* User Detail Drawer */}
+        {viewingUser && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setViewingUser(null)} />
+            <div className="relative w-full max-w-md bg-background shadow-2xl h-full overflow-y-auto">
+              {/* Drawer Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+                <button
+                  onClick={() => setViewingUser(null)}
+                  className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+                <div className="flex flex-col items-center pt-4">
+                  {viewingUser.photoURL ? (
+                    <img src={viewingUser.photoURL} alt="" className="w-20 h-20 rounded-full object-cover ring-4 ring-white/30" />
+                  ) : (
+                    <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold ring-4 ring-white/30">
+                      {viewingUser.displayName?.charAt(0) || viewingUser.email?.charAt(0) || '?'}
+                    </div>
+                  )}
+                  <h2 className="text-xl font-bold mt-4">{viewingUser.displayName || 'No Name'}</h2>
+                  <p className="text-blue-100">{viewingUser.email}</p>
+                  <div className="flex gap-2 mt-3">
+                    <Badge className={`${ROLE_COLORS[viewingUser.role]} bg-white/90`}>
+                      {ROLE_LABELS[viewingUser.role]}
+                    </Badge>
+                    <Badge className={viewingUser.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                      {viewingUser.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Drawer Actions */}
+              <div className="p-4 border-b flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditingUser(viewingUser); setViewingUser(null); }}>
+                  <Edit size={14} className="mr-1" /> Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={async () => {
+                    const newStatus = viewingUser.status === 'active' ? 'blocked' : 'active';
+                    await updateUser(viewingUser.id, { status: newStatus });
+                    const newUsers = await getUsers();
+                    setUsers(newUsers);
+                    setViewingUser({ ...viewingUser, status: newStatus });
+                    toast.success(`User ${newStatus === 'active' ? 'activated' : 'blocked'}`);
+                  }}
+                >
+                  {viewingUser.status === 'active' ? <UserX size={14} className="mr-1" /> : <UserCheck size={14} className="mr-1" />}
+                  {viewingUser.status === 'active' ? 'Block' : 'Activate'}
+                </Button>
+              </div>
+
+              {/* Drawer Content */}
+              <div className="p-6 space-y-6">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Details</h3>
+                  <div className="space-y-3">
+                    {viewingUser.phone && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Phone className="text-muted-foreground" size={16} />
+                        <span>{viewingUser.phone}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 text-sm">
+                      <Calendar className="text-muted-foreground" size={16} />
+                      <span>Joined {new Date(viewingUser.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <Shield className="text-muted-foreground" size={16} />
+                      <span>{ROLE_LABELS[viewingUser.role]}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <Activity className="text-muted-foreground" size={16} />
+                      <Badge className={ACCOUNT_TYPE_COLORS[viewingUser.accountType || 'free']}>
+                        {(viewingUser.accountType || 'free').charAt(0).toUpperCase() + (viewingUser.accountType || 'free').slice(1)} Plan
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Log */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Activity Log</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 text-sm">
+                      <div className="p-1.5 bg-muted rounded-lg"><UserCheck size={14} className="text-muted-foreground" /></div>
+                      <div>
+                        <p>Logged in</p>
+                        <p className="text-muted-foreground text-xs">2 hours ago</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 text-sm">
+                      <div className="p-1.5 bg-muted rounded-lg"><Edit size={14} className="text-muted-foreground" /></div>
+                      <div>
+                        <p>Updated profile</p>
+                        <p className="text-muted-foreground text-xs">1 day ago</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 text-sm">
+                      <div className="p-1.5 bg-muted rounded-lg"><UserPlus size={14} className="text-muted-foreground" /></div>
+                      <div>
+                        <p>Account created</p>
+                        <p className="text-muted-foreground text-xs">{new Date(viewingUser.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
+            <Card className="relative max-w-md mx-4">
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-red-100 rounded-full">
+                    <AlertTriangle className="text-red-600" size={24} />
+                  </div>
+                  <div>
+                    <CardTitle>Delete Users</CardTitle>
+                    <CardDescription>Are you sure you want to delete {selectedUsers.size} user(s)?</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  This action cannot be undone. All user data will be permanently removed.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+                  <Button variant="destructive" onClick={handleBulkDelete}>Delete</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Add User Modal */}
+        {addingUser && (
+          <AddUserModal
+            onClose={() => setAddingUser(false)}
+            onAdd={async (userData) => {
+              const userId = crypto.randomUUID();
+              await createUser({
+                id: userId,
+                ...userData
+              });
+              const newUsers = await getUsers();
+              setUsers(newUsers);
+              toast.success('User created successfully');
+            }}
+            currentUserRole="admin"
+          />
+        )}
+
+        {/* Edit User Modal */}
+        {editingUser && (
+          <EditUserModal
+            user={editingUser}
+            onClose={() => setEditingUser(null)}
+            onSave={async (userId, updates) => {
+              await updateUser(userId, updates);
+              const newUsers = await getUsers();
+              setUsers(newUsers);
+              toast.success('User updated successfully');
+            }}
+            currentUserRole="admin"
+          />
+        )}
+      </div>
+    );
+  };
 
   // Settings Content
   const renderSettings = () => (
@@ -2788,35 +3437,14 @@ Example structure:
           {/* Agent Header */}
           <Card className="rounded-none border-x-0 border-t-0">
             <CardHeader className="pb-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-primary/10 rounded-xl">
-                    {getAgentIcon(agentKey)}
-                  </div>
-                  <div>
-                    <CardTitle className="text-2xl">{agentData.label}</CardTitle>
-                    <CardDescription className="mt-1 max-w-2xl">{agentData.instruction}</CardDescription>
-                  </div>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-primary/10 rounded-xl">
+                  {getAgentIcon(agentKey)}
                 </div>
-                <Button
-                  onClick={() => setAgentArticle({
-                    id: '',
-                    title: '',
-                    slug: '',
-                    excerpt: '',
-                    category: 'News',
-                    author: currentUser?.displayName || 'Staff',
-                    publishedAt: new Date().toISOString(),
-                    createdAt: new Date().toISOString(),
-                    imageUrl: '',
-                    featuredImage: '',
-                    content: '',
-                    status: 'draft'
-                  })}
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                >
-                  <Plus size={18} className="mr-2" /> New Article
-                </Button>
+                <div>
+                  <CardTitle className="text-2xl">{agentData.label}</CardTitle>
+                  <CardDescription className="mt-1 max-w-2xl">{agentData.instruction}</CardDescription>
+                </div>
               </div>
             </CardHeader>
           </Card>
@@ -2899,7 +3527,7 @@ Example structure:
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Ready to Publish</span>
-                        <Badge className="bg-emerald-600">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</Badge>
+                        <Badge className="bg-primary">{articles.filter(a => a.status?.toLowerCase() === 'review').length}</Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -2909,7 +3537,7 @@ Example structure:
               {/* JOURNALIST Agent Tools */}
               {activeTab === 'JOURNALIST' && (
                 <>
-                  <Card className="bg-gradient-to-r from-emerald-600 to-blue-600 border-0">
+                  <Card className="bg-primary border-0">
                     <CardContent className="pt-6">
                       <Button
                         variant="secondary"
@@ -2933,7 +3561,7 @@ Example structure:
                         }}
                         className="w-full bg-white text-primary hover:bg-white/90"
                       >
-                        <Sparkles size={18} className="mr-2 text-emerald-600" /> Create New Article
+                        <Sparkles size={18} className="mr-2 text-primary" /> Create New Article
                       </Button>
                       <p className="text-xs text-white/90 mt-2 text-center">Use AI to generate ideas or write manually</p>
                     </CardContent>
@@ -3063,7 +3691,7 @@ Example structure:
                           <Button
                             onClick={handleForwardToChief}
                             disabled={!selectedArticleForAction}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700"
+                            className="w-full bg-primary hover:bg-primary/90"
                           >
                             <ArrowRight size={14} className="mr-2" /> Approve & Publish
                           </Button>
@@ -3131,7 +3759,7 @@ Example structure:
             <button
               onClick={() => handleSaveAgentArticle(true)}
               disabled={!agentArticle?.title}
-              className="px-6 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2.5 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={17} /> Save
             </button>
@@ -3296,18 +3924,18 @@ Example structure:
                   </div>
 
                   {/* AI Article Generator */}
-                  <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-slate-200 p-5">
+                  <div className="bg-gradient-to-r from-primary/10 to-slate-50 rounded-xl border border-slate-200 p-5">
                     <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                      <Sparkles size={16} className="text-emerald-600" /> AI Article Generator
+                      <Sparkles size={16} className="text-primary" /> AI Article Generator
                     </h3>
                     <p className="text-xs text-slate-600 mb-4">AI researches topic & writes full article</p>
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-600 mb-2">Topic *</label>
-                        <input type="text" value={selectedResearchTopic} onChange={e => setSelectedResearchTopic(e.target.value)} placeholder="e.g., 'downtown construction project'" className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white" onKeyDown={e => e.key === 'Enter' && handleGetArticleIdeas()} />
+                        <input type="text" value={selectedResearchTopic} onChange={e => setSelectedResearchTopic(e.target.value)} placeholder="e.g., 'downtown construction project'" className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white" onKeyDown={e => e.key === 'Enter' && handleGetArticleIdeas()} />
                       </div>
                       <p className="text-xs text-slate-500">Category: <strong>{agentArticle.category || 'Not selected'}</strong> (change above)</p>
-                      <button onClick={handleGetArticleIdeas} disabled={editorAiLoading || !selectedResearchTopic || !agentArticle.category} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-emerald-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
+                      <button onClick={handleGetArticleIdeas} disabled={editorAiLoading || !selectedResearchTopic || !agentArticle.category} className="w-full py-3 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
                         {workflowAction === 'research' ? <><RefreshCw size={16} className="animate-spin" /> Generating Ideas...</> : <><Sparkles size={16} /> Get Article Ideas</>}
                       </button>
                     </div>
@@ -3315,22 +3943,22 @@ Example structure:
 
                   {/* Article Suggestions */}
                   {showSuggestions && articleSuggestions.length > 0 && (
-                    <div className="bg-white rounded-xl border border-emerald-200 shadow-lg overflow-hidden">
-                      <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 px-5 py-4 border-b border-emerald-200">
-                        <h3 className="font-semibold text-emerald-900 flex items-center gap-2">
-                          <Sparkles size={16} className="text-emerald-600" /> Choose an Article
+                    <div className="bg-white rounded-xl border border-primary/30 shadow-lg overflow-hidden">
+                      <div className="bg-gradient-to-r from-primary/10 to-primary/20 px-5 py-4 border-b border-primary/20">
+                        <h3 className="font-semibold text-foreground flex items-center gap-2">
+                          <Sparkles size={16} className="text-primary" /> Choose an Article
                         </h3>
-                        <p className="text-xs text-emerald-700 mt-1">Click any idea to create the full article</p>
+                        <p className="text-xs text-muted-foreground mt-1">Click any idea to create the full article</p>
                       </div>
                       <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
                         {articleSuggestions.map((suggestion, idx) => (
-                          <button key={idx} onClick={() => handleCreateFromSuggestion(suggestion)} disabled={editorAiLoading} className="w-full text-left p-4 bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-lg hover:border-emerald-400 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group">
+                          <button key={idx} onClick={() => handleCreateFromSuggestion(suggestion)} disabled={editorAiLoading} className="w-full text-left p-4 bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-lg hover:border-primary hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group">
                             <div className="flex items-start gap-3">
-                              <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-sm group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                              <div className="flex-shrink-0 w-8 h-8 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold text-sm group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                 {idx + 1}
                               </div>
                               <div className="flex-grow">
-                                <h4 className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-emerald-700 transition-colors">{suggestion.title}</h4>
+                                <h4 className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-primary transition-colors">{suggestion.title}</h4>
                                 <p className="text-xs text-slate-600 mb-2 leading-relaxed">{suggestion.summary}</p>
                               </div>
                             </div>
@@ -3458,7 +4086,7 @@ Example structure:
             <p className="text-gray-500 mt-1">{media.length} files in library</p>
           </div>
           <div className="flex gap-2">
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
               <FolderPlus size={16} className="mr-2"/> New Folder
             </button>
             <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
@@ -3675,7 +4303,7 @@ Example structure:
       {/* Global Header */}
       <AdminHeader
         settings={settings}
-        currentUser={currentUser}
+        currentUser={currentUser ? { ...currentUser, photoURL: userProfile?.photoURL } : null}
         onSettingsClick={() => setActiveTab('settings')}
         onSignOut={signOut}
         version={NEWSROOM_VERSION}
