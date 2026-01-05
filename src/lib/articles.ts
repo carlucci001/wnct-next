@@ -307,109 +307,149 @@ export async function deleteArticle(id: string): Promise<boolean> {
  * Removes empty tags, excessive whitespace, and normalizes structure
  * Also splits giant single-paragraph content into multiple paragraphs
  */
+/**
+ * Check if content has block-level HTML tags
+ */
+function hasBlockLevelTags(html: string): boolean {
+  return /<(p|div|h[1-6]|ul|ol|li|blockquote|pre|table|article|section)[^>]*>/i.test(html);
+}
+
+/**
+ * Convert plain text to HTML with proper paragraph tags
+ */
+function convertPlainTextToHTML(text: string): string {
+  // Normalize line endings
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Split by double newlines (paragraph breaks)
+  const paragraphs = normalized.split(/\n\n+/).filter(p => p.trim());
+
+  if (paragraphs.length > 0) {
+    // Convert each paragraph, preserving single line breaks as <br>
+    return paragraphs.map(p => {
+      const withBreaks = p.trim().replace(/\n/g, '<br>');
+      return `<p>${withBreaks}</p>`;
+    }).join('\n');
+  }
+
+  if (normalized.length > 0) {
+    // Single block of text
+    return `<p>${normalized.replace(/\n/g, '<br>')}</p>`;
+  }
+
+  return normalized;
+}
+
+/**
+ * Check if paragraph break should occur based on sentence content and length
+ */
+function shouldBreakParagraph(
+  sentence: string,
+  sentenceCount: number,
+  currentParagraphLength: number
+): boolean {
+  const isQuoteEnd = sentence.includes('" ') || sentence.includes('." ') || sentence.includes('," ');
+  const isLongEnough = sentenceCount >= 3 && currentParagraphLength > 200;
+  const hasMaxSentences = sentenceCount >= 4;
+
+  return isQuoteEnd || isLongEnough || hasMaxSentences;
+}
+
+/**
+ * Split giant single-paragraph content into multiple readable paragraphs
+ * This handles cases where AI returned everything in one <p> tag
+ */
+function splitGiantParagraphs(html: string): string {
+  const pTagCount = (html.match(/<p[^>]*>/gi) || []).length;
+  const textContent = html.replace(/<[^>]+>/g, '');
+
+  // Only split if content is mostly in one paragraph and is long enough
+  if (pTagCount > 1 || textContent.length <= 500) {
+    return html;
+  }
+
+  const text = textContent.trim();
+  const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
+  const paragraphs: string[] = [];
+  let currentParagraph = '';
+  let sentenceCount = 0;
+
+  for (const sentence of sentences) {
+    currentParagraph += sentence;
+    sentenceCount++;
+
+    if (shouldBreakParagraph(sentence, sentenceCount, currentParagraph.length)) {
+      paragraphs.push(currentParagraph.trim());
+      currentParagraph = '';
+      sentenceCount = 0;
+    }
+  }
+
+  // Add remaining content as final paragraph
+  if (currentParagraph.trim()) {
+    paragraphs.push(currentParagraph.trim());
+  }
+
+  // Rebuild with proper paragraph tags if we split successfully
+  return paragraphs.length > 1
+    ? paragraphs.map(p => `<p>${p}</p>`).join('\n')
+    : html;
+}
+
+/**
+ * Remove empty HTML elements and clean up problematic formatting
+ */
+function cleanupHTML(html: string): string {
+  return html
+    // Remove empty paragraphs and divs
+    .replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '')
+    .replace(/<p>\s*&nbsp;\s*<\/p>/gi, '')
+    .replace(/<p><\/p>/gi, '')
+    .replace(/<p>\s*<\/p>/gi, '')
+    .replace(/<div>\s*<br\s*\/?>\s*<\/div>/gi, '')
+    .replace(/<div><\/div>/gi, '')
+    // Remove excessive <br> tags (more than 2 in a row)
+    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>')
+    // Remove empty spans
+    .replace(/<span>\s*<\/span>/gi, '')
+    .replace(/<span[^>]*>\s*<\/span>/gi, '')
+    // Clean up multiple &nbsp;
+    .replace(/&nbsp;(&nbsp;)+/gi, ' ')
+    // Remove problematic inline styles
+    .replace(/\s*style="[^"]*font-family:[^"]*"/gi, '')
+    .replace(/\s*style="[^"]*background-color:\s*transparent[^"]*"/gi, '')
+    // Remove class attributes from common tags
+    .replace(/<(p|div|span)([^>]*)\s+class="[^"]*"([^>]*)>/gi, '<$1$2$3>');
+}
+
+/**
+ * Normalize whitespace while preserving HTML structure
+ */
+function normalizeWhitespace(html: string): string {
+  return html
+    .replace(/>\s+</g, '>\n<')
+    .trim();
+}
+
+/**
+ * Format article content - convert plain text to HTML and clean up formatting
+ */
 export function formatArticleContent(html: string): string {
   if (!html) return '';
 
   let formatted = html.trim();
 
-  // Check if content is mostly plain text (no block-level HTML tags)
-  const hasBlockTags = /<(p|div|h[1-6]|ul|ol|li|blockquote|pre|table|article|section)[^>]*>/i.test(formatted);
-
-  if (!hasBlockTags) {
-    // Content is plain text - convert line breaks to paragraphs
-    // First, normalize line endings
-    formatted = formatted.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    // Split by double newlines (paragraph breaks)
-    const paragraphs = formatted.split(/\n\n+/).filter(p => p.trim());
-
-    if (paragraphs.length > 0) {
-      // Convert each paragraph, preserving single line breaks as <br>
-      formatted = paragraphs.map(p => {
-        // Replace single newlines with <br> within paragraphs
-        const withBreaks = p.trim().replace(/\n/g, '<br>');
-        return `<p>${withBreaks}</p>`;
-      }).join('\n');
-    } else if (formatted.length > 0) {
-      // Single block of text
-      formatted = `<p>${formatted.replace(/\n/g, '<br>')}</p>`;
-    }
+  // Convert plain text to HTML if needed
+  if (!hasBlockLevelTags(formatted)) {
+    formatted = convertPlainTextToHTML(formatted);
   }
 
-  // CRITICAL: Split giant single-paragraph content into multiple paragraphs
-  // This handles cases where AI returned everything in one <p> tag
-  const pTagCount = (formatted.match(/<p[^>]*>/gi) || []).length;
-  const textContent = formatted.replace(/<[^>]+>/g, '');
-  const contentLength = textContent.length;
+  // Split giant paragraphs into readable chunks
+  formatted = splitGiantParagraphs(formatted);
 
-  if (pTagCount <= 1 && contentLength > 500) {
-    // Extract the text content
-    let text = textContent.trim();
-
-    // Split on sentence endings that typically mark paragraph breaks
-    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)/g) || [text];
-    const paragraphs: string[] = [];
-    let currentParagraph = '';
-    let sentenceCount = 0;
-
-    for (const sentence of sentences) {
-      currentParagraph += sentence;
-      sentenceCount++;
-
-      // Start new paragraph after: quotes end, or every 3-4 sentences, or long enough
-      const isQuoteEnd = sentence.includes('" ') || sentence.includes('." ') || sentence.includes('," ');
-      const isLongEnough = sentenceCount >= 3 && currentParagraph.length > 200;
-
-      if (isQuoteEnd || isLongEnough || sentenceCount >= 4) {
-        paragraphs.push(currentParagraph.trim());
-        currentParagraph = '';
-        sentenceCount = 0;
-      }
-    }
-
-    // Don't forget the last paragraph
-    if (currentParagraph.trim()) {
-      paragraphs.push(currentParagraph.trim());
-    }
-
-    // Rebuild with proper paragraph tags if we split successfully
-    if (paragraphs.length > 1) {
-      formatted = paragraphs.map(p => `<p>${p}</p>`).join('\n');
-    }
-  }
-
-  // Now clean up the HTML
-
-  // Remove empty paragraphs and divs
-  formatted = formatted.replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, '');
-  formatted = formatted.replace(/<p>\s*&nbsp;\s*<\/p>/gi, '');
-  formatted = formatted.replace(/<p><\/p>/gi, '');
-  formatted = formatted.replace(/<p>\s*<\/p>/gi, '');
-  formatted = formatted.replace(/<div>\s*<br\s*\/?>\s*<\/div>/gi, '');
-  formatted = formatted.replace(/<div><\/div>/gi, '');
-
-  // Remove excessive <br> tags (more than 2 in a row)
-  formatted = formatted.replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
-
-  // Remove empty spans
-  formatted = formatted.replace(/<span>\s*<\/span>/gi, '');
-  formatted = formatted.replace(/<span[^>]*>\s*<\/span>/gi, '');
-
-  // Clean up multiple &nbsp;
-  formatted = formatted.replace(/&nbsp;(&nbsp;)+/gi, ' ');
-
-  // Remove problematic inline styles that break formatting
-  formatted = formatted.replace(/\s*style="[^"]*font-family:[^"]*"/gi, '');
-  formatted = formatted.replace(/\s*style="[^"]*background-color:\s*transparent[^"]*"/gi, '');
-
-  // Remove class attributes from common tags (often garbage from pasting)
-  formatted = formatted.replace(/<(p|div|span)([^>]*)\s+class="[^"]*"([^>]*)>/gi, '<$1$2$3>');
-
-  // Clean up extra whitespace but preserve structure
-  formatted = formatted.replace(/>\s+</g, '>\n<');
-
-  // Remove leading/trailing whitespace
-  formatted = formatted.trim();
+  // Clean up HTML and normalize whitespace
+  formatted = cleanupHTML(formatted);
+  formatted = normalizeWhitespace(formatted);
 
   return formatted;
 }
