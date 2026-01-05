@@ -134,6 +134,7 @@ export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps)
                     width={96}
                     height={96}
                     className="w-full h-full object-cover"
+                    style={{ width: 96, height: 96 }}
                   />
                 ) : (
                   <span className="text-3xl font-bold text-white">

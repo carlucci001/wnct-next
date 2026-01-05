@@ -2,11 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { Article } from '@/types/article';
 import { useAuth } from '@/contexts/AuthContext';
+import { ChevronDown, Check, Bot } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { getAllAIJournalists } from '@/lib/aiJournalists';
+import { AIJournalist } from '@/types/aiJournalist';
+import { getAllCategories } from '@/lib/categories';
+import { Category } from '@/types/category';
+
+// Author type for dropdown
+interface AuthorOption {
+  id: string;
+  displayName: string;
+  photoURL: string;
+  role: string;
+}
+
+// Roles that can be assigned as authors
+const AUTHOR_ROLES = ['admin', 'business-owner', 'editor-in-chief', 'editor', 'content-contributor'];
 
 // Dynamically import editor to avoid SSR issues
 const RichTextEditor = dynamic(() => import('./RichTextEditor'), {
@@ -27,7 +44,7 @@ interface ArticleFormProps {
 
 export default function ArticleForm({ isEditing, initialData, articleId }: ArticleFormProps) {
   const router = useRouter();
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,8 +62,129 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
   const [featuredImage, setFeaturedImage] = useState(initialData?.featuredImage || '');
   const [isFeatured, setIsFeatured] = useState(initialData?.isFeatured || false);
   const [isBreakingNews, setIsBreakingNews] = useState(initialData?.isBreakingNews || false);
-  const [author, setAuthor] = useState(initialData?.author || '');
   const [excerpt, setExcerpt] = useState(initialData?.excerpt || '');
+
+  // Author selection state
+  const [authors, setAuthors] = useState<AuthorOption[]>([]);
+  const [aiJournalists, setAiJournalists] = useState<AIJournalist[]>([]);
+  const [selectedAuthor, setSelectedAuthor] = useState<AuthorOption | null>(null);
+  const [showAuthorDropdown, setShowAuthorDropdown] = useState(false);
+  const [authorsLoading, setAuthorsLoading] = useState(true);
+
+  // Category selection state
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Fetch authors (users who can write articles)
+  useEffect(() => {
+    async function fetchAuthors() {
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const authorsList: AuthorOption[] = [];
+
+        usersSnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          if (AUTHOR_ROLES.includes(data.role)) {
+            authorsList.push({
+              id: doc.id,
+              displayName: data.displayName || data.email || 'Unknown',
+              photoURL: data.photoURL || '',
+              role: data.role,
+            });
+          }
+        });
+
+        // Sort by displayName
+        authorsList.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setAuthors(authorsList);
+
+        // Fetch AI journalists (only for admins)
+        let journalistsList: AIJournalist[] = [];
+        if (userProfile?.role === 'admin') {
+          try {
+            journalistsList = await getAllAIJournalists(true);
+            setAiJournalists(journalistsList);
+          } catch (err) {
+            console.error('Error fetching AI journalists:', err);
+          }
+        }
+
+        // Auto-select author
+        if (isEditing && initialData?.authorId) {
+          // Check if author is an AI journalist
+          if (initialData.authorId.startsWith('ai-')) {
+            const aiId = initialData.authorId.replace('ai-', '');
+            const aiAuthor = journalistsList.find(j => j.id === aiId);
+            if (aiAuthor) {
+              setSelectedAuthor({
+                id: initialData.authorId,
+                displayName: aiAuthor.name,
+                photoURL: aiAuthor.photoURL,
+                role: 'ai-journalist',
+              });
+            } else if (initialData.author) {
+              setSelectedAuthor({
+                id: initialData.authorId,
+                displayName: initialData.author,
+                photoURL: initialData.authorPhotoURL || '',
+                role: 'ai-journalist',
+              });
+            }
+          } else {
+            // When editing, select the article's current author
+            const existingAuthor = authorsList.find(a => a.id === initialData.authorId);
+            if (existingAuthor) {
+              setSelectedAuthor(existingAuthor);
+            } else if (initialData.author) {
+              // Fallback: create a placeholder for the author name
+              setSelectedAuthor({
+                id: initialData.authorId || '',
+                displayName: initialData.author,
+                photoURL: initialData.authorPhotoURL || '',
+                role: '',
+              });
+            }
+          }
+        } else if (currentUser && userProfile) {
+          // When creating new, select current user
+          const currentUserAuthor = authorsList.find(a => a.id === currentUser.uid);
+          if (currentUserAuthor) {
+            setSelectedAuthor(currentUserAuthor);
+          } else {
+            // Current user might not be in the authors list, create entry
+            setSelectedAuthor({
+              id: currentUser.uid,
+              displayName: userProfile.displayName || currentUser.displayName || currentUser.email || 'Unknown',
+              photoURL: userProfile.photoURL || currentUser.photoURL || '',
+              role: userProfile.role || '',
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching authors:', err);
+      } finally {
+        setAuthorsLoading(false);
+      }
+    }
+
+    fetchAuthors();
+  }, [currentUser, userProfile, isEditing, initialData]);
+
+  // Fetch categories
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const categoriesList = await getAllCategories(true); // Only active categories
+        setCategories(categoriesList);
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
+    fetchCategories();
+  }, []);
 
   // Auto-generate slug from title if not editing manually
   useEffect(() => {
@@ -73,9 +211,9 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         status,
         featuredImage,
-        author,
-        authorId: currentUser?.uid || initialData?.authorId,
-        authorPhotoURL: currentUser?.photoURL || initialData?.authorPhotoURL,
+        author: selectedAuthor?.displayName || 'Staff Writer',
+        authorId: selectedAuthor?.id || currentUser?.uid || initialData?.authorId,
+        authorPhotoURL: selectedAuthor?.photoURL || '',
         excerpt,
         isFeatured,
         isBreakingNews,
@@ -157,14 +295,21 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
           <label htmlFor="category" className="block text-sm font-medium text-gray-700">Category</label>
-          <input
-            type="text"
+          <select
             id="category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
+            disabled={categoriesLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white disabled:opacity-50"
+          >
+            <option value="">{categoriesLoading ? 'Loading...' : 'Select a category'}</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-2">
@@ -182,15 +327,147 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label htmlFor="author" className="block text-sm font-medium text-gray-700">Author</label>
-          <input
-            type="text"
-            id="author"
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            placeholder="Author name"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
+          <label className="block text-sm font-medium text-gray-700">Author</label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAuthorDropdown(!showAuthorDropdown)}
+              disabled={authorsLoading}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2">
+                {selectedAuthor ? (
+                  <>
+                    {selectedAuthor.photoURL ? (
+                      <Image
+                        src={selectedAuthor.photoURL}
+                        alt={selectedAuthor.displayName}
+                        width={24}
+                        height={24}
+                        className="rounded-full object-cover"
+                        style={{ width: 24, height: 24 }}
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                        {selectedAuthor.displayName[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-gray-900">{selectedAuthor.displayName}</span>
+                  </>
+                ) : (
+                  <span className="text-gray-500">{authorsLoading ? 'Loading...' : 'Select author'}</span>
+                )}
+              </div>
+              <ChevronDown size={16} className={`text-gray-400 transition-transform ${showAuthorDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showAuthorDropdown && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
+                {/* Team Members Section */}
+                {authors.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50 border-b border-gray-100">
+                      Team Members
+                    </div>
+                    {authors.map((author) => (
+                      <button
+                        key={author.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAuthor(author);
+                          setShowAuthorDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center justify-between ${
+                          selectedAuthor?.id === author.id ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {author.photoURL ? (
+                            <Image
+                              src={author.photoURL}
+                              alt={author.displayName}
+                              width={28}
+                              height={28}
+                              className="rounded-full object-cover"
+                              style={{ width: 28, height: 28 }}
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                              {author.displayName[0]?.toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{author.displayName}</div>
+                            <div className="text-xs text-gray-500 capitalize">{author.role.replace(/-/g, ' ')}</div>
+                          </div>
+                        </div>
+                        {selectedAuthor?.id === author.id && <Check size={16} className="text-blue-600" />}
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {/* AI Journalists Section - Only for admins */}
+                {userProfile?.role === 'admin' && aiJournalists.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-cyan-50 border-y border-gray-100 flex items-center gap-1.5">
+                      <Bot size={12} className="text-cyan-600" />
+                      AI Journalists
+                    </div>
+                    {aiJournalists.map((journalist) => (
+                      <button
+                        key={`ai-${journalist.id}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAuthor({
+                            id: `ai-${journalist.id}`,
+                            displayName: journalist.name,
+                            photoURL: journalist.photoURL,
+                            role: 'ai-journalist',
+                          });
+                          setShowAuthorDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center justify-between ${
+                          selectedAuthor?.id === `ai-${journalist.id}` ? 'bg-cyan-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="relative">
+                            {journalist.photoURL ? (
+                              <Image
+                                src={journalist.photoURL}
+                                alt={journalist.name}
+                                width={28}
+                                height={28}
+                                className="rounded-full object-cover"
+                                style={{ width: 28, height: 28 }}
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                                {journalist.name[0]?.toUpperCase()}
+                              </div>
+                            )}
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-cyan-500 rounded-full flex items-center justify-center">
+                              <Bot size={8} className="text-white" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{journalist.name}</div>
+                            <div className="text-xs text-gray-500">{journalist.title}</div>
+                          </div>
+                        </div>
+                        {selectedAuthor?.id === `ai-${journalist.id}` && <Check size={16} className="text-cyan-600" />}
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {authors.length === 0 && aiJournalists.length === 0 && !authorsLoading && (
+                  <div className="px-3 py-2 text-sm text-gray-500">No authors available</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">

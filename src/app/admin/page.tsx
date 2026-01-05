@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
@@ -22,11 +23,33 @@ import {
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
-import { batchFormatArticles, batchMigrateImages, formatArticleContent } from '@/lib/articles';
+import { batchFormatArticles, batchMigrateImages, formatArticleContent, batchAssignArticlesToUser } from '@/lib/articles';
 import { AddUserModal } from '@/components/admin/modals/AddUserModal';
 import { EditUserModal } from '@/components/admin/modals/EditUserModal';
 import { createUser, updateUser, getUsers, deleteUser } from '@/lib/users';
+import { getAllAIJournalists } from '@/lib/aiJournalists';
+import { AIJournalist } from '@/types/aiJournalist';
 import dynamic from 'next/dynamic';
+
+// Dynamically import AIJournalistManager to avoid SSR issues
+const AIJournalistManager = dynamic(() => import('@/components/admin/AIJournalistManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
+// Dynamically import CategoryManager to avoid SSR issues
+const CategoryManager = dynamic(() => import('@/components/admin/CategoryManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
 
 // Dynamically import RichTextEditor to avoid SSR issues
 const RichTextEditor = dynamic(() => import('@/components/admin/RichTextEditor'), {
@@ -59,7 +82,7 @@ import {
 } from '@/components/ui/table';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists';
 
 interface DashboardStats {
   totalArticles: number;
@@ -185,6 +208,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [aiJournalists, setAiJournalists] = useState<AIJournalist[]>([]);
   const [addingUser, setAddingUser] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   // Enhanced User Management State
@@ -255,9 +279,15 @@ export default function AdminDashboard() {
   const [editorAiLoading, setEditorAiLoading] = useState(false);
   const [workflowAction, setWorkflowAction] = useState<'research' | 'draft' | 'review' | 'grammar' | 'approve' | null>(null);
 
+  // Author selection states
+  const [authorOptions, setAuthorOptions] = useState<Array<{id: string, displayName: string, photoURL: string, role: string}>>([]);
+  const [showAuthorDropdown, setShowAuthorDropdown] = useState(false);
+  const AUTHOR_ROLES = ['admin', 'business-owner', 'editor-in-chief', 'editor', 'content-contributor'];
+
   // Maintenance states
   const [migratingImages, setMigratingImages] = useState(false);
   const [sanitizingArticles, setSanitizingArticles] = useState(false);
+  const [assigningArticles, setAssigningArticles] = useState(false);
   const [maintenanceProgress, setMaintenanceProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedArticleForAction, setSelectedArticleForAction] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -290,6 +320,43 @@ export default function AdminDashboard() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Populate author options when users load
+  useEffect(() => {
+    if (users.length > 0) {
+      const authors = users
+        .filter(u => AUTHOR_ROLES.includes(u.role))
+        .map(u => ({
+          id: u.id,
+          displayName: u.displayName || u.email || 'Unknown',
+          photoURL: u.photoURL || '',
+          role: u.role,
+        }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+      setAuthorOptions(authors);
+
+      // Auto-select current user if no author set in agentArticle
+      if (agentArticle && !agentArticle.author && currentUser) {
+        const currentAuthor = authors.find(a => a.id === currentUser.uid);
+        if (currentAuthor) {
+          setAgentArticle({
+            ...agentArticle,
+            author: currentAuthor.displayName,
+            authorId: currentAuthor.id,
+            authorPhotoURL: currentAuthor.photoURL,
+          });
+        } else if (userProfile) {
+          // Current user not in authors list, use their profile
+          setAgentArticle({
+            ...agentArticle,
+            author: userProfile.displayName || currentUser.displayName || currentUser.email || 'Staff',
+            authorId: currentUser.uid,
+            authorPhotoURL: userProfile.photoURL || currentUser.photoURL || '',
+          });
+        }
+      }
+    }
+  }, [users, currentUser, userProfile]);
 
   const loadData = async () => {
     setLoading(true);
@@ -345,6 +412,14 @@ export default function AdminDashboard() {
         setUsers(loadedUsers);
       } catch (err) {
         console.error('Failed to load users:', err);
+      }
+
+      // Load AI Journalists
+      try {
+        const journalists = await getAllAIJournalists(true); // Only active ones
+        setAiJournalists(journalists);
+      } catch (err) {
+        console.error('Failed to load AI journalists:', err);
       }
 
     } catch (error) {
@@ -477,6 +552,56 @@ export default function AdminDashboard() {
       toast.error('Article sanitization failed');
     } finally {
       setSanitizingArticles(false);
+      setMaintenanceProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  // Assign all articles to a specific user
+  const handleAssignArticlesToUser = async () => {
+    const userName = window.prompt(
+      'Enter the display name of the user to assign all articles to:',
+      'Marge'
+    );
+
+    if (!userName) return;
+
+    // Optional: allow direct photoURL input
+    const directPhotoURL = window.prompt(
+      'Enter photo URL (or leave empty to use profile photo):',
+      ''
+    );
+
+    if (!window.confirm(
+      `This will assign ALL articles to "${userName}".\n\n` +
+      (directPhotoURL ? `Photo URL provided: Yes\n\n` : 'Will use photo from user profile.\n\n') +
+      'Continue?'
+    )) {
+      return;
+    }
+
+    setAssigningArticles(true);
+    setMaintenanceProgress({ current: 0, total: 0, message: 'Starting assignment...' });
+
+    try {
+      const result = await batchAssignArticlesToUser(userName, (current, total, message) => {
+        setMaintenanceProgress({ current, total, message });
+      }, directPhotoURL || undefined);
+
+      if (result.updated > 0) {
+        toast.success(`Assigned ${result.updated} articles to ${userName}`);
+        loadData(); // Refresh articles
+      } else if (result.errors.length > 0) {
+        toast.error(result.errors[0]);
+      }
+
+      if (result.errors.length > 0) {
+        console.error('Assignment errors:', result.errors);
+      }
+    } catch (error) {
+      console.error('Article assignment failed:', error);
+      toast.error('Article assignment failed');
+    } finally {
+      setAssigningArticles(false);
       setMaintenanceProgress({ current: 0, total: 0, message: '' });
     }
   };
@@ -1451,31 +1576,41 @@ Example structure:
           <h1 className="text-3xl font-bold tracking-tight">Articles</h1>
           <p className="text-muted-foreground">Manage your news content</p>
         </div>
-        <Button
-          onClick={() => {
-            const newArticle: Article = {
-              id: `art-${Date.now()}`,
-              title: '',
-              slug: '',
-              excerpt: '',
-              category: 'News',
-              author: currentUser?.displayName || 'Staff Writer',
-              publishedAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              imageUrl: '',
-              featuredImage: '',
-              content: '',
-              status: 'draft'
-            };
-            setAgentArticle(newArticle);
-            setAgentTab('settings');
-            setActiveTab('JOURNALIST');
-            setChatHistory([]);
-          }}
-        >
-          <Plus size={16} className="mr-2" />
-          New Article
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleAssignArticlesToUser}
+            disabled={assigningArticles}
+          >
+            <UserCheck size={16} className="mr-2" />
+            {assigningArticles ? 'Assigning...' : 'Assign Author'}
+          </Button>
+          <Button
+            onClick={() => {
+              const newArticle: Article = {
+                id: `art-${Date.now()}`,
+                title: '',
+                slug: '',
+                excerpt: '',
+                category: 'News',
+                author: currentUser?.displayName || 'Staff Writer',
+                publishedAt: new Date().toISOString(),
+                createdAt: new Date().toISOString(),
+                imageUrl: '',
+                featuredImage: '',
+                content: '',
+                status: 'draft'
+              };
+              setAgentArticle(newArticle);
+              setAgentTab('settings');
+              setActiveTab('JOURNALIST');
+              setChatHistory([]);
+            }}
+          >
+            <Plus size={16} className="mr-2" />
+            New Article
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -3916,7 +4051,142 @@ Example structure:
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Author</label>
-                      <input value={agentArticle.author || 'Staff'} onChange={e => setAgentArticle({...agentArticle, author: e.target.value})} className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white" />
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setShowAuthorDropdown(!showAuthorDropdown)}
+                          className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2">
+                            {agentArticle.authorPhotoURL ? (
+                              <Image
+                                src={agentArticle.authorPhotoURL}
+                                alt={agentArticle.author || 'Author'}
+                                width={24}
+                                height={24}
+                                className="rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                {(agentArticle.author || 'S')[0].toUpperCase()}
+                              </div>
+                            )}
+                            <span>{agentArticle.author || 'Select author'}</span>
+                          </div>
+                          <ChevronDown size={16} className={`text-slate-400 transition-transform ${showAuthorDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showAuthorDropdown && (
+                          <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
+                            {/* Team Members Section */}
+                            {authorOptions.length > 0 && (
+                              <>
+                                <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-50 border-b border-slate-100">
+                                  Team Members
+                                </div>
+                                {authorOptions.map((author) => (
+                                  <button
+                                    key={author.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setAgentArticle({
+                                        ...agentArticle,
+                                        author: author.displayName,
+                                        authorId: author.id,
+                                        authorPhotoURL: author.photoURL,
+                                      });
+                                      setShowAuthorDropdown(false);
+                                    }}
+                                    className={`w-full px-3 py-2.5 text-left hover:bg-slate-50 flex items-center justify-between ${
+                                      agentArticle.authorId === author.id ? 'bg-blue-50' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {author.photoURL ? (
+                                        <Image
+                                          src={author.photoURL}
+                                          alt={author.displayName}
+                                          width={28}
+                                          height={28}
+                                          className="rounded-full object-cover"
+                                          style={{ width: 28, height: 28 }}
+                                        />
+                                      ) : (
+                                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                          {author.displayName[0]?.toUpperCase()}
+                                        </div>
+                                      )}
+                                      <div>
+                                        <div className="text-sm font-medium text-slate-900">{author.displayName}</div>
+                                        <div className="text-xs text-slate-500 capitalize">{author.role.replace(/-/g, ' ')}</div>
+                                      </div>
+                                    </div>
+                                    {agentArticle.authorId === author.id && <CheckCircle size={16} className="text-blue-600" />}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+
+                            {/* AI Journalists Section - Only for admins */}
+                            {userProfile?.role === 'admin' && aiJournalists.length > 0 && (
+                              <>
+                                <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide bg-cyan-50 border-y border-slate-100 flex items-center gap-1.5">
+                                  <Bot size={12} className="text-cyan-600" />
+                                  AI Journalists
+                                </div>
+                                {aiJournalists.map((journalist) => (
+                                  <button
+                                    key={`ai-${journalist.id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setAgentArticle({
+                                        ...agentArticle,
+                                        author: journalist.name,
+                                        authorId: `ai-${journalist.id}`,
+                                        authorPhotoURL: journalist.photoURL,
+                                      });
+                                      setShowAuthorDropdown(false);
+                                    }}
+                                    className={`w-full px-3 py-2.5 text-left hover:bg-slate-50 flex items-center justify-between ${
+                                      agentArticle.authorId === `ai-${journalist.id}` ? 'bg-cyan-50' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="relative">
+                                        {journalist.photoURL ? (
+                                          <Image
+                                            src={journalist.photoURL}
+                                            alt={journalist.name}
+                                            width={28}
+                                            height={28}
+                                            className="rounded-full object-cover"
+                                            style={{ width: 28, height: 28 }}
+                                          />
+                                        ) : (
+                                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                                            {journalist.name[0]?.toUpperCase()}
+                                          </div>
+                                        )}
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-cyan-500 rounded-full flex items-center justify-center">
+                                          <Bot size={8} className="text-white" />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium text-slate-900">{journalist.name}</div>
+                                        <div className="text-xs text-slate-500">{journalist.title}</div>
+                                      </div>
+                                    </div>
+                                    {agentArticle.authorId === `ai-${journalist.id}` && <CheckCircle size={16} className="text-cyan-600" />}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+
+                            {authorOptions.length === 0 && aiJournalists.length === 0 && (
+                              <div className="px-3 py-2.5 text-sm text-slate-500">No authors available. Add users with author roles first.</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Category</label>
@@ -4169,75 +4439,8 @@ Example structure:
 
   // Categories Content
   const renderCategories = () => {
-    const defaultCategories: CategoryData[] = [
-      { id: 'cat-news', name: 'News', slug: 'news', count: 0, color: '#1d4ed8' },
-      { id: 'cat-sports', name: 'Sports', slug: 'sports', count: 0, color: '#dc2626' },
-      { id: 'cat-business', name: 'Business', slug: 'business', count: 0, color: '#059669' },
-      { id: 'cat-entertainment', name: 'Entertainment', slug: 'entertainment', count: 0, color: '#7c3aed' },
-      { id: 'cat-lifestyle', name: 'Lifestyle', slug: 'lifestyle', count: 0, color: '#db2777' },
-      { id: 'cat-outdoors', name: 'Outdoors', slug: 'outdoors', count: 0, color: '#16a34a' },
-    ];
-
-    const displayCategories = categories.length > 0 ? categories : defaultCategories;
-
-    // Count articles per category
-    const getCategoryCount = (slug: string) => {
-      return articles.filter(a => a.category?.toLowerCase() === slug.toLowerCase()).length;
-    };
-
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-            <p className="text-gray-500 mt-1">Manage article categories and their settings</p>
-          </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
-            <Plus size={16} className="mr-2"/> Add Category
-          </button>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">Category</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">Slug</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">Articles</th>
-                <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">Color</th>
-                <th className="text-right px-6 py-3 text-xs font-bold text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {displayCategories.map((cat) => (
-                <tr key={cat.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }}></div>
-                      <span className="font-medium text-gray-900">{cat.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-gray-500 text-sm font-mono">{cat.slug}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-gray-100 rounded text-sm font-bold">{getCategoryCount(cat.slug)}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded border border-gray-200" style={{ backgroundColor: cat.color }}></div>
-                      <span className="text-xs font-mono text-gray-500">{cat.color}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="p-1 text-gray-400 hover:text-blue-600">
-                      <Edit size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <CategoryManager currentUserId={currentUser?.uid || ''} />
     );
   };
 
@@ -4338,6 +4541,14 @@ Example structure:
             {activeTab === 'api-config' && renderApiConfig()}
             {activeTab === 'roles' && renderRolesAndPermissions()}
             {isAgentView(activeTab) && renderAgentChat()}
+
+            {/* AI Journalists Management */}
+            {activeTab === 'ai-journalists' && currentUser && (
+              <AIJournalistManager
+                categories={categories}
+                currentUserId={currentUser.uid}
+              />
+            )}
 
             {/* Components Section Placeholders */}
             {activeTab === 'directory' && (

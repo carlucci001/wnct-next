@@ -3,12 +3,36 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Clock, User, Share2, Bookmark } from 'lucide-react';
+import Image from 'next/image';
+import { Clock, Share2, Bookmark } from 'lucide-react';
 import { getArticleBySlug, getArticlesByCategory } from '@/lib/articles';
 import { Article } from '@/types/article';
 import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import ImageWithFallback from '@/components/ImageWithFallback';
+
+function AuthorAvatar({ name, photoURL, size = 24 }: { name: string; photoURL?: string; size?: number }) {
+  if (photoURL) {
+    return (
+      <Image
+        src={photoURL}
+        alt={name}
+        width={size}
+        height={size}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      {(name?.[0] || "A").toUpperCase()}
+    </div>
+  );
+}
 
 // Category colors
 const CATEGORY_COLORS: Record<string, string> = {
@@ -132,7 +156,7 @@ export default function ArticlePage() {
                 {/* Meta Info */}
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300 mb-6 pb-6 border-b border-gray-200 dark:border-slate-700">
                   <div className="flex items-center gap-2">
-                    <User size={16} className="text-gray-400 dark:text-gray-500" />
+                    <AuthorAvatar name={article.author} photoURL={article.authorPhotoURL} size={28} />
                     <span className="font-medium">{article.author}</span>
                   </div>
                   <div className="flex items-center gap-2">
