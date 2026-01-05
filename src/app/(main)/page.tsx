@@ -37,10 +37,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 font-serif animate-pulse">Loading WNC Times...</p>
+          <p className="text-gray-500 dark:text-gray-400 font-serif animate-pulse">Loading WNC Times...</p>
         </div>
       </div>
     );
@@ -118,7 +118,7 @@ export default function Home() {
   const categories = getUniqueCategories();
 
   return (
-    <main className="bg-white">
+    <main className="bg-white dark:bg-slate-900 transition-colors duration-300">
       <div className="container mx-auto px-4 md:px-0 pt-4">
         {/* Hero Section */}
         {heroMain && <HeroSection mainArticle={heroMain} subArticles={heroSub} />}
@@ -142,11 +142,10 @@ export default function Home() {
                 <div key={category} className="mb-12">
                   {/* Section Header */}
                   <div
-                    className="flex justify-between items-end mb-6 border-b-2 pb-2"
-                    style={{ borderBottomColor: '#e5e7eb' }}
+                    className="flex justify-between items-end mb-6 border-b-2 pb-2 border-gray-200 dark:border-slate-700"
                   >
                     <h2
-                      className="text-2xl font-serif font-bold text-gray-900 border-b-2 -mb-2.5 pb-2"
+                      className="text-2xl font-serif font-bold text-gray-900 dark:text-white border-b-2 -mb-2.5 pb-2"
                       style={{ borderBottomColor: categoryColor }}
                     >
                       {category}
@@ -179,13 +178,13 @@ export default function Home() {
                           {category}
                         </span>
                       </div>
-                      <h3 className="text-xl font-serif font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition leading-tight">
+                      <h3 className="text-xl font-serif font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-tight">
                         {featuredArticle.title}
                       </h3>
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-3">
                         {featuredArticle.excerpt}
                       </p>
-                      <div className="flex items-center text-xs text-gray-500">
+                      <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                         <span className="font-medium">{featuredArticle.author}</span>
                         <span className="mx-2">•</span>
                         <span>{featuredArticle.date || featuredArticle.publishedAt}</span>
@@ -198,9 +197,9 @@ export default function Home() {
                         <Link
                           key={article.id}
                           href={`/article/${article.slug || article.id}`}
-                          className="flex gap-3 pb-4 border-b border-gray-200 last:border-0 last:pb-0 group"
+                          className="flex gap-3 pb-4 border-b border-gray-200 dark:border-slate-700 last:border-0 last:pb-0 group"
                         >
-                          <div className="w-24 h-24 flex-shrink-0 overflow-hidden rounded relative">
+                          <div className="w-24 h-24 shrink-0 overflow-hidden rounded relative">
                             <ImageWithFallback
                               src={article.featuredImage || article.imageUrl || '/placeholder.jpg'}
                               alt={article.title}
@@ -209,14 +208,14 @@ export default function Home() {
                               sizes="96px"
                             />
                           </div>
-                          <div className="flex-grow">
-                            <h4 className="font-serif text-sm font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition leading-tight line-clamp-2">
+                          <div className="grow">
+                            <h4 className="font-serif text-sm font-bold text-gray-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-tight line-clamp-2">
                               {article.title}
                             </h4>
-                            <p className="text-xs text-gray-600 line-clamp-2 mb-2">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
                               {article.excerpt}
                             </p>
-                            <span className="text-xs text-gray-500">{article.date || article.publishedAt}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-500">{article.date || article.publishedAt}</span>
                           </div>
                         </Link>
                       ))}
@@ -227,7 +226,7 @@ export default function Home() {
             })}
 
             {/* In-Feed Ad Placeholder */}
-            <div className="w-full h-[120px] bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-sm mb-12 rounded">
+            <div className="w-full h-[120px] bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm mb-12 rounded">
               Advertisement (Full Width)
             </div>
 
