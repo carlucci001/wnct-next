@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { Settings, HelpCircle, Bell, MessageCircle, ExternalLink, LogOut, Sun, Moon, Palette, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +36,7 @@ interface AdminHeaderProps {
   currentUser: {
     displayName?: string | null;
     email?: string | null;
+    photoURL?: string | null;
   } | null;
   onSettingsClick: () => void;
   onSignOut: () => void;
@@ -128,6 +128,7 @@ export function AdminHeader({
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
+                  <AvatarImage src={currentUser?.photoURL || ''} alt={currentUser?.displayName || 'User'} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                     {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'A'}
                   </AvatarFallback>

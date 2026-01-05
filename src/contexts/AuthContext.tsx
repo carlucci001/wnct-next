@@ -11,11 +11,12 @@ import {
   GoogleAuthProvider,
   User
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 interface AuthContextType {
   currentUser: User | null;
+  userProfile: any | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -35,15 +36,48 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Subscribe to real-time updates for the user profile
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
+            if (doc.exists()) {
+              console.log('[AuthContext] Fetched real-time user profile:', doc.id);
+              setUserProfile(doc.data());
+            } else {
+              console.log('[AuthContext] User profile not found');
+              setUserProfile(null);
+            }
+          }, (error) => {
+            console.error('[AuthContext] Error syncing user profile:', error);
+          });
+        } catch (error) {
+          console.error('[AuthContext] Error setting up profile sync:', error);
+        }
+      } else {
+        if (unsubscribeSnapshot) {
+          unsubscribeSnapshot();
+          unsubscribeSnapshot = null;
+        }
+        setUserProfile(null);
+      }
       setCurrentUser(user);
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   const signInWithGoogle = async () => {
@@ -116,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     currentUser,
+    userProfile,
     loading,
     signInWithGoogle,
     signInWithEmail,

@@ -52,9 +52,15 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
-  const { currentUser, signOut } = useAuth();
+  const { currentUser, userProfile, signOut } = useAuth();
   const { colorMode, toggleColorMode, currentTheme } = useTheme();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    console.log('[Header Debug] currentUser:', currentUser);
+    console.log('[Header Debug] userProfile:', userProfile);
+    console.log('[Header Debug] photoURL:', userProfile?.photoURL || currentUser?.photoURL);
+  }, [currentUser, userProfile]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,9 +170,26 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
 
               <div className="relative" ref={menuRef}>
                 {currentUser ? (
-                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
-                    <UserIcon size={14} className="mr-1" />
-                    <span className="hidden md:inline">{currentUser.displayName?.split(" ")[0] || "User"}</span>
+                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    <div className="relative">
+                      <div className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-green-500 ring-offset-1 ring-offset-slate-900">
+                        {userProfile?.photoURL || currentUser.photoURL ? (
+                          <Image
+                            src={userProfile?.photoURL || currentUser.photoURL || ''}
+                            alt={currentUser.displayName || "User"}
+                            width={28}
+                            height={28}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
+                            {(currentUser.displayName?.[0] || currentUser.email?.[0] || "U").toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-slate-900"></span>
+                    </div>
+                    <span className="hidden md:inline text-amber-400 font-bold text-sm">{currentUser.displayName?.split(" ")[0] || "User"}</span>
                   </button>
                 ) : (
                   <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
@@ -177,9 +200,26 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
 
                 {userMenuOpen && currentUser && (
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border overflow-hidden z-50">
-                    <div className="px-4 py-3 border-b dark:border-slate-700">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Signed in as</p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{currentUser.email}</p>
+                    <div className="px-4 py-3 border-b dark:border-slate-700 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                        {userProfile?.photoURL || currentUser.photoURL ? (
+                          <Image
+                            src={userProfile?.photoURL || currentUser.photoURL || ''}
+                            alt={currentUser.displayName || "User"}
+                            width={40}
+                            height={40}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm font-bold">
+                            {(currentUser.displayName?.[0] || currentUser.email?.[0] || "U").toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{currentUser.displayName || "User"}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUser.email}</p>
+                      </div>
                     </div>
                     <Link href="/admin" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
                       <LayoutDashboard size={14} className="mr-2 text-blue-600" /> Admin Panel
@@ -305,7 +345,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               </div>
               <button
                 type="submit"
-                className="px-3 py-1.5 bg-white/20 text-white text-sm font-bold rounded hover:bg-white/30 transition-colors"
+                className="px-3 py-1.5 bg-white text-gray-800 text-sm font-bold rounded hover:bg-gray-100 transition-colors"
                 title="Search"
               >
                 <Search size={16} />

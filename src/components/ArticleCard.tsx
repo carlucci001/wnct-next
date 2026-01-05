@@ -2,9 +2,33 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Clock } from "lucide-react";
 import { Article } from "@/types/article";
 import ImageWithFallback from "./ImageWithFallback";
+
+function AuthorAvatar({ name, photoURL, size = 20 }: { name: string; photoURL?: string; size?: number }) {
+  if (photoURL) {
+    return (
+      <Image
+        src={photoURL}
+        alt={name}
+        width={size}
+        height={size}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      {(name?.[0] || "A").toUpperCase()}
+    </div>
+  );
+}
 
 interface ArticleCardProps {
   article: Article;
@@ -30,7 +54,8 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical"
           </Link>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">{article.excerpt}</p>
           <div className="flex items-center text-xs text-gray-400 dark:text-gray-500">
-            <span className="font-medium text-gray-500 dark:text-gray-400">{article.author}</span>
+            <AuthorAvatar name={article.author} photoURL={article.authorPhotoURL} size={18} />
+            <span className="font-medium text-gray-500 dark:text-gray-400 ml-2">{article.author}</span>
             <span className="mx-2">•</span>
             <Clock size={12} className="mr-1" />
             <span>{articleDate}</span>
@@ -67,7 +92,8 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical"
       </div>
       <div className="p-5 flex flex-col flex-grow">
         <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-2">
-          <span className="font-semibold">{article.author}</span>
+          <AuthorAvatar name={article.author} photoURL={article.authorPhotoURL} size={20} />
+          <span className="font-semibold ml-2">{article.author}</span>
           <span className="mx-1">•</span>
           <span>{articleDate}</span>
         </div>

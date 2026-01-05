@@ -82,7 +82,8 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isEditorialLead());
 
       // Users can create their own doc on registration
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Admins can create new user docs
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
 
       // Users can update their own profile (but not role/status)
       // Admins can update any user
