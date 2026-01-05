@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists';
 
 interface MenuSections {
   ai: boolean;
@@ -168,6 +168,14 @@ export function AdminSidebar({
                 iconColor="text-pink-600"
               >
                 Social Media
+              </NavItem>
+              <NavItem
+                active={activeTab === 'ai-journalists'}
+                onClick={() => setActiveTab('ai-journalists')}
+                icon={Bot}
+                iconColor="text-cyan-600"
+              >
+                AI Journalists
               </NavItem>
             </CollapsibleContent>
           </Collapsible>

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Sparkles, X } from 'lucide-react';
+import Image from 'next/image';
+import { Sparkles, X, UserCheck } from 'lucide-react';
 import { Article, ArticleStatus } from '@/types/article';
-import { getAllArticles, deleteArticle, batchFormatArticles } from '@/lib/articles';
+import { getAllArticles, deleteArticle, batchFormatArticles, batchAssignArticlesToUser } from '@/lib/articles';
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -16,6 +17,11 @@ export default function ArticlesPage() {
   const [isFormatting, setIsFormatting] = useState(false);
   const [formatProgress, setFormatProgress] = useState({ current: 0, total: 0, message: '' });
   const [showFormatModal, setShowFormatModal] = useState(false);
+
+  // Assign articles state
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignProgress, setAssignProgress] = useState({ current: 0, total: 0, message: '' });
+  const [showAssignModal, setShowAssignModal] = useState(false);
 
   useEffect(() => {
     fetchArticles();
@@ -94,6 +100,61 @@ export default function ArticlesPage() {
     }
   };
 
+  const handleAssignToUser = async () => {
+    const userName = window.prompt(
+      'Enter the display name of the user to assign all articles to:',
+      'Marge'
+    );
+
+    if (!userName) return;
+
+    // Optional: allow direct photoURL input
+    const directPhotoURL = window.prompt(
+      'Enter photo URL (or leave empty to use profile photo):',
+      ''
+    );
+
+    if (!window.confirm(
+      `This will assign ALL articles to "${userName}".\n\n` +
+      (directPhotoURL ? `Photo URL provided: Yes\n\n` : 'Will use photo from user profile.\n\n') +
+      'Continue?'
+    )) {
+      return;
+    }
+
+    setShowAssignModal(true);
+    setIsAssigning(true);
+    setAssignProgress({ current: 0, total: 0, message: 'Starting...' });
+
+    try {
+      const result = await batchAssignArticlesToUser(userName, (current, total, message) => {
+        setAssignProgress({ current, total, message });
+      }, directPhotoURL || undefined);
+
+      if (result.errors.length > 0) {
+        console.error('Assign errors:', result.errors);
+      }
+
+      // Refresh articles list
+      await fetchArticles();
+
+      setAssignProgress({
+        current: result.updated,
+        total: result.updated,
+        message: `Complete! ${result.updated} articles assigned to ${userName}.${result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''}`
+      });
+    } catch (err) {
+      console.error('Assign failed:', err);
+      setAssignProgress({
+        current: 0,
+        total: 0,
+        message: `Error: ${err}`
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   const filteredArticles = articles.filter(article => {
     if (filterStatus === 'all') return true;
     return article.status === filterStatus;
@@ -115,6 +176,15 @@ export default function ArticlesPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Articles</h1>
         <div className="flex gap-3">
+          <button
+            onClick={handleAssignToUser}
+            disabled={isAssigning}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-md transition-colors"
+            title="Assign all articles to a user"
+          >
+            <UserCheck size={18} />
+            Assign Author
+          </button>
           <button
             onClick={handleFormatAllArticles}
             disabled={isFormatting}
@@ -207,7 +277,22 @@ export default function ArticlesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {article.author || 'Unknown'}
+                      <div className="flex items-center gap-2">
+                        {article.authorPhotoURL ? (
+                          <Image
+                            src={article.authorPhotoURL}
+                            alt={article.author || 'Author'}
+                            width={24}
+                            height={24}
+                            className="rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600">
+                            {(article.author || 'U')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span>{article.author || 'Unknown'}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {article.publishedAt ? formatDate(article.publishedAt) : (article.createdAt ? formatDate(article.createdAt) : 'N/A')}
@@ -284,6 +369,62 @@ export default function ArticlesPage() {
             {isFormatting && (
               <div className="flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Assign Progress Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <UserCheck className="text-blue-600" size={20} />
+                Assigning Articles
+              </h3>
+              {!isAssigning && (
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">{assignProgress.message}</p>
+              {assignProgress.total > 0 && (
+                <>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${(assignProgress.current / assignProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    {assignProgress.current} / {assignProgress.total}
+                  </p>
+                </>
+              )}
+            </div>
+
+            {!isAssigning && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {isAssigning && (
+              <div className="flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>

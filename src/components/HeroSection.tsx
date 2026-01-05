@@ -2,8 +2,32 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Article } from "@/types/article";
 import ImageWithFallback from "./ImageWithFallback";
+
+function AuthorAvatar({ name, photoURL, size = 20 }: { name: string; photoURL?: string; size?: number }) {
+  if (photoURL) {
+    return (
+      <Image
+        src={photoURL}
+        alt={name}
+        width={size}
+        height={size}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      {(name?.[0] || "A").toUpperCase()}
+    </div>
+  );
+}
 
 interface HeroSectionProps {
   mainArticle: Article;
@@ -43,7 +67,8 @@ const HeroSection: React.FC<HeroSectionProps> = ({ mainArticle, subArticles }) =
           </Link>
           {isMain && (
             <div className="flex items-center text-gray-300 text-sm mt-2">
-              <span className="font-semibold">{article.author}</span>
+              <AuthorAvatar name={article.author} photoURL={article.authorPhotoURL} size={24} />
+              <span className="font-semibold ml-2">{article.author}</span>
               <span className="mx-2">•</span>
               <span>{articleDate}</span>
             </div>

@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Article } from '@/types/article';
+import { User } from '@/types/user';
 
 const ARTICLES_COLLECTION = 'articles';
 
@@ -41,6 +42,8 @@ const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentDa
     content: data.content || '',
     slug: data.slug || doc.id,
     author: data.author || 'Staff Writer',
+    authorId: data.authorId || '',
+    authorPhotoURL: data.authorPhotoURL || '',
     category: data.category || 'Uncategorized',
     categoryColor: data.categoryColor || '#1d4ed8',
     tags: data.tags || [],
@@ -611,5 +614,110 @@ export async function batchMigrateImages(
     console.error(errorMsg);
     errors.push(errorMsg);
     return { migrated, failed, errors };
+  }
+}
+
+/**
+ * Batch assign all articles to a specific user
+ * Finds user by display name and updates all articles with their info
+ */
+export async function batchAssignArticlesToUser(
+  displayName: string,
+  onProgress?: (current: number, total: number, message: string) => void,
+  directPhotoURL?: string
+): Promise<{ updated: number; errors: string[] }> {
+  const errors: string[] = [];
+  let updated = 0;
+
+  try {
+    // Find user by display name
+    onProgress?.(0, 0, `Searching for user "${displayName}"...`);
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+
+    let targetUser: User | null = null;
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      if (userData.displayName?.toLowerCase() === displayName.toLowerCase()) {
+        targetUser = {
+          id: userDoc.id,
+          email: userData.email,
+          displayName: userData.displayName,
+          photoURL: userData.photoURL,
+          role: userData.role,
+          accountType: userData.accountType,
+          status: userData.status,
+        } as User;
+        break;
+      }
+    }
+
+    if (!targetUser) {
+      return { updated: 0, errors: [`User "${displayName}" not found`] };
+    }
+
+    // Use directPhotoURL if provided, otherwise use user's profile photo
+    const photoURLToUse = directPhotoURL || targetUser.photoURL || null;
+
+    onProgress?.(0, 0, `Found user: ${targetUser.displayName} (Photo: ${photoURLToUse ? 'Yes' : 'No'})`);
+
+    // Get all articles
+    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const total = querySnapshot.docs.length;
+
+    if (total === 0) {
+      return { updated: 0, errors: ['No articles found in database'] };
+    }
+
+    onProgress?.(0, total, `Found ${total} articles. Starting assignment...`);
+
+    // Process in batches of 500 (Firestore limit)
+    const BATCH_SIZE = 500;
+    let batchCount = 0;
+    let batch = writeBatch(db);
+
+    for (let i = 0; i < querySnapshot.docs.length; i++) {
+      const docSnapshot = querySnapshot.docs[i];
+
+      try {
+        const docRef = doc(db, ARTICLES_COLLECTION, docSnapshot.id);
+        batch.update(docRef, {
+          author: targetUser.displayName || displayName,
+          authorId: targetUser.id,
+          authorPhotoURL: photoURLToUse,
+          updatedAt: new Date().toISOString()
+        });
+        batchCount++;
+        updated++;
+
+        // Commit batch when it reaches the limit
+        if (batchCount >= BATCH_SIZE) {
+          onProgress?.(i + 1, total, `Committing batch of ${batchCount} updates...`);
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+
+        onProgress?.(i + 1, total, `Assigning article ${i + 1} of ${total}...`);
+      } catch (err) {
+        const errorMsg = `Error updating article ${docSnapshot.id}: ${err}`;
+        console.error(errorMsg);
+        errors.push(errorMsg);
+      }
+    }
+
+    // Commit any remaining updates
+    if (batchCount > 0) {
+      onProgress?.(total, total, `Committing final batch of ${batchCount} updates...`);
+      await batch.commit();
+    }
+
+    onProgress?.(total, total, `Complete! Assigned ${updated} articles to ${targetUser.displayName}.`);
+    return { updated, errors };
+
+  } catch (error) {
+    const errorMsg = `Batch assign failed: ${error}`;
+    console.error(errorMsg);
+    errors.push(errorMsg);
+    return { updated, errors };
   }
 }
