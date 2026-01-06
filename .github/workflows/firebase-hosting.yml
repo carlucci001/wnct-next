@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - main
+      - saas
   pull_request:
     branches:
       - master
