@@ -1,296 +1,477 @@
-# Jules Tasks - WNC Times Next.js Migration
+# Jules Task Specifications - WNC Times Components
 
-Repository: `c:\dev\wnct-next` (or your GitHub repo URL)
-Reference docs: `old_react_mds/` folder contains architecture from previous React project
-
----
-
-## Task 1: Create Article Type Definitions
-
-**Description:**
-Create TypeScript interfaces for the Article data model based on the existing Firebase Firestore structure.
-
-**Context:**
-- Firebase database name: `gwnct`
-- Collection: `articles`
-- Reference the old project structure in `old_react_mds/AI_HANDOFF.md`
-
-**Acceptance Criteria:**
-- Create `src/types/article.ts` with Article interface
-- Include fields: id, title, content, slug, author, category, tags, status, publishedAt, createdAt, updatedAt, featuredImage
-- Export the types for use throughout the app
+> **Instructions for Jules**: These are 5 independent COMPONENT tasks (Directory, Blog, Advertising, Events, Community). Each can be worked on separately in parallel. Follow the Global Rules strictly.
 
 ---
 
-## Task 2: Create Firebase Data Fetching Utilities
+## Global Rules for All Tasks
 
-**Description:**
-Create utility functions to fetch articles from Firebase Firestore.
+**CRITICAL - DO NOT VIOLATE:**
+1. Only create NEW files - do not modify existing files unless explicitly listed
+2. Use shadcn/ui components (Button, Card, Input, Badge, Tabs, etc.)
+3. Support dark mode using Tailwind `dark:` prefix
+4. Mobile responsive using Tailwind breakpoints (sm:, md:, lg:)
+5. Use new Firestore collections - do not touch: `articles`, `users`, `settings`, `categories`
+6. Follow existing patterns from `src/components/admin/` for consistency
+7. Each component should be self-contained with its own types, lib functions, and UI
+8. Admin gear icon for configuration when logged in as admin
 
-**Context:**
-- Firebase config exists at `src/lib/firebase.ts`
-- Uses named database `gwnct` (not default)
-- Collection name is `articles`
-
-**Acceptance Criteria:**
-- Create `src/lib/articles.ts`
-- Implement `getArticles()` - fetch all published articles
-- Implement `getArticleBySlug(slug: string)` - fetch single article
-- Implement `getArticlesByCategory(category: string)` - filter by category
-- Use proper TypeScript types from Task 1
-
----
-
-## Task 3: Build Homepage with Article Grid
-
-**Description:**
-Replace the default Next.js homepage with a news homepage displaying articles from Firebase.
-
-**Context:**
-- This is a news website (WNC Times - Western North Carolina Times)
-- Should display articles in a responsive grid
-- Use Tailwind CSS for styling (already configured)
-
-**Acceptance Criteria:**
-- Update `src/app/page.tsx` to fetch and display articles
-- Show article title, excerpt, featured image, category, date
-- Responsive grid: 1 column mobile, 2 columns tablet, 3 columns desktop
-- Link each article card to `/article/[slug]`
+### Reference Files
+- `src/components/admin/AdminSidebar.tsx` - Pattern for sidebar components
+- `src/components/admin/AdminHeader.tsx` - Pattern for header components
+- `src/app/admin/page.tsx` - Pattern for admin CRUD interfaces
+- `src/lib/firebase.ts` - Firebase config (uses named database `gwnct`)
 
 ---
 
-## Task 4: Create Article Detail Page
+## TASK 1: Directory Component (Business Listings)
 
-**Description:**
-Create a dynamic route for displaying individual articles.
+### Overview
+Create a business directory where local businesses can be listed, searched, and displayed on the frontend.
 
-**Context:**
-- Articles have a `slug` field for URL-friendly paths
-- Need to fetch article by slug from Firebase
+### Files to Create
+```
+src/app/(main)/directory/
+  page.tsx                      # Main directory listing page
+  [slug]/page.tsx               # Individual business detail page
 
-**Acceptance Criteria:**
-- Create `src/app/article/[slug]/page.tsx`
-- Fetch article by slug parameter
-- Display: title, author, date, category, featured image, full content
-- Handle 404 if article not found
-- Add basic article styling with Tailwind
+src/components/directory/
+  DirectoryGrid.tsx             # Grid of business cards
+  BusinessCard.tsx              # Individual business card
+  BusinessDetail.tsx            # Full business page content
+  DirectoryFilters.tsx          # Category/location filters
+  DirectorySearch.tsx           # Search input
+  DirectoryConfigModal.tsx      # Admin config modal (gear icon)
 
----
+src/lib/
+  directory.ts                  # Firestore CRUD for businesses
 
-## Task 5: Create Site Header Component
-
-**Description:**
-Create a responsive header/navigation component for the news site.
-
-**Context:**
-- Site name: "WNC Times" or "Western North Carolina Times"
-- Should include navigation to main sections
-
-**Acceptance Criteria:**
-- Create `src/components/Header.tsx`
-- Include site logo/name
-- Navigation links: Home, Categories (dropdown), About
-- Mobile hamburger menu
-- Add to `src/app/layout.tsx`
-
----
-
-## Task 6: Create Site Footer Component
-
-**Description:**
-Create a footer component with site information.
-
-**Acceptance Criteria:**
-- Create `src/components/Footer.tsx`
-- Include copyright, links, social media placeholders
-- Add to `src/app/layout.tsx`
-
----
-
-## Task 7: Create Category Pages
-
-**Description:**
-Create dynamic routes for browsing articles by category.
-
-**Acceptance Criteria:**
-- Create `src/app/category/[category]/page.tsx`
-- Fetch and display articles filtered by category
-- Reuse article grid styling from homepage
-- Show category name as page title
-
----
-
-## Task 8: Create Admin Login Page
-
-**Description:**
-Create an admin login page with Firebase Authentication.
-
-**Context:**
-- Firebase Auth is exported from `src/lib/firebase.ts`
-- Support both email/password and Google OAuth
-- Reference `old_react_mds/AUTHENTICATION_GUIDE.md` for auth flow
-
-**Acceptance Criteria:**
-- Create `src/app/admin/login/page.tsx`
-- Email/password login form
-- "Sign in with Google" button
-- Redirect to `/admin` on successful login
-- Show error messages for failed login
-
----
-
-## Task 9: Create Auth Context/Provider
-
-**Description:**
-Create a React context for managing authentication state.
-
-**Context:**
-- Use Firebase Auth from `src/lib/firebase.ts`
-- Need to track current user across the app
-
-**Acceptance Criteria:**
-- Create `src/contexts/AuthContext.tsx`
-- Provide: currentUser, loading, signIn, signOut functions
-- Wrap app in provider via `src/app/layout.tsx`
-- Persist auth state across page refreshes
-
----
-
-## Task 10: Create Protected Route Component
-
-**Description:**
-Create a component/middleware to protect admin routes.
-
-**Acceptance Criteria:**
-- Create `src/components/ProtectedRoute.tsx`
-- Redirect to `/admin/login` if not authenticated
-- Show loading state while checking auth
-- Use in admin layout
-
----
-
-## Task 11: Create Admin Layout
-
-**Description:**
-Create a layout for admin pages with sidebar navigation.
-
-**Context:**
-- Reference `old_react_mds/AI_HANDOFF.md` for admin features list
-
-**Acceptance Criteria:**
-- Create `src/app/admin/layout.tsx`
-- Sidebar with links: Dashboard, Articles, Users, Categories, Settings
-- Header with user info and logout button
-- Wrap content in ProtectedRoute
-- Responsive: collapsible sidebar on mobile
-
----
-
-## Task 12: Create Admin Dashboard Page
-
-**Description:**
-Create the main admin dashboard with overview stats.
-
-**Acceptance Criteria:**
-- Create `src/app/admin/page.tsx`
-- Show counts: total articles, published, drafts
-- Recent articles list
-- Quick action buttons: New Article, View Site
-
----
-
-## Task 13: Create Articles List Admin Page
-
-**Description:**
-Create admin page for managing all articles.
-
-**Acceptance Criteria:**
-- Create `src/app/admin/articles/page.tsx`
-- Table/list of all articles (not just published)
-- Show: title, status, author, date, actions
-- Filter by status (draft, published, etc.)
-- Link to edit each article
-- Delete article button with confirmation
-
----
-
-## Task 14: Create Article Editor Page
-
-**Description:**
-Create a page for creating and editing articles.
-
-**Context:**
-- Articles have: title, content, slug, category, tags, status, featuredImage
-
-**Acceptance Criteria:**
-- Create `src/app/admin/articles/new/page.tsx`
-- Create `src/app/admin/articles/[id]/edit/page.tsx`
-- Form fields for all article properties
-- Rich text editor for content (can use simple textarea initially)
-- Auto-generate slug from title
-- Save as draft or publish buttons
-- Save to Firebase Firestore
-
----
-
-## Task 15: Create Users Admin Page
-
-**Description:**
-Create admin page for managing users.
-
-**Context:**
-- Reference `old_react_mds/ROLES_PERMISSIONS_STRUCTURE.md` for role system
-- 7 roles: admin, business-owner, editor-in-chief, editor, content-contributor, commenter, reader
-
-**Acceptance Criteria:**
-- Create `src/app/admin/users/page.tsx`
-- List all users with their roles
-- Ability to change user roles
-- Block/unblock users
-- Only admins can access this page
-
----
-
-## Task 16: Implement Role-Based Access Control
-
-**Description:**
-Create a permission system based on user roles.
-
-**Context:**
-- See `old_react_mds/ROLES_PERMISSIONS_STRUCTURE.md` for full matrix
-- 20 permissions across 7 roles
-
-**Acceptance Criteria:**
-- Create `src/lib/permissions.ts`
-- Define role hierarchy and permissions
-- Create `hasPermission(user, permission)` helper
-- Create `usePermissions()` hook
-- Apply to admin pages (e.g., only editors+ can edit articles)
-
----
-
-## Notes for Jules
-
-### Firebase Connection
-The Firebase config at `src/lib/firebase.ts` connects to a **named database** called `gwnct`, not the default. This is critical:
-```typescript
-export const db = getFirestore(app, 'gwnct');  // CORRECT
-// NOT: getFirestore(app)  // WRONG - would connect to (default)
+src/types/
+  business.ts                   # Business type definition
 ```
 
-### Environment Variables
-Firebase credentials are in `.env.local` with `NEXT_PUBLIC_` prefix.
+### Firestore Collection: `businesses`
+```typescript
+interface Business {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  category: string;
+  subcategory?: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  phone?: string;
+  email?: string;
+  website?: string;
+  hours?: Record<string, string>;
+  images: string[];
+  logo?: string;
+  featured: boolean;
+  verified: boolean;
+  ownerId?: string;
+  status: 'pending' | 'active' | 'suspended';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
 
-### Reference Documentation
-The `old_react_mds/` folder contains extensive documentation from the previous React+Vite version of this project. Key files:
-- `AI_HANDOFF.md` - Full architecture overview
-- `AUTHENTICATION_GUIDE.md` - Auth implementation details
-- `ROLES_PERMISSIONS_STRUCTURE.md` - RBAC system
-- `CLAUDE.md` - Quick reference
+### Firestore Collection: `componentSettings` (Document ID: 'directory')
+```typescript
+interface DirectorySettings {
+  enabled: boolean;
+  title: string;
+  showInNav: boolean;
+  categoriesEnabled: string[];
+  featuredCount: number;
+}
+```
 
-### Tech Stack
-- Next.js 16 with App Router
-- React 19
-- TypeScript
-- Tailwind CSS 4
-- Firebase (Firestore + Auth)
+### Features Required
+- Search bar with autocomplete
+- Category filter chips
+- Grid of business cards with logo, name, category
+- Featured businesses section at top
+- Gear icon (admin only) opens DirectoryConfigModal
+- Full CRUD in admin panel
+
+---
+
+## TASK 2: Blog Component
+
+### Overview
+A blog section separate from news articles - for opinion pieces, staff blogs, guest columns.
+
+### Files to Create
+```
+src/app/(main)/blog/
+  page.tsx                      # Blog listing page
+  [slug]/page.tsx               # Individual blog post
+
+src/components/blog/
+  BlogGrid.tsx                  # Grid/list of blog posts
+  BlogPostCard.tsx              # Individual post card
+  BlogPostDetail.tsx            # Full post content
+  BlogSidebar.tsx               # Author bio, recent posts
+  BlogConfigModal.tsx           # Admin config (gear icon)
+
+src/lib/
+  blog.ts                       # Firestore CRUD for blog posts
+
+src/types/
+  blogPost.ts                   # BlogPost type definition
+```
+
+### Firestore Collection: `blogPosts`
+```typescript
+interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string;
+  featuredImage?: string;
+  authorId: string;
+  authorName: string;
+  authorBio?: string;
+  authorPhoto?: string;
+  category: string;
+  tags: string[];
+  status: 'draft' | 'published' | 'archived';
+  publishedAt?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  viewCount: number;
+  allowComments: boolean;
+}
+```
+
+### Firestore Collection: `componentSettings` (Document ID: 'blog')
+```typescript
+interface BlogSettings {
+  enabled: boolean;
+  title: string;
+  showInNav: boolean;
+  postsPerPage: number;
+  showAuthorBio: boolean;
+  categories: string[];
+}
+```
+
+### Features Required
+- Blog listing with author photos
+- Category tabs
+- Full CRUD in admin panel
+- Gear icon (admin only) opens BlogConfigModal
+
+---
+
+## TASK 3: Advertising Component
+
+### Overview
+Ad placement management - banners, sponsored content, campaign tracking.
+
+### Files to Create
+```
+src/app/(main)/advertise/
+  page.tsx                      # "Advertise with us" info page
+
+src/components/advertising/
+  AdBanner.tsx                  # Reusable ad banner component
+  AdSidebar.tsx                 # Sidebar ad placement
+  SponsoredBadge.tsx            # "Sponsored" label component
+  AdConfigModal.tsx             # Admin config (gear icon)
+  AdPlacement.tsx               # Smart ad placement wrapper
+
+src/lib/
+  advertising.ts                # Firestore CRUD for ads
+
+src/types/
+  advertisement.ts              # Ad type definitions
+```
+
+### Firestore Collection: `advertisements`
+```typescript
+interface Advertisement {
+  id: string;
+  name: string;
+  type: 'banner' | 'sidebar' | 'sponsored' | 'native';
+  placement: string;
+  size: string;
+  imageUrl: string;
+  linkUrl: string;
+  altText: string;
+  advertiserId?: string;
+  campaignName?: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  impressions: number;
+  clicks: number;
+  status: 'draft' | 'active' | 'paused' | 'expired';
+  priority: number;
+  createdAt: Timestamp;
+}
+```
+
+### Firestore Collection: `componentSettings` (Document ID: 'advertising')
+```typescript
+interface AdvertisingSettings {
+  enabled: boolean;
+  showAdsToLoggedIn: boolean;
+  headerBannerEnabled: boolean;
+  sidebarAdsEnabled: boolean;
+  inArticleAdsEnabled: boolean;
+  adFrequency: number;
+  defaultAdImage: string;
+}
+```
+
+### Features Required
+- Reusable ad components: `<AdBanner placement="header" size="728x90" />`
+- Impression and click tracking
+- Full CRUD in admin panel
+- Gear icon (admin only) opens AdConfigModal
+
+---
+
+## TASK 4: Events Component
+
+### Overview
+Community events calendar - local happenings, meetups, festivals.
+
+### Files to Create
+```
+src/app/(main)/events/
+  page.tsx                      # Events listing/calendar
+  [slug]/page.tsx               # Individual event detail
+
+src/components/events/
+  EventsCalendar.tsx            # Calendar view
+  EventsList.tsx                # List view
+  EventCard.tsx                 # Individual event card
+  EventDetail.tsx               # Full event page
+  EventFilters.tsx              # Date/category filters
+  EventConfigModal.tsx          # Admin config (gear icon)
+  EventSubmissionForm.tsx       # User event submission
+
+src/lib/
+  events.ts                     # Firestore CRUD for events
+
+src/types/
+  event.ts                      # Event type definition
+```
+
+### Firestore Collection: `events`
+```typescript
+interface Event {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  content?: string;
+  featuredImage?: string;
+  category: string;
+  startDate: Timestamp;
+  endDate?: Timestamp;
+  allDay: boolean;
+  location: {
+    name: string;
+    address: string;
+    city: string;
+    coordinates?: { lat: number; lng: number };
+  };
+  organizer: {
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  ticketUrl?: string;
+  price?: string;
+  featured: boolean;
+  submittedBy?: string;
+  status: 'pending' | 'approved' | 'published' | 'cancelled';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+### Firestore Collection: `componentSettings` (Document ID: 'events')
+```typescript
+interface EventsSettings {
+  enabled: boolean;
+  title: string;
+  showInNav: boolean;
+  defaultView: 'calendar' | 'list';
+  allowSubmissions: boolean;
+  requireApproval: boolean;
+  categories: string[];
+  featuredCount: number;
+}
+```
+
+### Features Required
+- Calendar view (month/week)
+- List view toggle
+- Category filter
+- "This Weekend" quick filter
+- Full CRUD in admin panel
+- Gear icon (admin only) opens EventConfigModal
+
+---
+
+## TASK 5: Community Component (Enhancement)
+
+### Overview
+Enhance existing `/community` page with discussion forums, user posts.
+
+### Files to Create (New Only)
+```
+src/components/community/
+  CommunityFeed.tsx             # Main feed of posts
+  CommunityPost.tsx             # Individual post
+  CommunityPostForm.tsx         # Create new post
+  CommunityFilters.tsx          # Topic/date filters
+  CommunityConfigModal.tsx      # Admin config (gear icon)
+
+src/lib/
+  community.ts                  # Firestore CRUD for posts
+```
+
+### Firestore Collection: `communityPosts`
+```typescript
+interface CommunityPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorPhoto?: string;
+  content: string;
+  images?: string[];
+  topic: string;
+  likes: number;
+  likedBy: string[];
+  commentsCount: number;
+  pinned: boolean;
+  status: 'active' | 'hidden' | 'flagged';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+### Firestore Collection: `componentSettings` (Document ID: 'community')
+```typescript
+interface CommunitySettings {
+  enabled: boolean;
+  title: string;
+  showInNav: boolean;
+  requireApproval: boolean;
+  topics: string[];
+}
+```
+
+### Features Required
+- Post feed with like/comment counts
+- Create new post form
+- Topic filtering
+- Full CRUD in admin panel
+- Gear icon (admin only) opens CommunityConfigModal
+
+---
+
+## CRUD Pattern (Follow for ALL Components)
+
+```typescript
+// src/lib/{component}.ts
+
+import { db } from '@/lib/firebase';
+import { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, writeBatch } from 'firebase/firestore';
+
+// CREATE
+export async function createItem(data: Omit<Item, 'id' | 'createdAt'>): Promise<string> {
+  const docRef = doc(collection(db, 'collectionName'));
+  await setDoc(docRef, {
+    ...data,
+    id: docRef.id,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+// READ (List)
+export async function getItems(): Promise<Item[]> {
+  const q = query(collection(db, 'collectionName'), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Item));
+}
+
+// READ (By slug)
+export async function getItemBySlug(slug: string): Promise<Item | null> {
+  const q = query(collection(db, 'collectionName'), where('slug', '==', slug));
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id } as Item;
+}
+
+// UPDATE
+export async function updateItem(id: string, updates: Partial<Item>): Promise<void> {
+  await updateDoc(doc(db, 'collectionName', id), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// DELETE
+export async function deleteItem(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'collectionName', id));
+}
+```
+
+---
+
+## Gear Icon Pattern
+
+```tsx
+import { useAuth } from '@/contexts/AuthContext';
+import { Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+function ComponentPage() {
+  const { userProfile } = useAuth();
+  const [configOpen, setConfigOpen] = useState(false);
+
+  const isAdmin = userProfile?.role &&
+    ['admin', 'business-owner', 'editor-in-chief'].includes(userProfile.role);
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-serif font-bold">Page Title</h1>
+        {isAdmin && (
+          <Button variant="ghost" size="icon" onClick={() => setConfigOpen(true)}>
+            <Settings size={20} />
+          </Button>
+        )}
+      </div>
+      <ConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
+    </div>
+  );
+}
+```
+
+---
+
+## Safety Checklist
+
+Before completing each task:
+- [ ] No existing files modified (except those listed)
+- [ ] New Firestore collections only (not articles, users, settings, categories)
+- [ ] Dark mode works (`dark:` classes)
+- [ ] Mobile responsive (375px width)
+- [ ] Gear icon only for admin roles
+- [ ] Config saves to `componentSettings` collection
+- [ ] Full CRUD operations work
+- [ ] Toast notifications for success/error
