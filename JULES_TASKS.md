@@ -701,6 +701,100 @@ function ComponentPage() {
 
 ---
 
+## TASK 6: Conversational Admin Assistant
+
+### Overview
+An AI-powered chat interface that allows admins to manage the site through natural language commands instead of clicking through UI. Uses existing Gemini API integration.
+
+### Example Commands Users Can Say
+```
+"Feature the article about the fire department"
+"Unpublish all articles older than 30 days"
+"Move Sports to position 1 in the category menu"
+"Show me all articles in review status"
+"Publish the top 5 draft articles"
+"Make Alex Chen's next article featured"
+"Reorder categories: News, Sports, Business, Entertainment"
+```
+
+### Files to Create
+```
+src/app/api/admin-assistant/
+  route.ts                        # Chat API endpoint with Gemini integration
+
+src/lib/
+  adminCommands.ts                # Admin command execution functions
+
+src/types/
+  adminCommand.ts                 # Command type definitions
+
+src/components/admin/
+  AdminAssistantChat.tsx          # Chat UI component
+  AdminAssistantHistory.tsx       # Command history sidebar
+  CommandConfirmDialog.tsx        # Confirmation before destructive actions
+```
+
+### Command Types
+```typescript
+interface AdminCommand {
+  id: string;
+  type: 'article' | 'category' | 'user' | 'settings' | 'query';
+  action: string;
+  params: Record<string, unknown>;
+  requiresConfirmation: boolean;
+  executed: boolean;
+  result?: {
+    success: boolean;
+    message: string;
+    affectedItems?: string[];
+  };
+  timestamp: string;
+  undoable: boolean;
+}
+
+type ArticleAction = 'publish' | 'unpublish' | 'feature' | 'unfeature' | 'delete' | 'set-breaking' | 'list' | 'search';
+type CategoryAction = 'reorder' | 'activate' | 'deactivate' | 'list';
+```
+
+### Features Required
+
+**Chat Interface**
+- Chat input at bottom of admin panel (new tab or floating widget)
+- Message history showing user commands and AI responses
+- Typing indicator while AI processes
+- Keyboard shortcut to open (Cmd+K or similar)
+
+**Command Processing**
+- Natural language parsing via existing Gemini API
+- Intent detection (what action to perform)
+- Entity extraction (which articles/categories)
+- Fuzzy matching for article/category names
+- Clear error messages when command is ambiguous
+
+**Safety Features**
+- Confirmation dialog before bulk operations (3+ items)
+- Confirmation before delete/unpublish operations
+- Preview of affected items before execution
+- Undo support for recent commands
+- Command history log for audit trail
+
+**Supported Operations**
+- Article: publish, unpublish, feature, unfeature, set-breaking, delete, list, search
+- Category: reorder, activate, deactivate, list
+- Query: "Show me...", "How many...", "List all..."
+
+### Integration Points
+- Reuse existing `src/lib/articles.ts` functions
+- Reuse existing `src/lib/categories.ts` functions
+- Reuse existing Gemini API setup from `/api/chat`
+- Add to admin panel as new "ASSISTANT" tab
+
+### Effort Estimate
+- MVP (basic commands): 2-4 hours
+- Full version with undo/history: 1-2 days
+
+---
+
 ## Safety Checklist
 
 Before completing each task:

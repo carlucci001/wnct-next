@@ -135,8 +135,9 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date().toISOString(),
           featuredImage: selectedItem.imageUrl || '',
           imageUrl: selectedItem.imageUrl || '',
-          isFeatured: false,
-          isBreakingNews: false,
+          isFeatured: agent.taskConfig?.isFeatured ?? false,
+          isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
+          breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
           views: 0,
           // Source tracking
           sourceUrl: selectedItem.url,

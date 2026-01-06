@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -113,6 +113,21 @@ const ArticlesAdmin = dynamic(() => import('@/components/admin/ArticlesAdmin'), 
   ),
 });
 
+// Dynamically import MediaManager
+const MediaManager = dynamic(() => import('@/components/admin/MediaManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
+// Dynamically import MediaPickerModal
+const MediaPickerModal = dynamic(() => import('@/components/admin/MediaPickerModal'), {
+  ssr: false,
+});
+
 // shadcn/ui components
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -218,19 +233,7 @@ interface ChatMessage {
   text: string;
 }
 
-interface MediaFile {
-  id: string;
-  filename: string;
-  fileType: string;
-  fileSize: number;
-  thumbnailData: string;
-  fullData: string;
-  uploadedAt: Date;
-  uploadedBy: string;
-  altText?: string;
-  caption?: string;
-  folder: string;
-}
+// MediaFile interface moved to @/types/media.ts
 
 interface CategoryData {
   id: string;
@@ -255,14 +258,31 @@ const NEWSROOM_VERSION = '2.0';
 export default function AdminDashboard() {
   const { currentUser, userProfile, signOut, isImpersonating, realUserProfile, impersonateUser, stopImpersonation } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
   });
+
+  // Sync activeTab to URL
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (activeTab !== currentTab) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (activeTab === 'dashboard') {
+        params.delete('tab');
+      } else {
+        params.set('tab', activeTab);
+      }
+      const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [activeTab, searchParams, router, pathname]);
   const [loading, setLoading] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -353,6 +373,7 @@ export default function AdminDashboard() {
   // Agent Article Editor states
   const [agentArticle, setAgentArticle] = useState<Article | null>(null);
   const [agentTab, setAgentTab] = useState<'settings' | 'content' | 'media' | 'options'>('settings');
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Status Modal for AI generation progress
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -4509,6 +4530,17 @@ Example structure:
                     )}
                   </div>
 
+                  {/* Select from Media Library */}
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+                    <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <ImageIcon size={16} className="text-blue-600" /> Media Library
+                    </h3>
+                    <p className="text-xs text-slate-600 mb-4">Select an image from your uploaded media</p>
+                    <button onClick={() => setShowMediaPicker(true)} className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm">
+                      <ImageIcon size={14} /> Select from Library
+                    </button>
+                  </div>
+
                   {/* AI Image Generation */}
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-5">
                     <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
@@ -4524,6 +4556,20 @@ Example structure:
                       </p>
                     )}
                   </div>
+
+                  {/* Media Picker Modal */}
+                  <MediaPickerModal
+                    open={showMediaPicker}
+                    onClose={() => setShowMediaPicker(false)}
+                    onSelect={(media) => {
+                      const m = Array.isArray(media) ? media[0] : media;
+                      setAgentArticle({...agentArticle!, imageUrl: m.url, featuredImage: m.url});
+                      setShowMediaPicker(false);
+                    }}
+                    allowedTypes={['image']}
+                    defaultFolder="articles"
+                    title="Select Featured Image"
+                  />
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Or Use Image URL</label>
@@ -4794,7 +4840,7 @@ Example structure:
             {activeTab === 'settings' && renderSettings()}
             {activeTab === 'infrastructure' && renderInfrastructure()}
             {activeTab === 'categories' && renderCategories()}
-            {activeTab === 'media' && renderMedia()}
+            {activeTab === 'media' && <MediaManager />}
             {activeTab === 'api-config' && renderApiConfig()}
             {activeTab === 'roles' && renderRolesAndPermissions()}
             {isAgentView(activeTab) && renderAgentChat()}

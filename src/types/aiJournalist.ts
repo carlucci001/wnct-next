@@ -18,6 +18,8 @@ export interface AgentTaskConfig {
   maxArticlesPerRun: number;  // Limit per scheduled run
   sourcePreferences?: string[];// RSS feeds, topics, etc.
   categoryId?: string;        // Specific category to write for
+  isFeatured?: boolean;       // Automatically mark articles as featured
+  isBreakingNews?: boolean;   // Automatically mark articles as breaking news
 }
 
 /**
