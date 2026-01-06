@@ -75,7 +75,7 @@ export default function EventsAdmin() {
   async function loadEvents() {
     setLoading(true);
     try {
-      const data = await getEvents({ includeAll: true });
+      const data = await getEvents({ status: 'all' });
       setEvents(data);
     } catch (error) {
       console.error('Error loading events:', error);

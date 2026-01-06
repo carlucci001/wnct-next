@@ -19,7 +19,7 @@ import {
   TenantPlan,
   TenantSettings,
 } from '@/types/tenant';
-import { TRIAL_CREDITS, TRIAL_DURATION_DAYS, CREDIT_PACKAGES } from '@/config/creditPricing';
+import { TRIAL_CREDITS, TRIAL_DURATION_DAYS } from '@/config/creditPricing';
 
 const TENANTS_COLLECTION = 'tenants';
 
@@ -192,7 +192,8 @@ export async function createTenant(data: TenantCreate): Promise<Tenant> {
       ownerId: data.ownerId,
       status: 'trial',
       plan: data.plan || 'starter',
-      credits: TRIAL_CREDITS,
+      subscriptionCredits: TRIAL_CREDITS,
+      topOffCredits: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
       settings: defaultSettings,
@@ -449,7 +450,7 @@ export async function getTenantStats(): Promise<{
     tenants.forEach((tenant) => {
       byStatus[tenant.status]++;
       byPlan[tenant.plan]++;
-      totalCredits += tenant.credits;
+      totalCredits += (tenant.subscriptionCredits || 0) + (tenant.topOffCredits || 0);
     });
 
     return {
