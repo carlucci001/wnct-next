@@ -915,33 +915,36 @@ Return ONLY valid JSON array with no markdown:
   };
 
   // Save agent article
-  const handleSaveAgentArticle = async (showNotification = true) => {
-    if (!agentArticle?.title) {
+  const handleSaveAgentArticle = async (showNotification = true, articleOverride?: Article) => {
+    // Use the override article if provided, otherwise use agentArticle state
+    const articleData = articleOverride || agentArticle;
+
+    if (!articleData?.title) {
       showMessage('error', 'Please enter an article title');
       return;
     }
 
     try {
       // Format content to proper HTML paragraphs before saving
-      const formattedContent = formatArticleContent(agentArticle.content || '');
+      const formattedContent = formatArticleContent(articleData.content || '');
 
       const articleToSave: Article = {
-        ...agentArticle,
-        id: agentArticle.id || `art-${Date.now()}`,
-        slug: agentArticle.slug || agentArticle.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        publishedAt: agentArticle.publishedAt || new Date().toISOString(),
-        createdAt: agentArticle.createdAt || new Date().toISOString(),
+        ...articleData,
+        id: articleData.id || `art-${Date.now()}`,
+        slug: articleData.slug || articleData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        publishedAt: articleData.publishedAt || new Date().toISOString(),
+        createdAt: articleData.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        status: agentArticle.status || 'draft',
-        category: agentArticle.category || 'News',
-        featuredImage: agentArticle.featuredImage || agentArticle.imageUrl || '',
-        imageUrl: agentArticle.imageUrl || agentArticle.featuredImage || '',
+        status: articleData.status || 'draft',
+        category: articleData.category || 'News',
+        featuredImage: articleData.featuredImage || articleData.imageUrl || '',
+        imageUrl: articleData.imageUrl || articleData.featuredImage || '',
         content: formattedContent,
-        excerpt: agentArticle.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
-        authorId: currentUser?.uid || agentArticle.authorId,
-        authorPhotoURL: currentUser?.photoURL || agentArticle.authorPhotoURL,
+        excerpt: articleData.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
+        authorId: currentUser?.uid || articleData.authorId,
+        authorPhotoURL: currentUser?.photoURL || articleData.authorPhotoURL,
         // Set breaking news timestamp when isBreakingNews is true
-        breakingNewsTimestamp: agentArticle.isBreakingNews ? new Date().toISOString() : undefined,
+        breakingNewsTimestamp: articleData.isBreakingNews ? new Date().toISOString() : undefined,
       };
 
       // Save to Firestore
@@ -4172,8 +4175,8 @@ Example structure:
               onClick={async () => {
                 if (agentArticle.status === 'draft') {
                   const updatedArticle = {...agentArticle, status: 'review' as const};
-                  setAgentArticle(updatedArticle);
-                  await handleSaveAgentArticle(false);
+                  // Pass the updated article directly to avoid state timing issues
+                  await handleSaveAgentArticle(false, updatedArticle);
                   setChatHistory(prev => [...prev, { role: 'model', text: `📨 **Sent to Editor!** "${agentArticle.title}" is now in Review status.` }]);
                   setAgentArticle(null);
                 }

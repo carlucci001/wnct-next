@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Building2, Plus, Trash2, Edit, Search, Filter,
+  Building2, Plus, Trash2, Edit, Search,
   CheckCircle, XCircle, Star, ExternalLink, MoreHorizontal,
-  MapPin, Phone, Mail, Globe, Clock, ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight,
+  Database
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,6 +83,25 @@ export default function DirectoryAdmin() {
       setLoading(false);
     }
   }
+
+  const handleSeedData = async () => {
+    setLoading(true);
+    try {
+      const resp = await fetch('/api/directory/seed');
+      const data = await resp.json();
+      if (data.success) {
+        toast.success(data.message);
+        loadBusinesses();
+      } else {
+        toast.error(data.error || 'Failed to seed data');
+      }
+    } catch {
+      toast.error('Failed to seed data');
+    } finally {
+      setLoading(false);
+      loadBusinesses();
+    }
+  };
 
   // Filtering
   const filteredBusinesses = businesses.filter((b) => {
@@ -289,9 +309,14 @@ export default function DirectoryAdmin() {
             </CardTitle>
             <CardDescription>Manage local business listings</CardDescription>
           </div>
-          <Button onClick={() => { resetForm(); setShowAddModal(true); }}>
-            <Plus className="h-4 w-4 mr-2" /> Add Business
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleSeedData} disabled={loading}>
+              <Database className="h-4 w-4 mr-2" /> Seed Samples
+            </Button>
+            <Button onClick={() => { resetForm(); setShowAddModal(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Add Business
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
