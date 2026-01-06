@@ -30,6 +30,7 @@ import { EditUserModal } from '@/components/admin/modals/EditUserModal';
 import { createUser, updateUser, getUsers, deleteUser, seedTestUsers, deleteTestUsers } from '@/lib/users';
 import { getAllAIJournalists } from '@/lib/aiJournalists';
 import { AIJournalist } from '@/types/aiJournalist';
+import { MediaFile } from '@/types/media';
 import dynamic from 'next/dynamic';
 
 // Dynamically import AIJournalistManager to avoid SSR issues
@@ -376,6 +377,7 @@ export default function AdminDashboard() {
   // Agent Article Editor states
   const [agentArticle, setAgentArticle] = useState<Article | null>(null);
   const [agentTab, setAgentTab] = useState<'settings' | 'content' | 'media' | 'options'>('settings');
+  const articleLoadingRef = useRef<string | null>(null); // Track which article is being loaded
   const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Status Modal for AI generation progress
@@ -446,6 +448,8 @@ export default function AdminDashboard() {
   // Handle URL action params (e.g., ?action=new-article, ?action=edit-article&id=xxx)
   useEffect(() => {
     const action = searchParams.get('action');
+    console.log('[Admin] Action handler effect running, action:', action);
+
     if (action === 'new-article' && currentUser) {
       // Create new article and open JOURNALIST tab
       const newArticle: Article = {
@@ -471,27 +475,48 @@ export default function AdminDashboard() {
     } else if (action === 'edit-article') {
       // Load existing article and open JOURNALIST tab
       const articleId = searchParams.get('id');
+      console.log('[Admin] Edit article requested, id:', articleId);
+
       if (articleId) {
-        // Set loading state immediately
+        // Check if we're already loading this article (prevent race condition)
+        if (articleLoadingRef.current === articleId) {
+          console.log('[Admin] Already loading article, skipping duplicate request');
+          return;
+        }
+
+        // Mark that we're loading this article
+        articleLoadingRef.current = articleId;
+        console.log('[Admin] Starting article load for:', articleId);
+
+        // Set tab state immediately
         setActiveTab('JOURNALIST');
         setAgentTab('settings');
 
         // Fetch the article
         getArticleBySlug(articleId).then((article) => {
+          console.log('[Admin] getArticleBySlug returned:', article ? `Article: ${article.title}` : 'null');
+
           if (article) {
-            console.log('[Admin] Loaded article for editing:', article.title);
+            console.log('[Admin] Setting agentArticle state with:', {
+              id: article.id,
+              title: article.title,
+              status: article.status,
+              category: article.category
+            });
             setAgentArticle(article);
             setChatHistory([]);
           } else {
             console.error('[Admin] Article not found:', articleId);
-            // Show error toast if available
             alert(`Article not found: ${articleId}`);
           }
           // Clear the action from URL to prevent re-triggering
           window.history.replaceState({}, '', '/admin?tab=JOURNALIST');
+          // Clear the loading ref
+          articleLoadingRef.current = null;
         }).catch((error) => {
           console.error('[Admin] Error loading article:', error);
           window.history.replaceState({}, '', '/admin');
+          articleLoadingRef.current = null;
         });
       }
     }
