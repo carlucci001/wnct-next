@@ -59,7 +59,7 @@ export default function AccountPage() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
 
   // Get user role from profile or default to reader
-  const userRole: UserRole = userProfile?.role || 'reader';
+  const userRole: UserRole = (userProfile?.role as UserRole) || 'reader';
 
   // Load site settings
   useEffect(() => {

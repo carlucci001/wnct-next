@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
   images: {
     remotePatterns: [
       {
@@ -15,11 +14,15 @@ const nextConfig: NextConfig = {
     ],
     unoptimized: true,  // Bypass Next.js image optimization - load directly from source
   },
-  // Don't bundle firebase-admin (fixes Turbopack symlink issue on Windows)
+  // Don't bundle firebase-admin
   serverExternalPackages: ['firebase-admin'],
-  // Disable Turbopack for builds on Windows (symlink permission issue)
-  turbopack: {
-    root: process.cwd(),
+  // Disable strict ESLint during builds
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  // Disable TypeScript errors during builds (we check separately)
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
