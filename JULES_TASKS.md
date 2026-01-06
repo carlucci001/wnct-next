@@ -1,6 +1,10 @@
 # Jules Task Specifications - WNC Times Components
 
 > **Instructions for Jules**: These are 5 independent COMPONENT tasks (Directory, Blog, Advertising, Events, Community). Each can be worked on separately in parallel. Follow the Global Rules strictly.
+>
+> **CREATIVE FREEDOM**: You have full creative freedom to build out comprehensive features for each component. Add features that make sense for a local news website. Use your judgment to implement UX best practices, loading states, error handling, and intuitive interfaces. Make these components production-ready.
+>
+> **ISOLATION REQUIREMENT**: These components must be COMPLETELY SELF-CONTAINED. Do NOT modify any existing files outside of what's explicitly listed. The rest of the site is working perfectly - do not break anything.
 
 ---
 
@@ -21,6 +25,59 @@
 - `src/components/admin/AdminHeader.tsx` - Pattern for header components
 - `src/app/admin/page.tsx` - Pattern for admin CRUD interfaces
 - `src/lib/firebase.ts` - Firebase config (uses named database `gwnct`)
+- `src/app/(main)/community/page.tsx` - **CRITICAL: Pattern for frontend page layouts with sidebar**
+
+### Frontend Layout Pattern (REQUIRED FOR ALL COMPONENTS)
+
+Each component's main page.tsx MUST use a 2-column responsive layout with sidebar:
+
+```tsx
+// Example from community page - FOLLOW THIS PATTERN:
+<div className="container mx-auto px-4 md:px-0 py-6 min-h-screen">
+  <div className="flex flex-col lg:flex-row gap-8 items-start">
+
+    {/* LEFT COLUMN: Main Content (2/3 width on desktop) */}
+    <div className="lg:w-2/3 flex flex-col w-full">
+      {/* Header with title and admin gear icon */}
+      <div className="mb-6 flex justify-between items-end border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-gray-900 dark:text-white">Page Title</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Subtitle description</p>
+        </div>
+        {isAdmin && (
+          <Button variant="ghost" size="icon" onClick={() => setConfigOpen(true)}>
+            <Settings size={20} />
+          </Button>
+        )}
+      </div>
+
+      {/* Main content area */}
+      {/* ... component-specific content ... */}
+    </div>
+
+    {/* RIGHT COLUMN: Sidebar (1/3 width, hidden on mobile) */}
+    <div className="lg:w-1/3 hidden lg:flex flex-col sticky top-24 space-y-6">
+      {/* Sidebar widgets: filters, featured items, related content, etc. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sidebar Widget</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Widget content */}
+        </CardContent>
+      </Card>
+    </div>
+
+  </div>
+</div>
+```
+
+**Sidebar Content by Component:**
+- **Directory**: Category filters, featured businesses, search refinement
+- **Blog**: Author bio, recent posts, category tags, archive links
+- **Events**: Calendar mini-view, upcoming events, category filters
+- **Advertising**: Contact form, pricing info, testimonials
+- **Community**: Topic filters, trending posts, community stats
 
 ---
 
@@ -32,7 +89,7 @@ Create a business directory where local businesses can be listed, searched, and 
 ### Files to Create
 ```
 src/app/(main)/directory/
-  page.tsx                      # Main directory listing page
+  page.tsx                      # Main directory listing page (2-col layout with sidebar)
   [slug]/page.tsx               # Individual business detail page
 
 src/components/directory/
@@ -41,6 +98,7 @@ src/components/directory/
   BusinessDetail.tsx            # Full business page content
   DirectoryFilters.tsx          # Category/location filters
   DirectorySearch.tsx           # Search input
+  DirectorySidebar.tsx          # RIGHT COLUMN: Featured businesses, category filters, search refinement
   DirectoryConfigModal.tsx      # Admin config modal (gear icon)
 
 src/lib/
@@ -92,12 +150,39 @@ interface DirectorySettings {
 ```
 
 ### Features Required
-- Search bar with autocomplete
-- Category filter chips
-- Grid of business cards with logo, name, category
-- Featured businesses section at top
+
+**Frontend (Public)**
+- Search bar with autocomplete suggestions as user types
+- Category filter chips (Restaurant, Retail, Services, Health, Entertainment, etc.)
+- Location/area filter (Downtown, North, South, etc.)
+- Grid of business cards with: logo, name, category, rating stars, address snippet
+- Featured businesses highlighted section at top
+- "Claim this business" link for unclaimed listings
+- Business hours indicator (Open Now / Closed)
+- Click-to-call phone links on mobile
+- Share business button
+- Loading skeleton states while fetching data
+- Empty state with "No businesses found" message
+- Infinite scroll or "Load More" pagination
+
+**Business Detail Page**
+- Hero section with business logo/images
+- Full business info (address, phone, email, website, hours)
+- Interactive hours display showing today's hours prominently
+- Map embed showing location (optional - use static image if complex)
+- Photo gallery if multiple images
+- "Get Directions" link (opens Google Maps)
+- Social sharing buttons
+- Related businesses in same category
+
+**Admin Features**
+- Full CRUD for businesses
+- Bulk import/export (CSV)
+- Approve/reject pending submissions
+- Mark as featured toggle
+- Verify business toggle
+- Category management
 - Gear icon (admin only) opens DirectoryConfigModal
-- Full CRUD in admin panel
 
 ---
 
@@ -109,14 +194,14 @@ A blog section separate from news articles - for opinion pieces, staff blogs, gu
 ### Files to Create
 ```
 src/app/(main)/blog/
-  page.tsx                      # Blog listing page
+  page.tsx                      # Blog listing page (2-col layout with sidebar)
   [slug]/page.tsx               # Individual blog post
 
 src/components/blog/
   BlogGrid.tsx                  # Grid/list of blog posts
   BlogPostCard.tsx              # Individual post card
   BlogPostDetail.tsx            # Full post content
-  BlogSidebar.tsx               # Author bio, recent posts
+  BlogSidebar.tsx               # RIGHT COLUMN: Author bio, recent posts, category tags, archive links
   BlogConfigModal.tsx           # Admin config (gear icon)
 
 src/lib/
@@ -163,9 +248,46 @@ interface BlogSettings {
 ```
 
 ### Features Required
-- Blog listing with author photos
-- Category tabs
-- Full CRUD in admin panel
+
+**Frontend (Public)**
+- Blog listing with author photos and bylines
+- Category tabs/chips (Opinion, Column, Guest Post, Lifestyle, etc.)
+- Featured/pinned posts section at top
+- Reading time estimate on each post card
+- Author avatars with link to author page
+- Tag cloud or popular tags display
+- Search within blog posts
+- Social sharing buttons on posts
+- Related posts at bottom of article
+- Responsive typography for comfortable reading
+- Loading skeleton states
+- "Load More" or pagination
+
+**Blog Post Page**
+- Clean, readable typography (like Medium)
+- Author bio card with photo and bio
+- Published date and reading time
+- Category badge
+- Table of contents for long posts (optional)
+- Social sharing sticky sidebar or footer
+- "More from this author" section
+- Comments section (if allowComments is true)
+- Next/Previous post navigation
+
+**Author Page (optional but nice)**
+- Author profile with photo and full bio
+- List of all posts by that author
+- Social links
+
+**Admin Features**
+- Rich text editor for content (can use simple textarea with markdown)
+- Draft/Publish workflow
+- Schedule posts for future publishing
+- Category management
+- Tag management
+- Featured post toggle
+- View count tracking
+- Full CRUD with search and filters
 - Gear icon (admin only) opens BlogConfigModal
 
 ---
@@ -178,11 +300,12 @@ Ad placement management - banners, sponsored content, campaign tracking.
 ### Files to Create
 ```
 src/app/(main)/advertise/
-  page.tsx                      # "Advertise with us" info page
+  page.tsx                      # "Advertise with us" info page (2-col layout with sidebar)
 
 src/components/advertising/
   AdBanner.tsx                  # Reusable ad banner component
-  AdSidebar.tsx                 # Sidebar ad placement
+  AdSidebar.tsx                 # Sidebar ad placement (for use in other pages)
+  AdvertiseSidebar.tsx          # RIGHT COLUMN: Contact form, pricing tiers, testimonials
   SponsoredBadge.tsx            # "Sponsored" label component
   AdConfigModal.tsx             # Admin config (gear icon)
   AdPlacement.tsx               # Smart ad placement wrapper
@@ -231,9 +354,42 @@ interface AdvertisingSettings {
 ```
 
 ### Features Required
-- Reusable ad components: `<AdBanner placement="header" size="728x90" />`
-- Impression and click tracking
-- Full CRUD in admin panel
+
+**Advertise With Us Page (Public)**
+- Hero section with compelling headline about reaching local audience
+- Audience statistics (monthly readers, demographics if available)
+- Ad placement options with visual mockups showing where ads appear
+- Pricing tiers or "Contact for pricing" CTA
+- Benefits of advertising (local reach, engaged readers, etc.)
+- Testimonials from current advertisers (can be placeholder)
+- Contact form for advertising inquiries
+- FAQ section about advertising
+- Sidebar with quick contact info and "Get Started" button
+
+**Reusable Ad Components (for use site-wide)**
+- `<AdBanner placement="header" size="728x90" />` - Leaderboard banner
+- `<AdBanner placement="sidebar" size="300x250" />` - Medium rectangle
+- `<AdSidebar />` - Sticky sidebar ad unit
+- `<AdPlacement location="article-inline" />` - In-article placement
+- `<SponsoredBadge />` - "Sponsored" or "Advertisement" label
+- Fallback "Advertise Here" placeholder when no active ads
+- Lazy loading for ad images
+- Click tracking with UTM parameters
+- Impression counting on view
+
+**Admin Features**
+- Campaign management dashboard
+- Create/Edit ad campaigns with:
+  - Upload ad creative (image)
+  - Set destination URL
+  - Choose placement(s)
+  - Set start/end dates
+  - Set priority (higher = more impressions)
+- Campaign status management (draft, active, paused, expired)
+- Basic analytics per campaign (impressions, clicks, CTR)
+- Bulk pause/activate campaigns
+- Calendar view of active campaigns
+- Export campaign performance data
 - Gear icon (admin only) opens AdConfigModal
 
 ---
@@ -246,7 +402,7 @@ Community events calendar - local happenings, meetups, festivals.
 ### Files to Create
 ```
 src/app/(main)/events/
-  page.tsx                      # Events listing/calendar
+  page.tsx                      # Events listing/calendar (2-col layout with sidebar)
   [slug]/page.tsx               # Individual event detail
 
 src/components/events/
@@ -255,6 +411,7 @@ src/components/events/
   EventCard.tsx                 # Individual event card
   EventDetail.tsx               # Full event page
   EventFilters.tsx              # Date/category filters
+  EventsSidebar.tsx             # RIGHT COLUMN: Mini calendar, upcoming events, category filters
   EventConfigModal.tsx          # Admin config (gear icon)
   EventSubmissionForm.tsx       # User event submission
 
@@ -314,11 +471,55 @@ interface EventsSettings {
 ```
 
 ### Features Required
-- Calendar view (month/week)
-- List view toggle
-- Category filter
-- "This Weekend" quick filter
-- Full CRUD in admin panel
+
+**Frontend (Public)**
+- Calendar view (month view with event dots/indicators)
+- List view toggle (chronological list)
+- View toggle button (Calendar | List)
+- Category filter chips (Festival, Concert, Sports, Community, Markets, etc.)
+- Date quick filters: "Today", "This Weekend", "This Month"
+- Search events by name/description
+- Featured events highlighted section
+- Event cards showing: image, title, date/time, location, category badge
+- "Free" badge for free events
+- Loading skeleton states
+- Empty state for no events found
+- Responsive design - list view on mobile, calendar on desktop
+
+**Event Detail Page**
+- Hero image with event title overlay
+- Date and time prominently displayed
+- Location with address and map link
+- Organizer information
+- Full event description
+- Ticket/RSVP button (links to external ticketUrl)
+- Price information
+- "Add to Calendar" button (generates .ics file or Google Calendar link)
+- Share buttons (Facebook, Twitter, copy link)
+- Related events in same category
+- Back to events link
+
+**Event Submission (if enabled)**
+- "Submit Your Event" button on main page
+- Submission form with all event fields
+- Preview before submit
+- Success message with "pending approval" notice
+
+**Sidebar Features**
+- Mini calendar showing current month with event indicators
+- Upcoming events list (next 5)
+- Category quick links
+- "Submit Event" CTA button
+
+**Admin Features**
+- Full CRUD for events
+- Approve/reject user submissions
+- Mark as featured toggle
+- Bulk status changes
+- Filter by status (pending, approved, published, cancelled)
+- Calendar view of all events
+- Export events to CSV
+- Category management
 - Gear icon (admin only) opens EventConfigModal
 
 ---
@@ -335,6 +536,7 @@ src/components/community/
   CommunityPost.tsx             # Individual post
   CommunityPostForm.tsx         # Create new post
   CommunityFilters.tsx          # Topic/date filters
+  CommunitySidebar.tsx          # RIGHT COLUMN: Topic filters, trending posts, community stats (enhances existing map sidebar)
   CommunityConfigModal.tsx      # Admin config (gear icon)
 
 src/lib/
@@ -373,10 +575,45 @@ interface CommunitySettings {
 ```
 
 ### Features Required
-- Post feed with like/comment counts
-- Create new post form
-- Topic filtering
-- Full CRUD in admin panel
+
+**NOTE**: The community page already exists at `src/app/(main)/community/page.tsx` with a map feature. Create NEW component files only - do not modify the existing page. These components can be integrated later.
+
+**Frontend Components**
+- Feed of community posts with: author avatar, name, timestamp, content, like count, comment count
+- Post type indicators (same as existing: general, alert, crime, event, question)
+- Like button with optimistic UI update
+- Comment count that could link to comments (future)
+- Topic/category filter tabs
+- "New Post" button (requires login)
+- Loading skeleton states
+- Infinite scroll or "Load More"
+- Pinned posts at top
+
+**Post Creation Form**
+- Textarea for content
+- Post type selector dropdown
+- Optional location toggle (reuse existing pattern)
+- Image upload (optional, future enhancement)
+- Character limit indicator
+- Submit button with loading state
+- Login required messaging for non-authenticated users
+
+**Sidebar Features**
+- Topic quick filters
+- Trending posts (most liked in last 7 days)
+- Community guidelines link
+- Stats: total posts, active members (placeholder)
+- "Join the conversation" CTA for logged out users
+
+**Admin Features**
+- Moderation dashboard
+- View all posts with filters (status, topic, date)
+- Hide/unhide posts
+- Flag review queue
+- Pin/unpin posts
+- Ban users from posting (future)
+- Topic management
+- Bulk moderation actions
 - Gear icon (admin only) opens CommunityConfigModal
 
 ---
@@ -471,6 +708,8 @@ Before completing each task:
 - [ ] New Firestore collections only (not articles, users, settings, categories)
 - [ ] Dark mode works (`dark:` classes)
 - [ ] Mobile responsive (375px width)
+- [ ] **Frontend page uses 2-column layout with sidebar (lg:w-2/3 + lg:w-1/3)**
+- [ ] **Sidebar hidden on mobile, sticky on desktop (sticky top-24)**
 - [ ] Gear icon only for admin roles
 - [ ] Config saves to `componentSettings` collection
 - [ ] Full CRUD operations work
