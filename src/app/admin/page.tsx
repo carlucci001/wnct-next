@@ -269,8 +269,11 @@ export default function AdminDashboard() {
     return 'dashboard';
   });
 
-  // Sync activeTab to URL
+  // Sync activeTab to URL (skip if action param is present - those handlers manage their own URL)
   useEffect(() => {
+    const action = searchParams.get('action');
+    if (action) return; // Don't interfere with action handlers
+
     const currentTab = searchParams.get('tab');
     if (activeTab !== currentTab) {
       const params = new URLSearchParams(searchParams.toString());
