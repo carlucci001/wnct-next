@@ -23,6 +23,32 @@ service cloud.firestore {
       return isAuthenticated() && getUserRole() in ['admin', 'business-owner'];
     }
 
+    // ============================================
+    // TENANT HELPER FUNCTIONS
+    // ============================================
+
+    // Check if user owns a tenant
+    function isTenantOwner(tenantId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/tenants/$(tenantId)).data.ownerId == request.auth.uid;
+    }
+
+    // Check if tenant is active or in trial
+    function isTenantActive(tenantId) {
+      let tenant = get(/databases/$(database)/documents/tenants/$(tenantId)).data;
+      return tenant.status in ['active', 'trial'];
+    }
+
+    // Check if user belongs to a tenant (via user.tenantId field)
+    function belongsToTenant(tenantId) {
+      return isAuthenticated() && getUserData().tenantId == tenantId;
+    }
+
+    // Check if user can access tenant data (owner or member)
+    function canAccessTenant(tenantId) {
+      return isTenantOwner(tenantId) || belongsToTenant(tenantId) || isAdmin();
+    }
+
     // Editorial leadership (can publish any article, manage team)
     function isEditorialLead() {
       return isAuthenticated() && getUserRole() in ['admin', 'business-owner', 'editor-in-chief'];
@@ -158,6 +184,140 @@ service cloud.firestore {
         resource.data.authorId == request.auth.uid
         || isModerator()
       );
+    }
+
+    // ============================================
+    // TENANTS (SaaS Multi-Tenancy)
+    // ============================================
+    match /tenants/{tenantId} {
+      // Tenant owners and admins can read their tenant
+      allow read: if canAccessTenant(tenantId);
+
+      // Only platform admins can create tenants
+      // (In production, this would be via API with proper validation)
+      allow create: if isAuthenticated();
+
+      // Tenant owners can update their own tenant settings
+      // Platform admins can update any tenant
+      allow update: if isTenantOwner(tenantId) || isAdmin();
+
+      // Only platform admins can delete tenants
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // CREDIT TRANSACTIONS
+    // ============================================
+    match /creditTransactions/{transactionId} {
+      // Users can read their tenant's transactions
+      allow read: if isAuthenticated() && canAccessTenant(resource.data.tenantId);
+
+      // Only server-side operations should create transactions
+      // This is typically done via Firebase Admin SDK
+      // For client-side, only platform admins can create
+      allow create: if isAdmin();
+
+      // Transactions should be immutable (no updates)
+      allow update: if false;
+
+      // Only platform admins can delete (for cleanup)
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // ADVERTISERS
+    // ============================================
+    match /advertisers/{advertiserId} {
+      // Tenant members can read their advertisers
+      allow read: if isAuthenticated() && canAccessTenant(resource.data.tenantId);
+
+      // Tenant owners and editors can create advertisers
+      allow create: if isAuthenticated() &&
+        canAccessTenant(request.resource.data.tenantId) &&
+        isTenantActive(request.resource.data.tenantId);
+
+      // Tenant owners and editors can update advertisers
+      allow update: if isAuthenticated() &&
+        canAccessTenant(resource.data.tenantId) &&
+        isTenantActive(resource.data.tenantId);
+
+      // Tenant owners can delete advertisers
+      allow delete: if isTenantOwner(resource.data.tenantId) || isAdmin();
+    }
+
+    // ============================================
+    // ADS (Advertisements)
+    // ============================================
+    match /tenantAds/{adId} {
+      // Anyone can read active ads (they're displayed publicly)
+      allow read: if resource.data.status == 'active' ||
+        (isAuthenticated() && canAccessTenant(resource.data.tenantId));
+
+      // Tenant members can create ads (if tenant is active)
+      allow create: if isAuthenticated() &&
+        canAccessTenant(request.resource.data.tenantId) &&
+        isTenantActive(request.resource.data.tenantId);
+
+      // Tenant members can update their ads
+      allow update: if isAuthenticated() &&
+        canAccessTenant(resource.data.tenantId);
+
+      // Tenant owners can delete ads
+      allow delete: if isTenantOwner(resource.data.tenantId) || isAdmin();
+    }
+
+    // ============================================
+    // CATEGORIES (with tenant support)
+    // ============================================
+    match /categories/{categoryId} {
+      // Anyone can read categories
+      allow read: if true;
+
+      // Editors and above can manage categories
+      allow write: if isEditor();
+    }
+
+    // ============================================
+    // AI JOURNALISTS (with tenant support)
+    // ============================================
+    match /aiJournalists/{journalistId} {
+      // Tenant members can read their AI journalists
+      // For non-tenant mode, editors can read
+      allow read: if isEditor() ||
+        (isAuthenticated() && resource.data.tenantId != null && canAccessTenant(resource.data.tenantId));
+
+      // Editors can create/update AI journalists
+      allow create, update: if isEditor();
+
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // CONTENT SOURCES
+    // ============================================
+    match /contentSources/{sourceId} {
+      // Editors can read/write content sources
+      allow read, write: if isEditor();
+    }
+
+    // ============================================
+    // CONTENT ITEMS
+    // ============================================
+    match /contentItems/{itemId} {
+      // Editors can read/write content items
+      allow read, write: if isEditor();
+    }
+
+    // ============================================
+    // SCHEDULED TASKS
+    // ============================================
+    match /scheduledTasks/{taskId} {
+      // Editors can read scheduled tasks
+      allow read: if isEditor();
+
+      // Only server-side operations should manage tasks
+      allow write: if isAdmin();
     }
   }
 }

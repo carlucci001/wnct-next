@@ -2467,12 +2467,7 @@ Example structure:
         {addingUser && (
           <AddUserModal
             onClose={() => setAddingUser(false)}
-            onAdd={async (userData) => {
-              const userId = crypto.randomUUID();
-              await createUser({
-                id: userId,
-                ...userData
-              });
+            onUserCreated={async () => {
               const newUsers = await getUsers();
               setUsers(newUsers);
               toast.success('User created successfully');
