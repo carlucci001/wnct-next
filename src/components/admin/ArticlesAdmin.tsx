@@ -333,8 +333,16 @@ export default function ArticlesAdmin() {
                 </TableHeader>
                 <TableBody>
                   {paginatedArticles.map((article) => (
-                    <TableRow key={article.id}>
-                      <TableCell>
+                    <TableRow
+                      key={article.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={(e) => {
+                        // Don't navigate if clicking on checkbox or actions
+                        if ((e.target as HTMLElement).closest('input, button, [role="menuitem"]')) return;
+                        window.location.href = `/admin?action=edit-article&id=${article.id}`;
+                      }}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(article.id)}

@@ -472,14 +472,25 @@ export default function AdminDashboard() {
       // Load existing article and open JOURNALIST tab
       const articleId = searchParams.get('id');
       if (articleId) {
+        // Set loading state immediately
+        setActiveTab('JOURNALIST');
+        setAgentTab('settings');
+
+        // Fetch the article
         getArticleBySlug(articleId).then((article) => {
           if (article) {
+            console.log('[Admin] Loaded article for editing:', article.title);
             setAgentArticle(article);
-            setAgentTab('settings');
-            setActiveTab('JOURNALIST');
             setChatHistory([]);
+          } else {
+            console.error('[Admin] Article not found:', articleId);
+            // Show error toast if available
+            alert(`Article not found: ${articleId}`);
           }
           // Clear the action from URL to prevent re-triggering
+          window.history.replaceState({}, '', '/admin?tab=JOURNALIST');
+        }).catch((error) => {
+          console.error('[Admin] Error loading article:', error);
           window.history.replaceState({}, '', '/admin');
         });
       }
