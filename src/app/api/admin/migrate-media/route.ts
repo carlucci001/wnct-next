@@ -3,6 +3,9 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { MediaFolder, MediaFileType } from '@/types/media';
 
+// Force dynamic rendering - this route uses Firebase and cannot be prerendered
+export const dynamic = 'force-dynamic';
+
 /**
  * Media Migration API
  * Scans existing content collections and imports image URLs into the Media Manager

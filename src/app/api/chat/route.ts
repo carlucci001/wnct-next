@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
+export const dynamic = 'force-dynamic';
+
 interface ChatMessage {
   role: 'user' | 'model';
   text: string;

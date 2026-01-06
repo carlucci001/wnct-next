@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRole } from '@/types/user';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/users/create
  * Creates a new user with both Firebase Auth and Firestore document

@@ -3,6 +3,8 @@ import Parser from 'rss-parser';
 import { getAllContentSources, saveContentItems, updateSourceLastFetched, seedDefaultSources } from '@/lib/contentSources';
 import { ContentItem } from '@/types/contentSource';
 
+export const dynamic = 'force-dynamic';
+
 // RSS Parser instance
 const parser = new Parser({
   customFields: {
