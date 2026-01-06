@@ -222,7 +222,6 @@ export default function AdvertisePage() {
           {/* Hero Section */}
           <section className="mb-10">
             <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 dark:from-blue-700 dark:to-blue-900 rounded-xl p-8 md:p-12 text-white overflow-hidden">
-              <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
               <div className="relative z-10">
                 <h2 className="text-2xl md:text-3xl font-bold mb-4">
                   Connect With Your Local Community
