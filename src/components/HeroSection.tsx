@@ -6,6 +6,20 @@ import Image from "next/image";
 import { Article } from "@/types/article";
 import ImageWithFallback from "./ImageWithFallback";
 
+// Format date for display (shorter format)
+const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 function AuthorAvatar({ name, photoURL, size = 20 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
     return (
@@ -41,7 +55,8 @@ const HeroSection: React.FC<HeroSectionProps> = ({ mainArticle, subArticles }) =
     if (!article) return <div className="bg-gray-200 h-full w-full animate-pulse" />;
 
     const imageUrl = article.featuredImage || article.imageUrl || "/placeholder.jpg";
-    const articleDate = article.date || article.publishedAt || article.createdAt || "";
+    const rawDate = article.date || article.publishedAt || article.createdAt || "";
+    const articleDate = formatDate(rawDate);
 
     return (
       <div className="relative group overflow-hidden h-full w-full">

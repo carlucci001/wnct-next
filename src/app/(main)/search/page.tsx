@@ -4,10 +4,21 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, X, Calendar, User, Tag, ArrowUpDown } from "lucide-react";
 import { searchArticles, getCategories, getAuthors, type SearchParams } from "@/lib/articles";
-import { getCategoryColor } from "@/lib/constants";
+import { getAllCategories } from "@/lib/categories";
 import { Article } from "@/types/article";
 import ArticleCard from "@/components/ArticleCard";
 import Sidebar from "@/components/Sidebar";
+
+// Fallback category colors
+const FALLBACK_COLORS: Record<string, string> = {
+  news: '#1d4ed8',
+  sports: '#dc2626',
+  business: '#059669',
+  entertainment: '#7c3aed',
+  lifestyle: '#db2777',
+  outdoors: '#16a34a',
+};
+const DEFAULT_COLOR = '#1d4ed8';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -28,13 +39,28 @@ function SearchContent() {
   const [searched, setSearched] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [authors, setAuthors] = useState<string[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>(FALLBACK_COLORS);
 
-  // Load categories and authors for filters
+  // Load categories, authors, and category colors for filters
   useEffect(() => {
     const loadFilters = async () => {
-      const [cats, auths] = await Promise.all([getCategories(), getAuthors()]);
+      const [cats, auths, dbCategories] = await Promise.all([
+        getCategories(),
+        getAuthors(),
+        getAllCategories(true)
+      ]);
       setCategories(cats);
       setAuthors(auths);
+
+      // Build color map from database categories
+      const colorMap: Record<string, string> = { ...FALLBACK_COLORS };
+      dbCategories.forEach(cat => {
+        if (cat.color) {
+          colorMap[cat.name.toLowerCase()] = cat.color;
+          colorMap[cat.slug.toLowerCase()] = cat.color;
+        }
+      });
+      setCategoryColors(colorMap);
     };
     loadFilters();
   }, []);
@@ -332,8 +358,8 @@ function SearchContent() {
                       key={article.id}
                       article={article}
                       variant="vertical"
-                      // Use the helper to force correct colors
-                      accentColor={getCategoryColor(article.category)}
+                      // Use database category colors with fallback
+                      accentColor={categoryColors[article.category?.toLowerCase()] || DEFAULT_COLOR}
                     />
                   ))}
                 </div>

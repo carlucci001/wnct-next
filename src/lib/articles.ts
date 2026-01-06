@@ -305,6 +305,112 @@ export async function deleteArticle(id: string): Promise<boolean> {
 }
 
 /**
+ * Update an article by ID
+ */
+export async function updateArticle(
+  id: string,
+  updates: Partial<Article>
+): Promise<boolean> {
+  try {
+    const docRef = doc(db, ARTICLES_COLLECTION, id);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error(`Error updating article ${id}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Bulk delete articles by IDs
+ */
+export async function deleteArticles(ids: string[]): Promise<boolean> {
+  try {
+    const batch = writeBatch(db);
+    ids.forEach((id) => batch.delete(doc(db, ARTICLES_COLLECTION, id)));
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error bulk deleting articles:', error);
+    return false;
+  }
+}
+
+/**
+ * Bulk update articles status
+ */
+export async function updateArticlesStatus(
+  ids: string[],
+  status: Article['status']
+): Promise<boolean> {
+  try {
+    const batch = writeBatch(db);
+    ids.forEach((id) =>
+      batch.update(doc(db, ARTICLES_COLLECTION, id), {
+        status,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error bulk updating articles status:', error);
+    return false;
+  }
+}
+
+/**
+ * Bulk update articles category
+ */
+export async function updateArticlesCategory(
+  ids: string[],
+  category: string,
+  categoryColor?: string
+): Promise<boolean> {
+  try {
+    const batch = writeBatch(db);
+    const updateData: Record<string, unknown> = {
+      category,
+      updatedAt: new Date().toISOString(),
+    };
+    if (categoryColor) {
+      updateData.categoryColor = categoryColor;
+    }
+    ids.forEach((id) =>
+      batch.update(doc(db, ARTICLES_COLLECTION, id), updateData)
+    );
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error bulk updating articles category:', error);
+    return false;
+  }
+}
+
+/**
+ * Toggle featured status for an article
+ */
+export async function toggleArticleFeatured(
+  id: string,
+  isFeatured: boolean
+): Promise<boolean> {
+  try {
+    const docRef = doc(db, ARTICLES_COLLECTION, id);
+    await updateDoc(docRef, {
+      isFeatured,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error(`Error toggling featured for article ${id}:`, error);
+    return false;
+  }
+}
+
+/**
  * Format and clean up HTML content for an article
  * Converts plain text with line breaks to proper HTML paragraphs
  * Removes empty tags, excessive whitespace, and normalizes structure

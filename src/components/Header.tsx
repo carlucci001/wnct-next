@@ -189,7 +189,6 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                       </div>
                       <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-slate-900"></span>
                     </div>
-                    <span className="hidden md:inline text-amber-400 font-bold text-sm">{currentUser.displayName?.split(" ")[0] || "User"}</span>
                   </button>
                 ) : (
                   <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
@@ -221,6 +220,9 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUser.email}</p>
                       </div>
                     </div>
+                    <Link href="/account" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
+                      <UserIcon size={14} className="mr-2 text-emerald-600" /> My Account
+                    </Link>
                     <Link href="/admin" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
                       <LayoutDashboard size={14} className="mr-2 text-blue-600" /> Admin Panel
                     </Link>

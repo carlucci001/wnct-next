@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { getArticles } from "@/lib/articles";
+import { getAllCategories } from "@/lib/categories";
 import { Article } from "@/types/article";
 import HeroSection from "@/components/HeroSection";
 import Sidebar from "@/components/Sidebar";
@@ -12,8 +13,8 @@ import ImageWithFallback from "@/components/ImageWithFallback";
 // Category display order
 const CATEGORY_ORDER = ['news', 'sports', 'business', 'entertainment', 'lifestyle', 'outdoors'];
 
-// Default category colors
-const CATEGORY_COLORS: Record<string, string> = {
+// Fallback category colors (used if not found in database)
+const FALLBACK_COLORS: Record<string, string> = {
   news: '#1d4ed8',
   sports: '#dc2626',
   business: '#059669',
@@ -21,18 +22,50 @@ const CATEGORY_COLORS: Record<string, string> = {
   lifestyle: '#db2777',
   outdoors: '#16a34a',
 };
+const DEFAULT_COLOR = '#1d4ed8';
+
+// Format date for display (shorter format)
+const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>(FALLBACK_COLORS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchArticles() {
-      const data = await getArticles();
-      setArticles(data);
+    async function fetchData() {
+      // Fetch articles and categories in parallel
+      const [articlesData, categoriesData] = await Promise.all([
+        getArticles(),
+        getAllCategories(true) // Only active categories
+      ]);
+
+      setArticles(articlesData);
+
+      // Build color map from database categories
+      const colorMap: Record<string, string> = { ...FALLBACK_COLORS };
+      categoriesData.forEach(cat => {
+        if (cat.color) {
+          colorMap[cat.name.toLowerCase()] = cat.color;
+          colorMap[cat.slug.toLowerCase()] = cat.color;
+        }
+      });
+      setCategoryColors(colorMap);
+
       setLoading(false);
     }
-    fetchArticles();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -60,10 +93,10 @@ export default function Home() {
       const articleToUse = featured || categoryArticles[0];
 
       if (articleToUse) {
-        // Always use computed color from CATEGORY_COLORS to ensure consistency
+        // Use color from database (categoryColors state) with fallback
         heroArticles.push({
           ...articleToUse,
-          categoryColor: CATEGORY_COLORS[categoryName.toLowerCase()] || '#1d4ed8'
+          categoryColor: categoryColors[categoryName.toLowerCase()] || DEFAULT_COLOR
         });
       }
     });
@@ -112,7 +145,7 @@ export default function Home() {
   };
 
   const getCategoryColor = (category: string): string => {
-    return CATEGORY_COLORS[category.toLowerCase()] || '#1d4ed8';
+    return categoryColors[category.toLowerCase()] || DEFAULT_COLOR;
   };
 
   const categories = getUniqueCategories();
@@ -187,7 +220,7 @@ export default function Home() {
                       <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                         <span className="font-medium">{featuredArticle.author}</span>
                         <span className="mx-2">•</span>
-                        <span>{featuredArticle.date || featuredArticle.publishedAt}</span>
+                        <span>{formatDate(featuredArticle.date || featuredArticle.publishedAt)}</span>
                       </div>
                     </Link>
 
@@ -215,7 +248,7 @@ export default function Home() {
                             <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
                               {article.excerpt}
                             </p>
-                            <span className="text-xs text-gray-500 dark:text-gray-500">{article.date || article.publishedAt}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-500">{formatDate(article.date || article.publishedAt)}</span>
                           </div>
                         </Link>
                       ))}

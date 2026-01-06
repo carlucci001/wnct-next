@@ -114,3 +114,131 @@ export async function getUsersByRole(role: UserRole): Promise<User[]> {
     return [];
   }
 }
+
+/**
+ * Test user definitions for each role and account type
+ */
+const TEST_USERS: Array<{
+  id: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  accountType: 'free' | 'basic' | 'premium' | 'enterprise';
+}> = [
+  // Admin - Enterprise
+  {
+    id: 'test-admin',
+    email: 'admin@test.wnctimes.com',
+    displayName: 'Test Admin',
+    role: 'admin',
+    accountType: 'enterprise',
+  },
+  // Business Owner - Enterprise
+  {
+    id: 'test-business-owner',
+    email: 'businessowner@test.wnctimes.com',
+    displayName: 'Test Business Owner',
+    role: 'business-owner',
+    accountType: 'enterprise',
+  },
+  // Editor-in-Chief - Premium
+  {
+    id: 'test-editor-in-chief',
+    email: 'editorinchief@test.wnctimes.com',
+    displayName: 'Test Editor-in-Chief',
+    role: 'editor-in-chief',
+    accountType: 'premium',
+  },
+  // Editor - Premium
+  {
+    id: 'test-editor',
+    email: 'editor@test.wnctimes.com',
+    displayName: 'Test Editor',
+    role: 'editor',
+    accountType: 'premium',
+  },
+  // Content Contributor - Basic
+  {
+    id: 'test-contributor',
+    email: 'contributor@test.wnctimes.com',
+    displayName: 'Test Contributor',
+    role: 'content-contributor',
+    accountType: 'basic',
+  },
+  // Commenter - Free
+  {
+    id: 'test-commenter',
+    email: 'commenter@test.wnctimes.com',
+    displayName: 'Test Commenter',
+    role: 'commenter',
+    accountType: 'free',
+  },
+  // Reader - Free
+  {
+    id: 'test-reader',
+    email: 'reader@test.wnctimes.com',
+    displayName: 'Test Reader',
+    role: 'reader',
+    accountType: 'free',
+  },
+];
+
+/**
+ * Seed test users for each role/account type
+ * Returns list of created user IDs
+ */
+export async function seedTestUsers(): Promise<{ created: string[]; skipped: string[]; errors: string[] }> {
+  const created: string[] = [];
+  const skipped: string[] = [];
+  const errors: string[] = [];
+
+  for (const testUser of TEST_USERS) {
+    try {
+      // Check if user already exists
+      const existingUser = await getUserById(testUser.id);
+      if (existingUser) {
+        skipped.push(`${testUser.displayName} (${testUser.role})`);
+        continue;
+      }
+
+      // Create the test user
+      await createUser({
+        id: testUser.id,
+        email: testUser.email,
+        displayName: testUser.displayName,
+        role: testUser.role,
+        accountType: testUser.accountType,
+      });
+
+      created.push(`${testUser.displayName} (${testUser.role})`);
+    } catch (error) {
+      console.error(`Error creating test user ${testUser.id}:`, error);
+      errors.push(`${testUser.displayName}: ${error}`);
+    }
+  }
+
+  return { created, skipped, errors };
+}
+
+/**
+ * Delete all test users
+ */
+export async function deleteTestUsers(): Promise<{ deleted: string[]; errors: string[] }> {
+  const deleted: string[] = [];
+  const errors: string[] = [];
+
+  for (const testUser of TEST_USERS) {
+    try {
+      const existingUser = await getUserById(testUser.id);
+      if (existingUser) {
+        await deleteUser(testUser.id);
+        deleted.push(`${testUser.displayName} (${testUser.role})`);
+      }
+    } catch (error) {
+      console.error(`Error deleting test user ${testUser.id}:`, error);
+      errors.push(`${testUser.displayName}: ${error}`);
+    }
+  }
+
+  return { deleted, errors };
+}

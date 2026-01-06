@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Clock, Share2, Bookmark } from 'lucide-react';
 import { getArticleBySlug, getArticlesByCategory } from '@/lib/articles';
+import { getCategoryByName } from '@/lib/categories';
 import { Article } from '@/types/article';
 import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -34,8 +35,8 @@ function AuthorAvatar({ name, photoURL, size = 24 }: { name: string; photoURL?: 
   );
 }
 
-// Category colors
-const CATEGORY_COLORS: Record<string, string> = {
+// Fallback category colors (used if not found in database)
+const FALLBACK_COLORS: Record<string, string> = {
   news: '#1d4ed8',
   sports: '#dc2626',
   business: '#059669',
@@ -43,9 +44,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   lifestyle: '#db2777',
   outdoors: '#16a34a',
 };
+const DEFAULT_COLOR = '#1d4ed8';
 
-const getCategoryColor = (category: string): string => {
-  return CATEGORY_COLORS[category?.toLowerCase()] || '#1d4ed8';
+const getFallbackColor = (category: string): string => {
+  return FALLBACK_COLORS[category?.toLowerCase()] || DEFAULT_COLOR;
 };
 
 const formatDate = (dateStr: string | undefined): string => {
@@ -69,6 +71,7 @@ export default function ArticlePage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categoryColor, setCategoryColor] = useState(DEFAULT_COLOR);
 
   useEffect(() => {
     async function fetchData() {
@@ -78,6 +81,14 @@ export default function ArticlePage() {
       setArticle(fetchedArticle);
 
       if (fetchedArticle?.category) {
+        // Fetch category color from database
+        const categoryData = await getCategoryByName(fetchedArticle.category);
+        if (categoryData?.color) {
+          setCategoryColor(categoryData.color);
+        } else {
+          setCategoryColor(getFallbackColor(fetchedArticle.category));
+        }
+
         const categoryArticles = await getArticlesByCategory(fetchedArticle.category);
         // Filter out current article and limit to 4
         setRelatedArticles(
@@ -117,7 +128,7 @@ export default function ArticlePage() {
     );
   }
 
-  const categoryColor = getCategoryColor(article.category);
+  // categoryColor is now fetched from database via state
   const articleDate = formatDate(article.publishedAt || article.createdAt || article.date);
   const featuredImageUrl = article.featuredImage || article.imageUrl || '/placeholder.jpg';
 
