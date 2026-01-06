@@ -324,3 +324,47 @@
 .prose > *:last-child {
   margin-bottom: 0 !important;
 }
+
+/* Dark mode overrides for article content */
+.dark .article-content h1,
+.dark .article-content h2,
+.dark .article-content h3,
+.dark .article-content h4,
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4 {
+  color: #f9fafb !important;
+}
+
+.dark .article-content p,
+.dark .prose p {
+  color: #e5e7eb !important;
+}
+
+.dark .article-content li,
+.dark .prose li {
+  color: #e5e7eb !important;
+}
+
+.dark .article-content blockquote,
+.dark .prose blockquote {
+  background-color: #374151 !important;
+  color: #d1d5db !important;
+  border-left-color: #60a5fa !important;
+}
+
+.dark .article-content hr,
+.dark .prose hr {
+  border-top-color: #4b5563 !important;
+}
+
+.dark .article-content a,
+.dark .prose a {
+  color: #60a5fa !important;
+}
+
+.dark .article-content a:hover,
+.dark .prose a:hover {
+  color: #93c5fd !important;
+}

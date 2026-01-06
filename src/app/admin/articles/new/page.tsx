@@ -1,12 +1,19 @@
 'use client';
 
-import ArticleForm from '@/components/admin/ArticleForm';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function NewArticlePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to admin panel with action to create new article
+    router.replace('/admin?action=new-article');
+  }, [router]);
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900">Create New Article</h1>
-      <ArticleForm isEditing={false} />
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-muted-foreground">Redirecting to article editor...</p>
     </div>
   );
 }

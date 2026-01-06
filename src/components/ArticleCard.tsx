@@ -7,6 +7,20 @@ import { Clock } from "lucide-react";
 import { Article } from "@/types/article";
 import ImageWithFallback from "./ImageWithFallback";
 
+// Format date for display (shorter format for cards)
+const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 function AuthorAvatar({ name, photoURL, size = 20 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
     return (
@@ -39,7 +53,8 @@ interface ArticleCardProps {
 const ArticleCard: React.FC<ArticleCardProps> = ({ article, variant = "vertical", accentColor }) => {
   const catColor = accentColor || article.categoryColor || "#1d4ed8";
   const imageUrl = article.featuredImage || article.imageUrl || "/placeholder.jpg";
-  const articleDate = article.date || article.publishedAt || article.createdAt || "";
+  const rawDate = article.date || article.publishedAt || article.createdAt || "";
+  const articleDate = formatDate(rawDate);
 
   if (variant === "horizontal") {
     return (

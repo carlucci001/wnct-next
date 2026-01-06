@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account';
 
 interface MenuSections {
   ai: boolean;
@@ -34,6 +34,8 @@ interface AdminSidebarProps {
   menuSections: MenuSections;
   toggleMenuSection: (section: keyof MenuSections) => void;
   onClearChat: () => void;
+  mobileMenuOpen?: boolean;
+  onMobileMenuClose?: () => void;
 }
 
 const NavItem = ({
@@ -93,7 +95,9 @@ export function AdminSidebar({
   setActiveTab,
   menuSections,
   toggleMenuSection,
-  onClearChat
+  onClearChat,
+  mobileMenuOpen,
+  onMobileMenuClose
 }: AdminSidebarProps) {
   // Accordion behavior: close other sections when opening a new one
   const handleSectionToggle = (section: keyof MenuSections) => {
@@ -101,10 +105,9 @@ export function AdminSidebar({
     toggleMenuSection(section);
   };
 
-  return (
-    <aside className="w-64 border-r bg-card flex flex-col h-full min-h-0">
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-4 space-y-4 pb-8">
+  const sidebarContent = (
+    <ScrollArea className="flex-1 min-h-0">
+      <div className="p-4 space-y-4 pb-8">
           {/* Dashboard */}
           <div>
             <NavItem
@@ -373,7 +376,41 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
         </div>
-      </ScrollArea>
-    </aside>
+    </ScrollArea>
+  );
+
+  return (
+    <>
+      {/* Mobile Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onMobileMenuClose}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 border-r bg-card flex flex-col transform transition-transform duration-300 ease-in-out md:hidden",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{ top: '64px' }} // Below header
+      >
+        {/* Close button for mobile */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <span className="font-semibold text-sm">Navigation</span>
+          <Button variant="ghost" size="icon" onClick={onMobileMenuClose} className="h-8 w-8">
+            <X size={18} />
+          </Button>
+        </div>
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 border-r bg-card flex-col h-full min-h-0">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

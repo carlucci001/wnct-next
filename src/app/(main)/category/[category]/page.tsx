@@ -4,21 +4,22 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { LayoutGrid, List as ListIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getArticlesByCategory } from '@/lib/articles';
-import { getCategoryColor } from '@/lib/constants';
+import { getCategoryByName } from '@/lib/categories';
 import CategoryFeaturedSlider from '@/components/CategoryFeaturedSlider';
 import Sidebar from '@/components/Sidebar';
 import ArticleCard from '@/components/ArticleCard';
 import { Article } from '@/types/article';
 
-// Helper to format date
-const formatDate = (dateString: string | undefined) => {
-  if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+// Fallback colors when category not found in database
+const FALLBACK_COLORS: Record<string, string> = {
+  news: '#1d4ed8',
+  sports: '#dc2626',
+  business: '#059669',
+  entertainment: '#7c3aed',
+  lifestyle: '#db2777',
+  outdoors: '#16a34a',
 };
+const DEFAULT_COLOR = '#1d4ed8';
 
 export default function CategoryPage({
   params,
@@ -30,6 +31,7 @@ export default function CategoryPage({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const [decodedCategory, setDecodedCategory] = useState('');
+  const [categoryColor, setCategoryColor] = useState(DEFAULT_COLOR);
   const itemsPerPage = 12;
 
   useEffect(() => {
@@ -37,6 +39,15 @@ export default function CategoryPage({
       const { category } = await params;
       const decoded = decodeURIComponent(category);
       setDecodedCategory(decoded);
+
+      // Fetch category color from database
+      const categoryData = await getCategoryByName(decoded);
+      if (categoryData?.color) {
+        setCategoryColor(categoryData.color);
+      } else {
+        // Fallback to hardcoded colors if not in database
+        setCategoryColor(FALLBACK_COLORS[decoded.toLowerCase()] || DEFAULT_COLOR);
+      }
 
       const fetchedArticles = await getArticlesByCategory(decoded);
       setArticles(fetchedArticles);
@@ -63,7 +74,8 @@ export default function CategoryPage({
       .slice(0, 3);
   }, [articles]);
 
-  const accentColor = getCategoryColor(decodedCategory);
+  // Use categoryColor from state (fetched from Firestore)
+  const accentColor = categoryColor;
 
   // Pagination logic
   const totalItems = articles.length;

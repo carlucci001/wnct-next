@@ -101,6 +101,36 @@ export async function getCategory(id: string): Promise<Category | null> {
 }
 
 /**
+ * Fetch a category by name (case-insensitive)
+ */
+export async function getCategoryByName(name: string): Promise<Category | null> {
+  try {
+    // First try exact match on name
+    const allCategories = await getAllCategories();
+    const found = allCategories.find(
+      (c) => c.name.toLowerCase() === name.toLowerCase()
+    );
+    if (found) return found;
+
+    // Fallback: try matching by slug
+    const slug = generateSlug(name);
+    return allCategories.find((c) => c.slug.toLowerCase() === slug) || null;
+  } catch (error) {
+    console.error('Error fetching category by name:', error);
+    return null;
+  }
+}
+
+/**
+ * Get category color by name (for use in components)
+ * Falls back to default color if category not found
+ */
+export async function getCategoryColorByName(name: string): Promise<string> {
+  const category = await getCategoryByName(name);
+  return category?.color || '#1d4ed8'; // Default blue
+}
+
+/**
  * Fetch a category by slug
  */
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {

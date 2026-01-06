@@ -14,14 +14,30 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
+interface UserProfile {
+  id?: string;
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+  role: string;
+  accountType?: string;
+  status?: string;
+  [key: string]: any;
+}
+
 interface AuthContextType {
   currentUser: User | null;
-  userProfile: any | null;
+  userProfile: UserProfile | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  // Impersonation features
+  isImpersonating: boolean;
+  realUserProfile: UserProfile | null;
+  impersonateUser: (userId: string) => Promise<void>;
+  stopImpersonation: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,8 +52,19 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<any | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [realUserProfile, setRealUserProfile] = useState<UserProfile | null>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Check for existing impersonation on mount
+  useEffect(() => {
+    const storedImpersonation = sessionStorage.getItem('impersonatedUserId');
+    if (storedImpersonation) {
+      // Will be restored when auth state loads
+      console.log('[AuthContext] Found stored impersonation:', storedImpersonation);
+    }
+  }, []);
 
   useEffect(() => {
     let unsubscribeSnapshot: (() => void) | null = null;
@@ -47,13 +74,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Subscribe to real-time updates for the user profile
         try {
           const userDocRef = doc(db, 'users', user.uid);
-          unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
-            if (doc.exists()) {
-              console.log('[AuthContext] Fetched real-time user profile:', doc.id);
-              setUserProfile(doc.data());
+          unsubscribeSnapshot = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+              console.log('[AuthContext] Fetched real-time user profile:', docSnap.id);
+              const profile = { ...docSnap.data(), id: docSnap.id } as UserProfile;
+              setRealUserProfile(profile);
+
+              // Check if we should restore impersonation
+              const storedImpersonation = sessionStorage.getItem('impersonatedUserId');
+              if (storedImpersonation && canImpersonate(profile.role)) {
+                // Restore impersonation
+                const impersonatedDoc = await getDoc(doc(db, 'users', storedImpersonation));
+                if (impersonatedDoc.exists()) {
+                  setUserProfile({ ...impersonatedDoc.data(), id: impersonatedDoc.id } as UserProfile);
+                  setIsImpersonating(true);
+                  console.log('[AuthContext] Restored impersonation:', storedImpersonation);
+                } else {
+                  // Impersonated user no longer exists
+                  sessionStorage.removeItem('impersonatedUserId');
+                  setUserProfile(profile);
+                }
+              } else {
+                setUserProfile(profile);
+              }
             } else {
               console.log('[AuthContext] User profile not found');
               setUserProfile(null);
+              setRealUserProfile(null);
             }
           }, (error) => {
             console.error('[AuthContext] Error syncing user profile:', error);
@@ -67,6 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           unsubscribeSnapshot = null;
         }
         setUserProfile(null);
+        setRealUserProfile(null);
+        setIsImpersonating(false);
+        sessionStorage.removeItem('impersonatedUserId');
       }
       setCurrentUser(user);
       setLoading(false);
@@ -79,6 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+
+  // Check if user role can impersonate
+  const canImpersonate = (role?: string): boolean => {
+    return ['admin', 'business-owner', 'editor-in-chief'].includes(role || '');
+  };
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
@@ -141,10 +196,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Clear impersonation on sign out
+      sessionStorage.removeItem('impersonatedUserId');
+      setIsImpersonating(false);
       await firebaseSignOut(auth);
     } catch (error) {
       console.error("Error signing out", error);
       throw error;
+    }
+  };
+
+  // Impersonate another user (admin only)
+  const impersonateUser = async (userId: string) => {
+    if (!canImpersonate(realUserProfile?.role)) {
+      throw new Error('You do not have permission to impersonate users');
+    }
+
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+
+      const impersonatedProfile = { ...userDoc.data(), id: userDoc.id } as UserProfile;
+      setUserProfile(impersonatedProfile);
+      setIsImpersonating(true);
+      sessionStorage.setItem('impersonatedUserId', userId);
+      console.log('[AuthContext] Impersonating user:', userId, impersonatedProfile.displayName);
+    } catch (error) {
+      console.error('Error impersonating user:', error);
+      throw error;
+    }
+  };
+
+  // Stop impersonation and return to real user
+  const stopImpersonation = () => {
+    if (realUserProfile) {
+      setUserProfile(realUserProfile);
+      setIsImpersonating(false);
+      sessionStorage.removeItem('impersonatedUserId');
+      console.log('[AuthContext] Stopped impersonation, returned to:', realUserProfile.displayName);
     }
   };
 
@@ -155,7 +248,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithGoogle,
     signInWithEmail,
     registerWithEmail,
-    signOut
+    signOut,
+    // Impersonation
+    isImpersonating,
+    realUserProfile,
+    impersonateUser,
+    stopImpersonation,
   };
 
   // Always render children - don't block on loading
