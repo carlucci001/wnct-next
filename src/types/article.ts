@@ -26,6 +26,10 @@ export interface Article {
   isBreakingNews?: boolean;
   breakingNewsTimestamp?: string;
   views?: number;
+  // SaaS Multi-Tenancy
+  tenantId?: string;           // The tenant this article belongs to
+  creditsUsed?: number;        // Credits consumed to generate this article
+  generatedWithAI?: boolean;   // Whether AI was used to create this
 }
 
 export interface CategoryData {
@@ -67,4 +71,7 @@ export interface Business {
   tier?: 'standard' | 'premium';
   slug?: string;
   ownerId?: string;
+  // SaaS Multi-Tenancy
+  tenantId?: string;           // The tenant this business belongs to
+  advertiserId?: string;       // Link to advertiser if they're advertising
 }

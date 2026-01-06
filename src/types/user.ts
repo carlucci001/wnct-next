@@ -21,6 +21,9 @@ export interface User {
   photoURL?: string;
   createdAt: Date;
   updatedAt: Date;
+  // SaaS Multi-Tenancy
+  tenantId?: string;           // The tenant this user belongs to
+  isTenantOwner?: boolean;     // Whether user owns the tenant
 }
 
 export interface UserUpdate {
@@ -30,4 +33,6 @@ export interface UserUpdate {
   accountType?: AccountType;
   status?: 'active' | 'blocked';
   photoURL?: string;
+  tenantId?: string;
+  isTenantOwner?: boolean;
 }

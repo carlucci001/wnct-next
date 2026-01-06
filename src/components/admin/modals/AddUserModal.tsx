@@ -6,7 +6,7 @@ import { UserRole, AccountType } from '@/types/user';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS, hasPermission } from '@/data/rolePermissions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
-import { X, UserPlus, Camera, ChevronDown, Check, Phone } from 'lucide-react';
+import { X, UserPlus, Camera, ChevronDown, Check, Phone, Lock, Eye, EyeOff, Copy, CheckCircle } from 'lucide-react';
 
 const ROLES: UserRole[] = [
   'admin',
@@ -48,21 +48,26 @@ const ROLE_COLORS: Record<UserRole, string> = {
 
 interface AddModalProps {
   onClose: () => void;
-  onAdd: (userData: { email: string; displayName: string; phone: string; role: UserRole; accountType: AccountType; photoURL: string }) => Promise<void>;
+  onUserCreated?: () => void;
   currentUserRole: UserRole;
 }
 
-export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps) {
+export function AddUserModal({ onClose, onUserCreated, currentUserRole }: AddModalProps) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('reader');
   const [accountType, setAccountType] = useState<AccountType>('free');
   const [photoURL, setPhotoURL] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [createdUser, setCreatedUser] = useState<{ email: string; tempPassword?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canAssignRoles = hasPermission({ role: currentUserRole }, 'canAssignRoles');
@@ -99,19 +104,108 @@ export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps)
 
   const handleAdd = async () => {
     setSaving(true);
+    setError(null);
     try {
-      await onAdd({ email, displayName, phone, role, accountType, photoURL });
-      onClose();
+      const response = await fetch('/api/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          displayName,
+          phone,
+          role,
+          accountType,
+          photoURL,
+          password: password || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user');
+      }
+
+      // Show success with temp password if generated
+      if (result.tempPassword) {
+        setCreatedUser({ email, tempPassword: result.tempPassword });
+      } else {
+        // User was created with provided password, just close
+        onUserCreated?.();
+        onClose();
+      }
     } catch (err) {
-      alert('Failed to add user');
+      setError(err instanceof Error ? err.message : 'Failed to add user');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleCopyPassword = async () => {
+    if (createdUser?.tempPassword) {
+      await navigator.clipboard.writeText(createdUser.tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDone = () => {
+    onUserCreated?.();
+    onClose();
+  };
+
+  // Success screen after user creation
+  if (createdUser) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <CheckCircle size={20} />
+              User Created
+            </h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <p className="text-gray-700">
+              User <strong>{createdUser.email}</strong> has been created successfully.
+            </p>
+            {createdUser.tempPassword && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800 font-medium mb-2">
+                  Temporary Password (share securely with user):
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white px-3 py-2 rounded border font-mono text-sm">
+                    {createdUser.tempPassword}
+                  </code>
+                  <button
+                    onClick={handleCopyPassword}
+                    className="p-2 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors"
+                    title="Copy password"
+                  >
+                    {copied ? <Check size={18} /> : <Copy size={18} />}
+                  </button>
+                </div>
+                <p className="text-xs text-amber-600 mt-2">
+                  The user should change this password after first login.
+                </p>
+              </div>
+            )}
+            <button
+              onClick={handleDone}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex justify-between items-center sticky top-0">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <UserPlus size={20} />
@@ -123,6 +217,12 @@ export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps)
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
           {/* Avatar Upload */}
           <div className="flex flex-col items-center">
             <div className="relative">
@@ -196,7 +296,7 @@ export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps)
 
           {/* Phone Number */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Phone Number
             </label>
             <div className="relative">
@@ -206,9 +306,36 @@ export function AddUserModal({ onClose, onAdd, currentUserRole }: AddModalProps)
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="(555) 555-5555"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+          </div>
+
+          {/* Password (Optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Password <span className="text-gray-400 text-xs">(optional)</span>
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave empty for auto-generated password"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              If left empty, a secure temporary password will be generated and shown after creation.
+            </p>
           </div>
 
           {/* Role Selection */}

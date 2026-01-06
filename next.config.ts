@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   },
   // Don't bundle firebase-admin (fixes Turbopack symlink issue on Windows)
   serverExternalPackages: ['firebase-admin'],
+  // Disable Turbopack for builds on Windows (symlink permission issue)
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;
