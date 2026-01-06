@@ -28,6 +28,7 @@ import { AddUserModal } from '@/components/admin/modals/AddUserModal';
 import { EditUserModal } from '@/components/admin/modals/EditUserModal';
 import { createUser, updateUser, getUsers, deleteUser } from '@/lib/users';
 import { getAllAIJournalists } from '@/lib/aiJournalists';
+import { sanitizeHtml } from '@/lib/security';
 import { AIJournalist } from '@/types/aiJournalist';
 import dynamic from 'next/dynamic';
 
@@ -3602,7 +3603,7 @@ Example structure:
                         {msg.role === 'user' ? (
                           <div className="leading-relaxed">{msg.text}</div>
                         ) : (
-                          <div dangerouslySetInnerHTML={{ __html: formatAiResponse(msg.text) }} className="prose prose-sm max-w-none" />
+                          <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(formatAiResponse(msg.text)) }} className="prose prose-sm max-w-none" />
                         )}
                       </div>
                     </div>

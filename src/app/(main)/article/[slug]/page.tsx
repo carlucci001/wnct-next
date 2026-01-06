@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Clock, Share2, Bookmark } from 'lucide-react';
 import { getArticleBySlug, getArticlesByCategory } from '@/lib/articles';
+import { sanitizeHtml } from '@/lib/security';
 import { Article } from '@/types/article';
 import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -210,7 +211,7 @@ export default function ArticlePage() {
                 {article.content && (
                   <div
                     className="article-content prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: article.content }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }}
                   />
                 )}
 
