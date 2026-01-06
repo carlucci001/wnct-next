@@ -47,18 +47,18 @@ export interface DirectorySettings {
   featuredCount: number;
 }
 
-// Default categories for the directory
+// Default categories for the directory (matches seed route categories)
 export const DEFAULT_BUSINESS_CATEGORIES = [
-  'Restaurant',
-  'Retail',
-  'Services',
-  'Health & Wellness',
-  'Entertainment',
-  'Automotive',
-  'Home & Garden',
+  'Restaurants & Dining',
+  'Shopping & Retail',
+  'Health & Medical',
   'Professional Services',
-  'Arts & Culture',
-  'Sports & Recreation',
+  'Home Services',
+  'Automotive',
+  'Beauty & Personal Care',
+  'Entertainment & Recreation',
+  'Real Estate',
+  'Education & Childcare',
 ];
 
 // Default areas/locations
