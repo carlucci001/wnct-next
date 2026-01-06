@@ -46,8 +46,10 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          projectId: gen-lang-client-0242565142
           expires: 7d
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
 
       # Deploy to live channel for pushes to master/main
       - name: Deploy to Firebase Live
@@ -56,5 +58,7 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          projectId: gen-lang-client-0242565142
           channelId: live
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
