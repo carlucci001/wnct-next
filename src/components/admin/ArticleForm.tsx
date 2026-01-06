@@ -7,8 +7,9 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { Article } from '@/types/article';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronDown, Check, Bot } from 'lucide-react';
+import { ChevronDown, Check, Bot, Image as ImageIcon, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { MediaFile } from '@/types/media';
 import { getAllAIJournalists } from '@/lib/aiJournalists';
 import { AIJournalist } from '@/types/aiJournalist';
 import { getAllCategories } from '@/lib/categories';
@@ -34,6 +35,11 @@ const RichTextEditor = dynamic(() => import('./RichTextEditor'), {
       <div className="h-4 bg-gray-200 rounded w-1/2"></div>
     </div>
   ),
+});
+
+// Dynamically import MediaPickerModal
+const MediaPickerModal = dynamic(() => import('./MediaPickerModal'), {
+  ssr: false,
 });
 
 interface ArticleFormProps {
@@ -63,6 +69,7 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
   const [isFeatured, setIsFeatured] = useState(initialData?.isFeatured || false);
   const [isBreakingNews, setIsBreakingNews] = useState(initialData?.isBreakingNews || false);
   const [excerpt, setExcerpt] = useState(initialData?.excerpt || '');
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Author selection state
   const [authors, setAuthors] = useState<AuthorOption[]>([]);
@@ -471,13 +478,62 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="featuredImage" className="block text-sm font-medium text-gray-700">Featured Image URL</label>
+          <label className="block text-sm font-medium text-gray-700">Featured Image</label>
+
+          {featuredImage ? (
+            <div className="relative group rounded-lg overflow-hidden border border-gray-200">
+              <img src={featuredImage} alt="Featured" className="w-full h-48 object-cover" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFeaturedImage('')}
+                  className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 flex items-center gap-1"
+                >
+                  <X size={14} /> Remove
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMediaPicker(true)}
+                  className="px-3 py-1.5 bg-white text-gray-900 text-sm font-medium rounded-md hover:bg-gray-100 flex items-center gap-1"
+                >
+                  <ImageIcon size={14} /> Change
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMediaPicker(true)}
+                className="w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition flex items-center justify-center gap-2"
+              >
+                <ImageIcon size={18} /> Select from Media Library
+              </button>
+            </div>
+          )}
+
+          {/* URL fallback input */}
           <input
             type="url"
             id="featuredImage"
             value={featuredImage}
             onChange={(e) => setFeaturedImage(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Or paste image URL..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+          />
+
+          {/* Media Picker Modal */}
+          <MediaPickerModal
+            open={showMediaPicker}
+            onClose={() => setShowMediaPicker(false)}
+            onSelect={(media) => {
+              const m = Array.isArray(media) ? media[0] : media;
+              setFeaturedImage(m.url);
+              setShowMediaPicker(false);
+            }}
+            allowedTypes={['image']}
+            defaultFolder="articles"
+            title="Select Featured Image"
           />
         </div>
       </div>

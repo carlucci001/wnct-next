@@ -1,37 +1,118 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow read access to all files (public images)
+    // Allow read access to all files (public media)
     match /{allPaths=**} {
       allow read: if true;
     }
 
-    // Allow authenticated users to upload to the uploads folder
+    // Helper function to check if content type is an allowed media type
+    function isAllowedMediaType() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('video/.*')
+          || request.resource.contentType.matches('audio/.*')
+          || request.resource.contentType == 'application/pdf';
+    }
+
+    // Helper function to check if content type is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // Helper function to check if content type is a video
+    function isVideo() {
+      return request.resource.contentType.matches('video/.*');
+    }
+
+    // Helper function to check if content type is audio
+    function isAudio() {
+      return request.resource.contentType.matches('audio/.*');
+    }
+
+    // Helper function to check if content type is a document
+    function isDocument() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    // General uploads folder - all media types
     match /uploads/{fileName} {
       allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024  // Max 5MB
-                   && request.resource.contentType.matches('image/.*');
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
     }
 
-    // Allow authenticated users to upload logos
-    match /logos/{fileName} {
-      allow write: if request.auth != null
-                   && request.resource.size < 2 * 1024 * 1024  // Max 2MB for logos
-                   && request.resource.contentType.matches('image/.*');
-    }
-
-    // Allow authenticated users to upload article images
+    // Article images and media
     match /articles/{fileName} {
       allow write: if request.auth != null
-                   && request.resource.size < 10 * 1024 * 1024  // Max 10MB
-                   && request.resource.contentType.matches('image/.*');
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
     }
 
-    // Allow authenticated users to upload avatars
+    // Business directory images and media
+    match /directory/{fileName} {
+      allow write: if request.auth != null
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
+    }
+
+    // Advertising creatives
+    match /advertising/{fileName} {
+      allow write: if request.auth != null
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
+    }
+
+    // Blog post images and media
+    match /blog/{fileName} {
+      allow write: if request.auth != null
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
+    }
+
+    // Event images and media
+    match /events/{fileName} {
+      allow write: if request.auth != null
+                   && isAllowedMediaType()
+                   && ((isImage() && request.resource.size < 10 * 1024 * 1024)
+                    || (isVideo() && request.resource.size < 100 * 1024 * 1024)
+                    || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+                    || (isDocument() && request.resource.size < 20 * 1024 * 1024));
+    }
+
+    // System assets (site logos, favicons, etc.)
+    match /system/{fileName} {
+      allow write: if request.auth != null
+                   && isAllowedMediaType()
+                   && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // Logos - images only, smaller size limit
+    match /logos/{fileName} {
+      allow write: if request.auth != null
+                   && isImage()
+                   && request.resource.size < 2 * 1024 * 1024;
+    }
+
+    // User avatars - images only
     match /avatars/{allPaths=**} {
       allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024  // Max 5MB
-                   && request.resource.contentType.matches('image/.*');
+                   && isImage()
+                   && request.resource.size < 5 * 1024 * 1024;
     }
   }
 }

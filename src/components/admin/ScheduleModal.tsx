@@ -33,6 +33,8 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
   const [autoPublish, setAutoPublish] = useState(journalist.taskConfig?.autoPublish ?? false);
   const [maxArticlesPerRun, setMaxArticlesPerRun] = useState(journalist.taskConfig?.maxArticlesPerRun ?? 1);
   const [categoryId, setCategoryId] = useState(journalist.taskConfig?.categoryId ?? '');
+  const [isFeatured, setIsFeatured] = useState(journalist.taskConfig?.isFeatured ?? false);
+  const [isBreakingNews, setIsBreakingNews] = useState(journalist.taskConfig?.isBreakingNews ?? false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +99,8 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
       const taskConfig: AgentTaskConfig = {
         autoPublish,
         maxArticlesPerRun,
+        isFeatured,
+        isBreakingNews,
       };
 
       if (categoryId) {
@@ -342,6 +346,52 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
                     <div
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
                         autoPublish ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Featured Toggle */}
+                <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-yellow-900 dark:text-yellow-200">Featured Article</h4>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                      Automatically mark generated articles as featured
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsFeatured(!isFeatured)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      isFeatured ? 'bg-yellow-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        isFeatured ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Breaking News Toggle */}
+                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-red-900 dark:text-red-200">Breaking News</h4>
+                    <p className="text-xs text-red-700 dark:text-red-400">
+                      Automatically mark generated articles as breaking news
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBreakingNews(!isBreakingNews)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      isBreakingNews ? 'bg-red-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        isBreakingNews ? 'left-7' : 'left-1'
                       }`}
                     />
                   </button>

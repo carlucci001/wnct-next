@@ -1,8 +1,9 @@
 // Storage service for handling file uploads
 // Supports local preview fallback and Firebase Storage when configured
 
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import app from './firebase';
+import { MediaFolder, MediaFileType, getMediaTypeFromMime } from '@/types/media';
 
 interface StorageSettings {
   bucketName: string;
@@ -219,3 +220,257 @@ export const storageService = {
     }
   }
 };
+
+// ============================================================
+// Media Manager Upload Functions
+// ============================================================
+
+export interface MediaUploadOptions {
+  folder: MediaFolder;
+  onProgress?: (progress: number) => void;
+}
+
+export interface MediaUploadResult {
+  url: string;
+  filename: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+  fileType: MediaFileType;
+  width?: number;
+  height?: number;
+  duration?: number;
+}
+
+/**
+ * Sanitize filename for storage
+ */
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+}
+
+/**
+ * Get image dimensions from a File
+ */
+export async function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(null);
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+/**
+ * Get video dimensions and duration from a File
+ */
+export async function getVideoDimensions(file: File): Promise<{ width: number; height: number; duration: number } | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('video/')) {
+      resolve(null);
+      return;
+    }
+
+    const video = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: video.duration,
+      });
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(null);
+    };
+
+    video.src = objectUrl;
+  });
+}
+
+/**
+ * Get audio duration from a File
+ */
+export async function getAudioDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('audio/')) {
+      resolve(null);
+      return;
+    }
+
+    const audio = document.createElement('audio');
+    const objectUrl = URL.createObjectURL(file);
+
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(audio.duration);
+    };
+
+    audio.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(null);
+    };
+
+    audio.src = objectUrl;
+  });
+}
+
+/**
+ * Upload a media file to a specific folder with progress tracking
+ */
+export async function uploadMediaFile(
+  file: File,
+  options: MediaUploadOptions
+): Promise<MediaUploadResult> {
+  const storage = getStorage(app);
+  const sanitizedName = sanitizeFilename(file.name);
+  const fileName = `${options.folder}/${Date.now()}-${sanitizedName}`;
+  const storageRef = ref(storage, fileName);
+
+  // Get file type
+  const fileType = getMediaTypeFromMime(file.type);
+  if (!fileType) {
+    throw new Error(`Unsupported file type: ${file.type}`);
+  }
+
+  // Get dimensions/duration based on file type
+  let width: number | undefined;
+  let height: number | undefined;
+  let duration: number | undefined;
+
+  if (fileType === 'image') {
+    const dims = await getImageDimensions(file);
+    if (dims) {
+      width = dims.width;
+      height = dims.height;
+    }
+  } else if (fileType === 'video') {
+    const videoDims = await getVideoDimensions(file);
+    if (videoDims) {
+      width = videoDims.width;
+      height = videoDims.height;
+      duration = videoDims.duration;
+    }
+  } else if (fileType === 'audio') {
+    duration = await getAudioDuration(file) || undefined;
+  }
+
+  // Upload with progress tracking
+  // Explicitly set content type in metadata for Firebase Storage rules to work correctly
+  const metadata = {
+    contentType: file.type,
+  };
+
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        if (options.onProgress) {
+          options.onProgress(progress);
+        }
+      },
+      (error) => {
+        console.error('[Storage] Media upload failed:', error);
+        reject(error);
+      },
+      async () => {
+        try {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve({
+            url: downloadUrl,
+            filename: sanitizedName,
+            originalFilename: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+            fileType,
+            width,
+            height,
+            duration,
+          });
+        } catch (error) {
+          reject(error);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Upload multiple media files
+ */
+export async function uploadMultipleMediaFiles(
+  files: File[],
+  options: MediaUploadOptions,
+  onFileProgress?: (fileIndex: number, progress: number) => void
+): Promise<MediaUploadResult[]> {
+  const results: MediaUploadResult[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const result = await uploadMediaFile(file, {
+      ...options,
+      onProgress: (progress) => {
+        if (onFileProgress) {
+          onFileProgress(i, progress);
+        }
+      },
+    });
+    results.push(result);
+  }
+
+  return results;
+}
+
+/**
+ * Delete a file from Firebase Storage by URL
+ */
+export async function deleteStorageFile(url: string): Promise<void> {
+  try {
+    // Only handle Firebase Storage URLs
+    if (!url.includes('firebasestorage.googleapis.com')) {
+      console.warn('[Storage] Cannot delete non-Firebase URL:', url);
+      return;
+    }
+
+    const storage = getStorage(app);
+
+    // Extract the path from the Firebase Storage URL
+    // URLs look like: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?token=xxx
+    const match = url.match(/\/o\/([^?]+)/);
+    if (!match) {
+      console.warn('[Storage] Could not extract path from URL:', url);
+      return;
+    }
+
+    const filePath = decodeURIComponent(match[1]);
+    const fileRef = ref(storage, filePath);
+
+    await deleteObject(fileRef);
+    console.log('[Storage] File deleted successfully:', filePath);
+  } catch (error) {
+    console.error('[Storage] Error deleting file:', error);
+    throw error;
+  }
+}
