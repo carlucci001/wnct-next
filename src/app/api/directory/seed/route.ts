@@ -80,16 +80,18 @@ export const DIRECTORY_CATEGORIES = [
 ];
 
 // Fallback mock data for each category (real Asheville-area businesses for demo)
-const MOCK_BUSINESSES_BY_CATEGORY: Record<string, Array<{
-  name: string;
-  description: string;
-  address: { street: string; city: string; state: string; zip: string };
-  phone: string;
-  website?: string;
-  hours?: Record<string, string>;
-}>> = {
+const MOCK_BUSINESSES_BY_CATEGORY: Record<string, Array<BusinessData>> = {
   'Restaurants & Dining': [
-    { name: 'Curate', description: 'Award-winning Spanish tapas restaurant featuring authentic flavors and an extensive wine list.', address: { street: '13 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 239-2946', website: 'https://www.curatetapasbar.com', hours: { monday: '5:30 PM - 10:00 PM', tuesday: '5:30 PM - 10:00 PM', wednesday: '5:30 PM - 10:00 PM', thursday: '5:30 PM - 10:00 PM', friday: '5:30 PM - 11:00 PM', saturday: '5:30 PM - 11:00 PM', sunday: '5:30 PM - 9:00 PM' } },
+    { 
+      name: 'Curate', 
+      description: 'Award-winning Spanish tapas restaurant featuring authentic flavors and an extensive wine list.', 
+      address: { street: '13 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, 
+      phone: '(828) 239-2946', 
+      website: 'https://www.curatetapasbar.com', 
+      hours: { monday: '5:30 PM - 10:00 PM', tuesday: '5:30 PM - 10:00 PM', wednesday: '5:30 PM - 10:00 PM', thursday: '5:30 PM - 10:00 PM', friday: '5:30 PM - 11:00 PM', saturday: '5:30 PM - 11:00 PM', sunday: '5:30 PM - 9:00 PM' },
+      images: ['https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=1200'],
+      logo: 'https://images.unsplash.com/photo-1550966841-3ee32386fdc2?auto=format&fit=crop&q=80&w=200'
+    },
     { name: 'Tupelo Honey', description: 'Southern comfort food with a modern twist, featuring locally-sourced ingredients.', address: { street: '12 College St', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 255-4863', website: 'https://tupelohoneycafe.com' },
     { name: 'Rhubarb', description: 'Farm-to-table restaurant showcasing Appalachian cuisine with seasonal ingredients.', address: { street: '7 SW Pack Square', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 785-1503', website: 'https://www.rhubarbasheville.com' },
     { name: 'Early Girl Eatery', description: 'Beloved breakfast and brunch spot serving Southern favorites with local ingredients.', address: { street: '8 Wall St', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 259-9292', website: 'https://earlygirleatery.com' },
@@ -101,7 +103,14 @@ const MOCK_BUSINESSES_BY_CATEGORY: Record<string, Array<{
     { name: 'Zambra', description: 'Spanish and Mediterranean tapas with an elegant atmosphere.', address: { street: '85A Walnut St', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 232-1060', website: 'https://zambratapas.com' }
   ],
   'Shopping & Retail': [
-    { name: 'Mast General Store', description: 'Historic general store featuring outdoor gear, candy, and Appalachian goods.', address: { street: '15 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 232-1883', website: 'https://mastgeneralstore.com' },
+    { 
+      name: 'Mast General Store', 
+      description: 'Historic general store featuring outdoor gear, candy, and Appalachian goods.', 
+      address: { street: '15 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, 
+      phone: '(828) 232-1883', 
+      website: 'https://mastgeneralstore.com',
+      images: ['https://images.unsplash.com/photo-1533900298318-6b8da08a523e?auto=format&fit=crop&q=80&w=1200']
+    },
     { name: 'The Regeneration Station', description: 'Vintage and antique finds in the River Arts District.', address: { street: '111 Riverside Dr', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 505-1599' },
     { name: 'Tops for Shoes', description: 'Quality footwear and expert fitting since 1957.', address: { street: '27 N Lexington Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 254-6721', website: 'https://topsforshoes.com' },
     { name: 'Battery Park Book Exchange', description: 'Used bookstore and champagne bar in historic Grove Arcade.', address: { street: '1 Page Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 252-0020', website: 'https://batteryparkbookexchange.com' },
@@ -174,7 +183,14 @@ const MOCK_BUSINESSES_BY_CATEGORY: Record<string, Array<{
   ],
   'Entertainment & Recreation': [
     { name: 'Asheville Civic Center', description: 'Concert and event venue downtown.', address: { street: '87 Haywood St', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 259-5736', website: 'https://harrahscherokeecenterasheville.com' },
-    { name: 'Orange Peel', description: 'Legendary live music venue.', address: { street: '101 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 398-1837', website: 'https://theorangepeel.net' },
+    { 
+      name: 'Orange Peel', 
+      description: 'Legendary live music venue.', 
+      address: { street: '101 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, 
+      phone: '(828) 398-1837', 
+      website: 'https://theorangepeel.net',
+      images: ['https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=1200']
+    },
     { name: 'Fine Arts Theatre', description: 'Independent and foreign films downtown.', address: { street: '36 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 232-1536', website: 'https://fineartstheatre.com' },
     { name: 'Asheville Pinball Museum', description: 'Play vintage pinball machines.', address: { street: '1 Battle Square', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 776-5671', website: 'https://ashevillepinball.com' },
     { name: 'LaZoom Comedy Tours', description: 'Comedy bus tours of Asheville.', address: { street: '76 Biltmore Ave', city: 'Asheville', state: 'NC', zip: '28801' }, phone: '(828) 225-6932', website: 'https://lazoomtours.com' },
@@ -218,6 +234,8 @@ interface BusinessData {
   phone: string;
   website?: string;
   hours?: Record<string, string>;
+  images?: string[];
+  logo?: string;
 }
 
 // Google Places API integration (if API key is available)
@@ -338,8 +356,8 @@ export async function GET() {
           email: '',
           website: business.website || '',
           hours: business.hours || {},
-          images: [],
-          logo: '',
+          images: business.images || [],
+          logo: business.logo || '',
           featured: categoryCount < 2, // First 2 in each category are featured
           verified: false, // Not verified until claimed
           ownerId: null, // Can be claimed

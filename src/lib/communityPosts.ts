@@ -85,6 +85,7 @@ export async function createCommunityPost(
 
 /**
  * Get all community posts with optional filters
+ * Note: Filters are applied client-side to avoid requiring Firestore composite indexes
  */
 export async function getCommunityPosts(options?: {
   topic?: string;
@@ -92,27 +93,29 @@ export async function getCommunityPosts(options?: {
   limit?: number;
   includeHidden?: boolean;
 }): Promise<CommunityPostData[]> {
-  let q = query(collection(db, POSTS_COLLECTION), orderBy('createdAt', 'desc'));
-
-  // Apply filters
-  if (options?.topic && options.topic !== 'all') {
-    q = query(collection(db, POSTS_COLLECTION), where('topic', '==', options.topic), orderBy('createdAt', 'desc'));
-  }
-
-  if (options?.status) {
-    q = query(collection(db, POSTS_COLLECTION), where('status', '==', options.status), orderBy('createdAt', 'desc'));
-  }
-
-  if (options?.limit) {
-    q = query(q, limit(options.limit));
-  }
+  // Simple query - just order by createdAt (no composite index needed)
+  const q = query(collection(db, POSTS_COLLECTION), orderBy('createdAt', 'desc'));
 
   const snapshot = await getDocs(q);
   let posts = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as CommunityPostData));
 
+  // Apply filters client-side
+  if (options?.topic && options.topic !== 'all') {
+    posts = posts.filter((post) => post.topic === options.topic);
+  }
+
+  if (options?.status) {
+    posts = posts.filter((post) => post.status === options.status);
+  }
+
   // Filter out hidden posts unless includeHidden is true
   if (!options?.includeHidden) {
     posts = posts.filter((post) => post.status === 'active');
+  }
+
+  // Apply limit
+  if (options?.limit) {
+    posts = posts.slice(0, options.limit);
   }
 
   return posts;

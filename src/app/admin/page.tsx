@@ -22,6 +22,7 @@ import {
   UserCog, MoreHorizontal
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
+import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
 import { batchFormatArticles, batchMigrateImages, formatArticleContent, batchAssignArticlesToUser, getArticleBySlug } from '@/lib/articles';
@@ -129,6 +130,29 @@ const MediaPickerModal = dynamic(() => import('@/components/admin/MediaPickerMod
   ssr: false,
 });
 
+// Dynamically import CommunityAdmin
+const CommunityAdmin = dynamic(() => import('@/components/admin/CommunityAdmin'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
+// Dynamically import AgentPromptEditor
+const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-4">
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 bg-muted rounded w-1/3"></div>
+        <div className="h-32 bg-muted rounded"></div>
+      </div>
+    </div>
+  ),
+});
+
 // shadcn/ui components
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -156,7 +180,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community';
 
 interface DashboardStats {
   totalArticles: number;
@@ -339,6 +363,7 @@ export default function AdminDashboard() {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [currentAgentPrompt, setCurrentAgentPrompt] = useState<AgentPromptData | null>(null);
 
   // Categories and Media states - initialize with defaults since they're not loaded from Firestore yet
   const [categories, setCategories] = useState<CategoryData[]>([
@@ -376,7 +401,7 @@ export default function AdminDashboard() {
 
   // Agent Article Editor states
   const [agentArticle, setAgentArticle] = useState<Article | null>(null);
-  const [agentTab, setAgentTab] = useState<'settings' | 'content' | 'media' | 'options'>('settings');
+  const [agentTab, setAgentTab] = useState<'settings' | 'content' | 'media' | 'options' | 'prompt'>('settings');
   const articleLoadingRef = useRef<string | null>(null); // Track which article is being loaded
   const [showMediaPicker, setShowMediaPicker] = useState(false);
 
@@ -444,6 +469,14 @@ export default function AdminDashboard() {
       }
     }
   }, [users, currentUser, userProfile]);
+
+  // Load agent prompt when switching to an agent tab
+  useEffect(() => {
+    const agentTabs: AgentType[] = ['MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL'];
+    if (agentTabs.includes(activeTab as AgentType)) {
+      getAgentPrompt(activeTab as AgentType).then(setCurrentAgentPrompt).catch(console.error);
+    }
+  }, [activeTab]);
 
   // Handle URL action params (e.g., ?action=new-article, ?action=edit-article&id=xxx)
   useEffect(() => {
@@ -823,7 +856,9 @@ export default function AdminDashboard() {
         return;
       }
 
-      const promptData = AGENT_PROMPTS[activeTab as AgentType] || AGENT_PROMPTS.MASTER;
+      // Get prompt from Firestore (includes any customizations by partners)
+      const agentType = activeTab as AgentType;
+      const promptData = await getAgentPrompt(agentType);
 
       // Call Gemini API
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -3856,7 +3891,8 @@ Example structure:
   // AI Agent Chat Content - Full Implementation with News Flow
   const renderAgentChat = () => {
     const agentKey = activeTab as AgentType;
-    const agentData = AGENT_PROMPTS[agentKey];
+    // Use Firestore prompt if loaded, fall back to default
+    const agentData = currentAgentPrompt || AGENT_PROMPTS[agentKey];
     if (!agentData) return null;
 
     // If no article is being worked on, show the "Get Started" view
@@ -4321,6 +4357,9 @@ Example structure:
               <button onClick={() => setAgentTab('options')} className={`flex-1 py-4 text-sm font-medium transition-all duration-200 ${agentTab === 'options' ? 'text-slate-900 bg-white border-b-2 border-slate-900' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
                 <Sliders size={17} className="inline mr-2" /> Options
               </button>
+              <button onClick={() => setAgentTab('prompt')} className={`flex-1 py-4 text-sm font-medium transition-all duration-200 ${agentTab === 'prompt' ? 'text-slate-900 bg-white border-b-2 border-slate-900' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+                <Sparkles size={17} className="inline mr-2" /> Prompt
+              </button>
             </div>
 
             {/* Tab Content */}
@@ -4653,6 +4692,22 @@ Example structure:
                   </div>
                 </div>
               )}
+
+              {/* Prompt Tab - Agent Prompt Editor */}
+              {agentTab === 'prompt' && currentUser && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                      <Sparkles size={18} className="text-purple-600" /> Agent Prompt
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-6">Customize how this agent behaves and writes</p>
+                  </div>
+                  <AgentPromptEditor
+                    agentType={activeTab as 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL'}
+                    userId={currentUser.uid}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -4900,6 +4955,7 @@ Example structure:
             {activeTab === 'advertising' && <AdvertisingAdmin />}
             {activeTab === 'blog' && <BlogAdmin />}
             {activeTab === 'events' && <EventsAdmin />}
+            {activeTab === 'community' && <CommunityAdmin />}
 
             {/* Modules Section Placeholder */}
             {activeTab === 'modules' && (
