@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Server-side image proxy to bypass CORS restrictions
  * Used for fetching images from external URLs (DALL-E, Supabase, etc.)

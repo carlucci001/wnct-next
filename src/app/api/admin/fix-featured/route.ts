@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/admin/fix-featured
  * One-time cleanup: For each category, only the 3 most recent articles should be featured.

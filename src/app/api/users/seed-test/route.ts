@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRole } from '@/types/user';
 
+export const dynamic = 'force-dynamic';
+
 const TEST_PASSWORD = 'test123';
 
 const TEST_USERS: Array<{

@@ -8,6 +8,8 @@ import { createScheduledTask, updateTaskStatus } from '@/lib/scheduledTasks';
 import { formatArticleContent, formatExcerpt } from '@/lib/articles';
 import { AIJournalist } from '@/types/aiJournalist';
 import { Category } from '@/types/category';
+
+export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
