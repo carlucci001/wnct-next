@@ -30,8 +30,13 @@ export interface BlogSettings {
   categories: string[];
 }
 
-// Helper type for creating blog posts (without auto-generated fields)
-export type CreateBlogPostData = Omit<BlogPost, 'id' | 'createdAt' | 'updatedAt' | 'viewCount'>;
-
-// Helper type for updating blog posts
-export type UpdateBlogPostData = Partial<Omit<BlogPost, 'id' | 'createdAt'>>;
+export const DEFAULT_BLOG_CATEGORIES = [
+  'Opinion',
+  'Guest Column',
+  'Staff Blog',
+  'Local Flavor',
+  'Community Voices',
+  'Tech & Media',
+  'Environment',
+  'Lifestyle'
+];

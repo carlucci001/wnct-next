@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { AccountSidebar } from '@/components/account/AccountSidebar';
 import { AccountHeader } from '@/components/account/AccountHeader';
@@ -65,7 +65,7 @@ export default function AccountPage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+        const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
           setSettings({

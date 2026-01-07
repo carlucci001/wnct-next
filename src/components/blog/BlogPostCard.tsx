@@ -1,119 +1,105 @@
-"use client";
+'use client';
 
+import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Calendar, Clock, User } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Calendar, ArrowRight, Eye } from 'lucide-react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BlogPost } from '@/types/blogPost';
-import { calculateReadingTime } from '@/lib/blog';
-import { Timestamp } from 'firebase/firestore';
+import { formatBlogDate } from '@/lib/blog';
 
 interface BlogPostCardProps {
   post: BlogPost;
 }
 
 export function BlogPostCard({ post }: BlogPostCardProps) {
-  const readingTime = calculateReadingTime(post.content);
-
-  // Format the date
-  const formatDate = (timestamp: Timestamp | undefined) => {
-    if (!timestamp) return '';
-    const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  // Get category color
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      'Opinion': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-      'Column': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-      'Guest Post': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-      'Lifestyle': 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
-      'Community': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-    };
-    return colors[category] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-  };
-
   return (
-    <Link href={`/blog/${post.slug}`}>
-      <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 h-full">
-        {/* Featured Image */}
-        <div className="relative h-48 overflow-hidden bg-gray-100 dark:bg-gray-700">
+    <Link href={`/blog/${post.slug}`} className="group block h-full">
+      <Card className="h-full overflow-hidden border-border/50 hover:border-primary/50 hover:shadow-xl transition-all duration-300 flex flex-col bg-card">
+        {/* Image Section */}
+        <div className="relative aspect-[16/9] overflow-hidden">
           {post.featuredImage ? (
-            <Image
+            <img
               src={post.featuredImage}
               alt={post.title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
-              <span className="text-4xl font-serif font-bold text-gray-300 dark:text-gray-600">
-                {post.title.charAt(0)}
-              </span>
+            <div className="w-full h-full bg-muted flex items-center justify-center">
+              <span className="text-muted-foreground/30 font-serif text-4xl italic">WNC</span>
             </div>
           )}
-          {/* Category Badge */}
-          <div className="absolute top-3 left-3">
-            <Badge className={`${getCategoryColor(post.category)} border-0 font-medium`}>
+          <div className="absolute top-3 right-3">
+            <Badge className="bg-primary/90 backdrop-blur-sm text-primary-foreground border-none">
               {post.category}
             </Badge>
           </div>
         </div>
 
-        <CardContent className="p-4">
-          {/* Title */}
-          <h3 className="font-serif font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+        <CardContent className="p-6 grow space-y-4">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Calendar size={14} className="text-primary" />
+              {formatBlogDate(post.createdAt)}
+            </div>
+            <div className="flex items-center gap-1.5 font-medium">
+              <Eye size={14} className="text-primary" />
+              {post.viewCount || 0} views
+            </div>
+          </div>
+
+          <h3 className="text-2xl font-serif font-black leading-tight group-hover:text-primary transition-colors line-clamp-2">
             {post.title}
           </h3>
 
-          {/* Excerpt */}
-          <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-4">
+          <p className="text-muted-foreground line-clamp-3 leading-relaxed text-sm">
             {post.excerpt}
           </p>
-
-          {/* Author and Meta Info */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              {/* Author Photo */}
-              {post.authorPhoto ? (
-                <Image
-                  src={post.authorPhoto}
-                  alt={post.authorName}
-                  width={28}
-                  height={28}
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                  <User size={14} className="text-blue-600 dark:text-blue-400" />
-                </div>
-              )}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate max-w-[100px]">
-                {post.authorName}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              <span className="flex items-center gap-1">
-                <Calendar size={12} />
-                {formatDate(post.publishedAt)}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock size={12} />
-                {readingTime} min
-              </span>
-            </div>
-          </div>
         </CardContent>
+
+        <CardFooter className="px-6 py-4 border-t bg-muted/20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {post.authorPhoto ? (
+              <img src={post.authorPhoto} alt={post.authorName} className="w-8 h-8 rounded-full border border-border" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs border border-primary/20">
+                {post.authorName[0]}
+              </div>
+            )}
+            <span className="text-sm font-bold text-foreground line-clamp-1">{post.authorName}</span>
+          </div>
+          <span className="text-primary text-xs font-black flex items-center gap-1 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
+            Read Post <ArrowRight size={14} />
+          </span>
+        </CardFooter>
       </Card>
     </Link>
   );
 }
 
-export default BlogPostCard;
+export function BlogPostCardSkeleton() {
+  return (
+    <Card className="h-full overflow-hidden border-border/50 animate-pulse bg-card">
+      <div className="aspect-[16/9] bg-muted" />
+      <CardContent className="p-6 space-y-4">
+        <div className="flex gap-4">
+          <div className="h-4 bg-muted rounded w-24" />
+          <div className="h-4 bg-muted rounded w-20" />
+        </div>
+        <div className="h-8 bg-muted rounded w-3/4" />
+        <div className="space-y-2">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-2/3" />
+        </div>
+      </CardContent>
+      <CardFooter className="px-6 py-4 border-t flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-muted" />
+          <div className="h-4 bg-muted rounded w-20" />
+        </div>
+        <div className="h-4 bg-muted rounded w-16" />
+      </CardFooter>
+    </Card>
+  );
+}

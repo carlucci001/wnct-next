@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
   collection,
   doc,
@@ -27,7 +27,7 @@ const SETTINGS_DOC_ID = 'directory';
 export async function createBusiness(
   data: Omit<Business, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  const docRef = doc(collection(db, BUSINESSES_COLLECTION));
+  const docRef = doc(collection(getDb(), BUSINESSES_COLLECTION));
   await setDoc(docRef, {
     ...data,
     id: docRef.id,
@@ -44,7 +44,7 @@ export async function getBusinesses(filters?: {
   featured?: boolean;
   limit?: number;
 }): Promise<Business[]> {
-  let q = query(collection(db, BUSINESSES_COLLECTION));
+  let q = query(collection(getDb(), BUSINESSES_COLLECTION));
 
   if (filters?.status && filters.status !== 'all') {
     q = query(q, where('status', '==', filters.status));
@@ -70,7 +70,7 @@ export async function getBusinesses(filters?: {
 export async function getActiveBusinesses(category?: string): Promise<Business[]> {
   // Simple query - filter/sort client-side to avoid composite index requirement
   const q = query(
-    collection(db, BUSINESSES_COLLECTION),
+    collection(getDb(), BUSINESSES_COLLECTION),
     where('status', '==', 'active')
   );
 
@@ -93,7 +93,7 @@ export async function getActiveBusinesses(category?: string): Promise<Business[]
 export async function getFeaturedBusinesses(limitCount: number = 6): Promise<Business[]> {
   // Simple query - filter/sort client-side to avoid composite index requirement
   const q = query(
-    collection(db, BUSINESSES_COLLECTION),
+    collection(getDb(), BUSINESSES_COLLECTION),
     where('status', '==', 'active')
   );
 
@@ -109,14 +109,14 @@ export async function getFeaturedBusinesses(limitCount: number = 6): Promise<Bus
 
 // READ (By ID)
 export async function getBusinessById(id: string): Promise<Business | null> {
-  const docRef = doc(db, BUSINESSES_COLLECTION, id);
+  const docRef = doc(getDb(), BUSINESSES_COLLECTION, id);
   const docSnap = await getDoc(docRef);
   return docSnap.exists() ? ({ ...docSnap.data(), id: docSnap.id } as Business) : null;
 }
 
 // READ (By slug)
 export async function getBusinessBySlug(slug: string): Promise<Business | null> {
-  const q = query(collection(db, BUSINESSES_COLLECTION), where('slug', '==', slug));
+  const q = query(collection(getDb(), BUSINESSES_COLLECTION), where('slug', '==', slug));
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
   return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id } as Business;
@@ -140,7 +140,7 @@ export async function updateBusiness(
   id: string,
   updates: Partial<Business>
 ): Promise<void> {
-  const docRef = doc(db, BUSINESSES_COLLECTION, id);
+  const docRef = doc(getDb(), BUSINESSES_COLLECTION, id);
   await updateDoc(docRef, {
     ...updates,
     updatedAt: serverTimestamp(),
@@ -149,13 +149,13 @@ export async function updateBusiness(
 
 // DELETE
 export async function deleteBusiness(id: string): Promise<void> {
-  await deleteDoc(doc(db, BUSINESSES_COLLECTION, id));
+  await deleteDoc(doc(getDb(), BUSINESSES_COLLECTION, id));
 }
 
 // BULK DELETE
 export async function deleteBusinesses(ids: string[]): Promise<void> {
-  const batch = writeBatch(db);
-  ids.forEach((id) => batch.delete(doc(db, BUSINESSES_COLLECTION, id)));
+  const batch = writeBatch(getDb());
+  ids.forEach((id) => batch.delete(doc(getDb(), BUSINESSES_COLLECTION, id)));
   await batch.commit();
 }
 
@@ -164,9 +164,9 @@ export async function updateBusinessesStatus(
   ids: string[],
   status: Business['status']
 ): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = writeBatch(getDb());
   ids.forEach((id) =>
-    batch.update(doc(db, BUSINESSES_COLLECTION, id), {
+    batch.update(doc(getDb(), BUSINESSES_COLLECTION, id), {
       status,
       updatedAt: serverTimestamp(),
     })
@@ -178,7 +178,7 @@ export async function updateBusinessesStatus(
 
 // GET Settings
 export async function getDirectorySettings(): Promise<DirectorySettings | null> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   const docSnap = await getDoc(docRef);
   return docSnap.exists() ? (docSnap.data() as DirectorySettings) : null;
 }
@@ -187,7 +187,7 @@ export async function getDirectorySettings(): Promise<DirectorySettings | null> 
 export async function saveDirectorySettings(
   settings: DirectorySettings
 ): Promise<void> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   await setDoc(docRef, settings);
 }
 

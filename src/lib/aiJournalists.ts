@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, query, where, orderBy } from 'firebase/firestore';
 import { AIJournalist, AIJournalistInput, AIJournalistUpdate, AgentSchedule, AgentRole } from '@/types/aiJournalist';
 
@@ -10,7 +10,7 @@ const COLLECTION_NAME = 'aiJournalists';
  */
 export async function getAllAIJournalists(activeOnly: boolean = false): Promise<AIJournalist[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const querySnapshot = await getDocs(collection(getDb(), COLLECTION_NAME));
     const journalists = querySnapshot.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
@@ -53,7 +53,7 @@ export async function getAllAIJournalists(activeOnly: boolean = false): Promise<
  */
 export async function getAIJournalist(id: string): Promise<AIJournalist | null> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
 
@@ -90,7 +90,7 @@ export async function getAIJournalist(id: string): Promise<AIJournalist | null> 
 export async function createAIJournalist(data: AIJournalistInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
       ...data,
       createdAt: now,
       updatedAt: now,
@@ -107,7 +107,7 @@ export async function createAIJournalist(data: AIJournalistInput): Promise<strin
  */
 export async function updateAIJournalist(id: string, data: Partial<AIJournalistInput>): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -123,7 +123,7 @@ export async function updateAIJournalist(id: string, data: Partial<AIJournalistI
  */
 export async function deleteAIJournalist(id: string): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting AI journalist:', error);
@@ -136,7 +136,7 @@ export async function deleteAIJournalist(id: string): Promise<void> {
  */
 export async function toggleAIJournalistStatus(id: string, currentStatus: boolean): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       isActive: !currentStatus,
       updatedAt: new Date().toISOString(),
@@ -169,7 +169,7 @@ export async function updateAIJournalistSchedule(
   taskConfig?: AIJournalist['taskConfig']
 ): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
 
     // Verify document exists first
     const docSnap = await getDoc(docRef);
@@ -273,7 +273,7 @@ export async function updateAgentAfterRun(
     if (!journalist) throw new Error('Agent not found');
 
     const now = new Date().toISOString();
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
 
     const currentMetrics = journalist.metrics || {
       totalArticlesGenerated: 0,

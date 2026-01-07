@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   doc,
@@ -33,7 +33,7 @@ const TENANTS_COLLECTION = 'tenants';
 export async function getAllTenants(): Promise<Tenant[]> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
@@ -59,7 +59,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
  */
 export async function getTenantById(tenantId: string): Promise<Tenant | null> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
     const tenantSnap = await getDoc(tenantRef);
 
     if (!tenantSnap.exists()) return null;
@@ -84,7 +84,7 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
 export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('slug', '==', slug),
       limit(1)
     );
@@ -113,7 +113,7 @@ export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
 export async function getTenantByOwner(ownerId: string): Promise<Tenant | null> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('ownerId', '==', ownerId),
       limit(1)
     );
@@ -184,7 +184,7 @@ export async function createTenant(data: TenantCreate): Promise<Tenant> {
       ...data.settings,
     };
 
-    const tenantRef = doc(collection(db, TENANTS_COLLECTION));
+    const tenantRef = doc(collection(getDb(), TENANTS_COLLECTION));
 
     const tenant: Omit<Tenant, 'id'> = {
       name: data.name,
@@ -220,7 +220,7 @@ export async function updateTenant(
   updates: Partial<Omit<Tenant, 'id' | 'createdAt'>>
 ): Promise<void> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
     await updateDoc(tenantRef, {
       ...updates,
       updatedAt: new Date(),
@@ -289,7 +289,7 @@ export async function deleteTenant(tenantId: string): Promise<void> {
  */
 export async function permanentlyDeleteTenant(tenantId: string): Promise<void> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
     await deleteDoc(tenantRef);
     // Note: In production, you'd also delete all tenant data (articles, users, etc.)
   } catch (error) {
@@ -308,7 +308,7 @@ export async function permanentlyDeleteTenant(tenantId: string): Promise<void> {
 export async function getTenantsByStatus(status: TenantStatus): Promise<Tenant[]> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('status', '==', status),
       orderBy('createdAt', 'desc')
     );
@@ -336,7 +336,7 @@ export async function getTenantsByStatus(status: TenantStatus): Promise<Tenant[]
 export async function getTenantsByPlan(plan: TenantPlan): Promise<Tenant[]> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('plan', '==', plan),
       orderBy('createdAt', 'desc')
     );
@@ -365,7 +365,7 @@ export async function getExpiredTrials(): Promise<Tenant[]> {
   try {
     const now = new Date();
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('status', '==', 'trial'),
       where('trialEndsAt', '<', now)
     );
@@ -393,7 +393,7 @@ export async function getExpiredTrials(): Promise<Tenant[]> {
 export async function getLowCreditTenants(threshold: number = 10): Promise<Tenant[]> {
   try {
     const q = query(
-      collection(db, TENANTS_COLLECTION),
+      collection(getDb(), TENANTS_COLLECTION),
       where('status', 'in', ['trial', 'active']),
       where('credits', '<', threshold)
     );

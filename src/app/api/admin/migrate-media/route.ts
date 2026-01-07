@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
 import { MediaFolder, MediaFileType } from '@/types/media';
 
@@ -91,7 +91,7 @@ function isValidMediaUrl(url: string | null | undefined): boolean {
 // Scan articles collection
 async function scanArticles(): Promise<ImageSource[]> {
   const sources: ImageSource[] = [];
-  const snapshot = await getDocs(collection(db, 'articles'));
+  const snapshot = await getDocs(collection(getDb(), 'articles'));
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -129,7 +129,7 @@ async function scanArticles(): Promise<ImageSource[]> {
 // Scan businesses collection
 async function scanBusinesses(): Promise<ImageSource[]> {
   const sources: ImageSource[] = [];
-  const snapshot = await getDocs(collection(db, 'businesses'));
+  const snapshot = await getDocs(collection(getDb(), 'businesses'));
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -168,7 +168,7 @@ async function scanBusinesses(): Promise<ImageSource[]> {
 // Scan advertisements collection
 async function scanAdvertisements(): Promise<ImageSource[]> {
   const sources: ImageSource[] = [];
-  const snapshot = await getDocs(collection(db, 'advertisements'));
+  const snapshot = await getDocs(collection(getDb(), 'advertisements'));
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -191,7 +191,7 @@ async function scanAdvertisements(): Promise<ImageSource[]> {
 // Scan blogPosts collection
 async function scanBlogPosts(): Promise<ImageSource[]> {
   const sources: ImageSource[] = [];
-  const snapshot = await getDocs(collection(db, 'blogPosts'));
+  const snapshot = await getDocs(collection(getDb(), 'blogPosts'));
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -214,7 +214,7 @@ async function scanBlogPosts(): Promise<ImageSource[]> {
 // Scan events collection
 async function scanEvents(): Promise<ImageSource[]> {
   const sources: ImageSource[] = [];
-  const snapshot = await getDocs(collection(db, 'events'));
+  const snapshot = await getDocs(collection(getDb(), 'events'));
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -265,7 +265,7 @@ export async function GET() {
     });
 
     // Check which URLs already exist in media collection
-    const mediaSnapshot = await getDocs(collection(db, 'media'));
+    const mediaSnapshot = await getDocs(collection(getDb(), 'media'));
     const existingUrls = new Set(mediaSnapshot.docs.map((doc) => doc.data().url));
 
     const toImport = Array.from(uniqueUrls.values()).filter((s) => !existingUrls.has(s.url));
@@ -343,7 +343,7 @@ export async function POST() {
     });
 
     // Check which URLs already exist in media collection
-    const mediaSnapshot = await getDocs(collection(db, 'media'));
+    const mediaSnapshot = await getDocs(collection(getDb(), 'media'));
     const existingUrls = new Set(mediaSnapshot.docs.map((doc) => doc.data().url));
 
     // Import new media files
@@ -351,7 +351,7 @@ export async function POST() {
     let totalSkipped = 0;
     let totalErrors = 0;
 
-    const mediaCollection = collection(db, 'media');
+    const mediaCollection = collection(getDb(), 'media');
     const now = new Date().toISOString();
 
     for (const [url, source] of uniqueSources) {
@@ -431,7 +431,7 @@ export async function DELETE() {
     const { writeBatch, deleteDoc } = await import('firebase/firestore');
 
     // Find all migration-imported records
-    const q = query(collection(db, 'media'), where('uploadedBy', '==', 'migration'));
+    const q = query(collection(getDb(), 'media'), where('uploadedBy', '==', 'migration'));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
@@ -443,7 +443,7 @@ export async function DELETE() {
     }
 
     // Delete in batches of 500 (Firestore limit)
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     let deleteCount = 0;
 
     for (const docSnapshot of snapshot.docs) {

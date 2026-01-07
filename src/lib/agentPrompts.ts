@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
   collection,
   doc,
@@ -45,7 +45,7 @@ export async function getAgentPrompts(): Promise<Record<AgentType, AgentPromptDa
 
   // Override with any customizations from Firestore
   try {
-    const snapshot = await getDocs(collection(db, COLLECTION));
+    const snapshot = await getDocs(collection(getDb(), COLLECTION));
     snapshot.docs.forEach((docSnap) => {
       const data = docSnap.data();
       if (prompts[docSnap.id]) {
@@ -84,7 +84,7 @@ export async function getAgentPrompt(agentType: AgentType): Promise<AgentPromptD
 
   // Check for customization in Firestore
   try {
-    const docRef = doc(db, COLLECTION, agentType);
+    const docRef = doc(getDb(), COLLECTION, agentType);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -110,7 +110,7 @@ export async function updateAgentPrompt(
   updates: { instruction?: string; label?: string },
   updatedBy: string
 ): Promise<void> {
-  const docRef = doc(db, COLLECTION, agentType);
+  const docRef = doc(getDb(), COLLECTION, agentType);
 
   await setDoc(docRef, {
     ...updates,
@@ -124,7 +124,7 @@ export async function updateAgentPrompt(
  * Reset an agent's prompt to default (removes Firestore customization)
  */
 export async function resetAgentPrompt(agentType: AgentType): Promise<void> {
-  const docRef = doc(db, COLLECTION, agentType);
+  const docRef = doc(getDb(), COLLECTION, agentType);
   const defaultPrompt = AGENT_PROMPTS[agentType];
 
   // Set to default values with a flag indicating it's been reset

@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { 
   collection, 
   doc, 
@@ -24,7 +24,7 @@ const SETTINGS_ID = 'events';
 // --- Events CRUD ---
 
 export async function createEvent(data: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-  const docRef = doc(collection(db, EVENTS_COLLECTION));
+  const docRef = doc(collection(getDb(), EVENTS_COLLECTION));
   const now = serverTimestamp();
   await setDoc(docRef, {
     ...data,
@@ -40,7 +40,7 @@ export async function getEvents(filters?: {
   status?: Event['status'];
   featured?: boolean;
 }): Promise<Event[]> {
-  let q = query(collection(db, EVENTS_COLLECTION), orderBy('startDate', 'asc'));
+  let q = query(collection(getDb(), EVENTS_COLLECTION), orderBy('startDate', 'asc'));
 
   if (filters?.status) {
     q = query(q, where('status', '==', filters.status));
@@ -64,7 +64,7 @@ export async function getEvents(filters?: {
 export async function getUpcomingEvents(limitCount: number = 5): Promise<Event[]> {
   const now = Timestamp.now();
   const q = query(
-    collection(db, EVENTS_COLLECTION),
+    collection(getDb(), EVENTS_COLLECTION),
     where('status', '==', 'published'),
     where('startDate', '>=', now),
     orderBy('startDate', 'asc'),
@@ -76,36 +76,36 @@ export async function getUpcomingEvents(limitCount: number = 5): Promise<Event[]
 }
 
 export async function getEventBySlug(slug: string): Promise<Event | null> {
-  const q = query(collection(db, EVENTS_COLLECTION), where('slug', '==', slug), limit(1));
+  const q = query(collection(getDb(), EVENTS_COLLECTION), where('slug', '==', slug), limit(1));
   const snapshot = await getDocs(q);
   if (snapshot.empty) return null;
   return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id } as Event;
 }
 
 export async function updateEvent(id: string, updates: Partial<Event>): Promise<void> {
-  await updateDoc(doc(db, EVENTS_COLLECTION, id), {
+  await updateDoc(doc(getDb(), EVENTS_COLLECTION, id), {
     ...updates,
     updatedAt: serverTimestamp(),
   });
 }
 
 export async function deleteEvent(id: string): Promise<void> {
-  await deleteDoc(doc(db, EVENTS_COLLECTION, id));
+  await deleteDoc(doc(getDb(), EVENTS_COLLECTION, id));
 }
 
 export async function deleteEvents(ids: string[]): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = writeBatch(getDb());
   ids.forEach(id => {
-    batch.delete(doc(db, EVENTS_COLLECTION, id));
+    batch.delete(doc(getDb(), EVENTS_COLLECTION, id));
   });
   await batch.commit();
 }
 
 export async function updateEventsStatus(ids: string[], status: Event['status']): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = writeBatch(getDb());
   const now = Timestamp.now();
   ids.forEach(id => {
-    batch.update(doc(db, EVENTS_COLLECTION, id), { 
+    batch.update(doc(getDb(), EVENTS_COLLECTION, id), { 
       status,
       updatedAt: now
     });
@@ -116,7 +116,7 @@ export async function updateEventsStatus(ids: string[], status: Event['status'])
 // --- Settings ---
 
 export async function getEventsSettings(): Promise<EventsSettings | null> {
-  const docSnap = await getDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_ID));
+  const docSnap = await getDoc(doc(getDb(), SETTINGS_COLLECTION, SETTINGS_ID));
   if (docSnap.exists()) {
     return docSnap.data() as EventsSettings;
   }
@@ -124,7 +124,7 @@ export async function getEventsSettings(): Promise<EventsSettings | null> {
 }
 
 export async function updateEventsSettings(settings: Partial<EventsSettings>): Promise<void> {
-  await setDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_ID), settings, { merge: true });
+  await setDoc(doc(getDb(), SETTINGS_COLLECTION, SETTINGS_ID), settings, { merge: true });
 }
 
 // --- Utilities ---

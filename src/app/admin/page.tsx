@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Article } from '@/types/article';
 import {
@@ -558,7 +558,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const articlesSnapshot = await getDocs(collection(db, 'articles'));
+      const articlesSnapshot = await getDocs(collection(getDb(), 'articles'));
       const arts = articlesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
       });
 
       try {
-        const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+        const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data() as SiteSettings;
           console.log('[Admin] Loaded settings from Firestore - logoUrl exists:', !!data.logoUrl, 'length:', data.logoUrl?.length || 0, 'brandingMode:', data.brandingMode);
@@ -601,7 +601,7 @@ export default function AdminDashboard() {
       }
 
       try {
-        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const usersSnapshot = await getDocs(collection(getDb(), 'users'));
         const loadedUsers = usersSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -638,7 +638,7 @@ export default function AdminDashboard() {
   const handleDeleteArticle = async (articleId: string) => {
     if (!confirm('Are you sure you want to delete this article?')) return;
     try {
-      await deleteDoc(doc(db, 'articles', articleId));
+      await deleteDoc(doc(getDb(), 'articles', articleId));
       setArticles(articles.filter(a => a.id !== articleId));
       showMessage('success', 'Article deleted successfully');
     } catch (error) {
@@ -650,7 +650,7 @@ export default function AdminDashboard() {
   const handleTogglePublish = async (article: Article) => {
     const newStatus = article.status?.toLowerCase() === 'published' ? 'draft' : 'published';
     try {
-      await updateDoc(doc(db, 'articles', article.id), { status: newStatus });
+      await updateDoc(doc(getDb(), 'articles', article.id), { status: newStatus });
       setArticles(articles.map(a =>
         a.id === article.id ? { ...a, status: newStatus } : a
       ));
@@ -665,7 +665,7 @@ export default function AdminDashboard() {
     setSaving(true);
     try {
       console.log('[Admin] Saving settings - logoUrl exists:', !!settings.logoUrl, 'length:', settings.logoUrl?.length || 0, 'brandingMode:', settings.brandingMode);
-      await setDoc(doc(db, 'settings', 'config'), settings);
+      await setDoc(doc(getDb(), 'settings', 'config'), settings);
 
       // Also save to localStorage for frontend components (ChatAssistant, etc.)
       localStorage.setItem('wnc_settings', JSON.stringify(settings));
@@ -983,7 +983,7 @@ Return ONLY valid JSON array with no markdown:
       };
 
       // Save to Firestore
-      const articleRef = doc(db, 'articles', articleToSave.id);
+      const articleRef = doc(getDb(), 'articles', articleToSave.id);
       await setDoc(articleRef, articleToSave);
 
       // Update local state
@@ -1072,7 +1072,7 @@ Return ONLY valid JSON array with no markdown:
 
     try {
       const updatedArticle = { ...article, status: 'review' as const, updatedAt: new Date().toISOString() };
-      await updateDoc(doc(db, 'articles', article.id), { status: 'review', updatedAt: new Date().toISOString() });
+      await updateDoc(doc(getDb(), 'articles', article.id), { status: 'review', updatedAt: new Date().toISOString() });
       setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
       setChatHistory(prev => [...prev, { role: 'model', text: `📨 **Submitted for Review!** "${article.title}" has been sent to the Editor.` }]);
       setSelectedArticleForAction('');
@@ -1138,7 +1138,7 @@ Return ONLY valid JSON array with no markdown:
 
     try {
       const updatedArticle = { ...article, status: 'published' as const, publishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      await updateDoc(doc(db, 'articles', article.id), { status: 'published', publishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      await updateDoc(doc(getDb(), 'articles', article.id), { status: 'published', publishedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       setArticles(prev => prev.map(a => a.id === article.id ? updatedArticle : a));
       setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Published!** "${article.title}" is now live on the website.` }]);
       setSelectedArticleForAction('');
@@ -1515,7 +1515,7 @@ Example structure:
   const handleSaveRolePermissions = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'config'), { ...settings, customRolePermissions }, { merge: true });
+      await setDoc(doc(getDb(), 'settings', 'config'), { ...settings, customRolePermissions }, { merge: true });
       showMessage('success', 'Role permissions saved successfully!');
     } catch (error) {
       console.error('Failed to save role permissions:', error);

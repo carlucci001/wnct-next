@@ -12,7 +12,7 @@ import {
   User
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, getDb } from "@/lib/firebase";
 
 interface UserProfile {
   id?: string;
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         // Subscribe to real-time updates for the user profile
         try {
-          const userDocRef = doc(db, 'users', user.uid);
+          const userDocRef = doc(getDb(), 'users', user.uid);
           unsubscribeSnapshot = onSnapshot(userDocRef, async (docSnap) => {
             if (docSnap.exists()) {
               console.log('[AuthContext] Fetched real-time user profile:', docSnap.id);
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const storedImpersonation = sessionStorage.getItem('impersonatedUserId');
               if (storedImpersonation && canImpersonate(profile.role)) {
                 // Restore impersonation
-                const impersonatedDoc = await getDoc(doc(db, 'users', storedImpersonation));
+                const impersonatedDoc = await getDoc(doc(getDb(), 'users', storedImpersonation));
                 if (impersonatedDoc.exists()) {
                   setUserProfile({ ...impersonatedDoc.data(), id: impersonatedDoc.id } as UserProfile);
                   setIsImpersonating(true);
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await signInWithPopup(auth, provider);
 
       // Check if user document exists, create if not (first-time Google sign-in)
-      const userDocRef = doc(db, 'users', result.user.uid);
+      const userDocRef = doc(getDb(), 'users', result.user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await updateProfile(userCredential.user, { displayName });
 
       // Create Firestore user document with default role
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      const userDocRef = doc(getDb(), 'users', userCredential.user.uid);
       await setDoc(userDocRef, {
         email: userCredential.user.email,
         displayName,
@@ -213,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const userDocRef = doc(db, 'users', userId);
+      const userDocRef = doc(getDb(), 'users', userId);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {

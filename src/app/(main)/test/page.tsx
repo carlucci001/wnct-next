@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDb } from "@/lib/firebase";
 
 export default function TestPage() {
   const [status, setStatus] = useState<string>("Starting...");
@@ -14,7 +14,7 @@ export default function TestPage() {
     async function testFirebase() {
       try {
         setStatus("Fetching articles...");
-        const querySnapshot = await getDocs(collection(db, "articles"));
+        const querySnapshot = await getDocs(collection(getDb(), "articles"));
 
         const docs = querySnapshot.docs.map((doc) => ({
           id: doc.id,

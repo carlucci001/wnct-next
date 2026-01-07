@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { Article } from '@/types/article';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,7 +86,7 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
   useEffect(() => {
     async function fetchAuthors() {
       try {
-        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const usersSnapshot = await getDocs(collection(getDb(), 'users'));
         const authorsList: AuthorOption[] = [];
 
         usersSnapshot.docs.forEach((doc) => {
@@ -240,11 +240,11 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
       }
 
       if (isEditing && articleId) {
-        const docRef = doc(db, 'articles', articleId);
+        const docRef = doc(getDb(), 'articles', articleId);
         await updateDoc(docRef, articleData);
       } else {
         articleData.createdAt = new Date().toISOString();
-        await addDoc(collection(db, 'articles'), articleData as Article);
+        await addDoc(collection(getDb(), 'articles'), articleData as Article);
       }
 
       router.push('/admin/articles');

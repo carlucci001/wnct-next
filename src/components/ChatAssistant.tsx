@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX, RotateCcw, Mic, MicOff, Radio } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -91,7 +91,7 @@ const ChatAssistant: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+        const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
           if (data.chatWelcomeMessage) setWelcomeMessage(data.chatWelcomeMessage);

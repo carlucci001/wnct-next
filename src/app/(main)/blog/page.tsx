@@ -1,244 +1,117 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
-import { Settings, Search, ChevronDown, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Settings, BookOpen, PenSquare, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { BlogGrid } from '@/components/blog/BlogGrid';
 import { BlogSidebar } from '@/components/blog/BlogSidebar';
 import { BlogConfigModal } from '@/components/blog/BlogConfigModal';
-import { BlogPost, BlogSettings } from '@/types/blogPost';
-import { getBlogPosts, getBlogSettings, initializeBlogSettings } from '@/lib/blog';
-
-const DEFAULT_CATEGORIES = ['Opinion', 'Column', 'Guest Post', 'Lifestyle', 'Community'];
+import { getBlogPosts } from '@/lib/blog';
+import { BlogPost, DEFAULT_BLOG_CATEGORIES } from '@/types/blogPost';
+import Link from 'next/link';
 
 export default function BlogPage() {
   const { userProfile } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>([]);
-  const [settings, setSettings] = useState<BlogSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState('all');
   const [configOpen, setConfigOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(10);
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Check if user is admin
-  const isAdmin =
-    userProfile?.role &&
-    ['admin', 'business-owner', 'editor-in-chief'].includes(userProfile.role);
+  const isAdmin = userProfile?.role && ['admin', 'editor-in-chief'].includes(userProfile.role);
 
-  // Fetch posts and settings
   useEffect(() => {
-    async function fetchData() {
+    async function loadPosts() {
       setLoading(true);
       try {
-        const [postsData, settingsData] = await Promise.all([
-          getBlogPosts(),
-          initializeBlogSettings(),
-        ]);
-        setPosts(postsData);
-        setFilteredPosts(postsData);
-        setSettings(settingsData);
-        setVisibleCount(settingsData?.postsPerPage || 10);
+        const data = await getBlogPosts({ status: 'published' });
+        setPosts(data);
       } catch (error) {
-        console.error('Error fetching blog data:', error);
+        console.error('Error loading blog posts:', error);
       } finally {
         setLoading(false);
       }
     }
-
-    fetchData();
+    loadPosts();
   }, []);
 
-  // Filter posts by category and search query
-  useEffect(() => {
-    let result = posts;
-
-    // Filter by category
-    if (activeCategory !== 'all') {
-      result = result.filter((post) => post.category === activeCategory);
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (post) =>
-          post.title.toLowerCase().includes(query) ||
-          post.excerpt.toLowerCase().includes(query) ||
-          post.authorName.toLowerCase().includes(query) ||
-          post.tags?.some((tag) => tag.toLowerCase().includes(query))
-      );
-    }
-
-    setFilteredPosts(result);
-    setVisibleCount(settings?.postsPerPage || 10);
-  }, [activeCategory, searchQuery, posts, settings?.postsPerPage]);
-
-  // Handle category change
-  const handleCategoryChange = (category: string) => {
-    setActiveCategory(category);
-  };
-
-  // Handle settings update
-  const handleSettingsUpdate = (newSettings: BlogSettings) => {
-    setSettings(newSettings);
-  };
-
-  // Load more posts
-  const handleLoadMore = () => {
-    setLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount((prev) => prev + (settings?.postsPerPage || 10));
-      setLoadingMore(false);
-    }, 300);
-  };
-
-  const categories = settings?.categories || DEFAULT_CATEGORIES;
-  const visiblePosts = filteredPosts.slice(0, visibleCount);
-  const hasMorePosts = visibleCount < filteredPosts.length;
+  const filteredPosts = posts.filter(post => 
+    category === 'all' || post.category === category
+  );
 
   return (
-    <div className="container mx-auto px-4 md:px-0 py-6 min-h-screen">
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        {/* LEFT COLUMN: Main Content (2/3 width on desktop) */}
-        <div className="lg:w-2/3 flex flex-col w-full">
-          {/* Header with title and admin gear icon */}
-          <div className="mb-6 flex justify-between items-end border-b border-gray-200 dark:border-gray-700 pb-4">
-            <div>
-              <h1 className="text-3xl font-serif font-bold text-gray-900 dark:text-white">
-                {settings?.title || 'Blog'}
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                Opinion pieces, columns, and community voices
-              </p>
-            </div>
+    <div className="bg-slate-50/50 dark:bg-transparent min-h-screen">
+      {/* Category Header */}
+      <div className="bg-white dark:bg-card border-b border-border/50 py-6 mb-12 sticky top-[64px] z-10 shadow-sm">
+        <div className="container mx-auto px-4 flex flex-wrap items-center justify-between gap-6">
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant={category === 'all' ? 'default' : 'outline'}
+              className={`cursor-pointer px-4 py-2 rounded-full font-serif font-black uppercase text-[10px] tracking-widest transition-all ${
+                category === 'all' ? 'shadow-lg bg-primary scale-105' : 'hover:bg-primary/10'
+              }`}
+              onClick={() => setCategory('all')}
+            >
+              All Stories
+            </Badge>
+            {DEFAULT_BLOG_CATEGORIES.map((cat) => (
+              <Badge
+                key={cat}
+                variant={category === cat ? 'default' : 'outline'}
+                className={`cursor-pointer px-4 py-2 rounded-full font-serif font-black uppercase text-[10px] tracking-widest transition-all ${
+                  category === cat ? 'shadow-lg bg-primary scale-105' : 'hover:bg-primary/10'
+                }`}
+                onClick={() => setCategory(cat)}
+              >
+                {cat}
+              </Badge>
+            ))}
+          </div>
+          
+          <div className="flex items-center gap-3">
             {isAdmin && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setConfigOpen(true)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <Settings size={20} />
-              </Button>
+               <Button variant="outline" size="icon" onClick={() => setConfigOpen(true)} className="rounded-full h-10 w-10 shadow-sm">
+                  <Settings size={18} />
+               </Button>
             )}
+            <Button className="rounded-full px-6 font-black uppercase text-[10px] tracking-widest shadow-lg h-10 group" asChild>
+              <Link href="/admin?action=new-article">
+                <PenSquare size={14} className="mr-2 group-hover:rotate-12 transition-transform" /> Write Post
+              </Link>
+            </Button>
           </div>
-
-          {/* Search Bar - Mobile Only */}
-          <div className="mb-4 lg:hidden">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <Input
-                type="text"
-                placeholder="Search posts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white dark:bg-gray-800"
-              />
-            </div>
-          </div>
-
-          {/* Category Tabs - Mobile */}
-          <div className="mb-6 lg:hidden overflow-x-auto">
-            <Tabs value={activeCategory} onValueChange={handleCategoryChange}>
-              <TabsList className="inline-flex w-auto min-w-full">
-                <TabsTrigger value="all" className="flex-shrink-0">
-                  All
-                </TabsTrigger>
-                {categories.map((category) => (
-                  <TabsTrigger key={category} value={category} className="flex-shrink-0">
-                    {category}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {/* Blog Grid */}
-          <BlogGrid
-            posts={visiblePosts}
-            loading={loading}
-            emptyMessage={
-              searchQuery
-                ? `No posts found matching "${searchQuery}"`
-                : activeCategory !== 'all'
-                ? `No posts found in the "${activeCategory}" category`
-                : 'No blog posts yet. Check back soon!'
-            }
-          />
-
-          {/* Load More Button */}
-          {hasMorePosts && !loading && (
-            <div className="mt-8 flex justify-center">
-              <Button
-                variant="outline"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="w-full sm:w-auto"
-              >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    Load More Posts
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
-          {/* Post count info */}
-          {!loading && filteredPosts.length > 0 && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-              Showing {visiblePosts.length} of {filteredPosts.length} posts
-            </p>
-          )}
-        </div>
-
-        {/* RIGHT COLUMN: Sidebar (1/3 width, hidden on mobile) */}
-        <div className="lg:w-1/3 hidden lg:flex flex-col sticky top-24 space-y-6">
-          {/* Search Bar - Desktop */}
-          <div className="relative">
-            <Search
-              size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <Input
-              type="text"
-              placeholder="Search posts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-white dark:bg-gray-800"
-            />
-          </div>
-
-          {/* Sidebar Components */}
-          <BlogSidebar
-            categories={categories}
-            activeCategory={activeCategory}
-            onCategoryChange={handleCategoryChange}
-            settings={settings}
-          />
         </div>
       </div>
 
-      {/* Config Modal */}
-      <BlogConfigModal
-        open={configOpen}
-        onClose={() => setConfigOpen(false)}
-        onSettingsUpdate={handleSettingsUpdate}
+      <div className="container mx-auto px-4 pb-20">
+        <div className="max-w-4xl mb-16">
+          <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 tracking-tight flex items-center gap-4">
+            <Sparkles className="text-primary hidden md:block" size={48} />
+            The Weekly Post
+          </h1>
+          <div className="h-1.5 w-40 bg-primary mb-6 rounded-full" />
+          <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed font-medium">
+            Discover unique local perspectives, deep-dive features, and community voices that define Western North Carolina.
+          </p>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-16">
+          {/* Main Content */}
+          <div className="lg:w-2/3">
+             <BlogGrid posts={filteredPosts} loading={loading} />
+          </div>
+
+          {/* Sidebar */}
+          <aside className="lg:w-1/3">
+            <BlogSidebar />
+          </aside>
+        </div>
+      </div>
+
+      <BlogConfigModal 
+        open={configOpen} 
+        onClose={() => setConfigOpen(false)} 
       />
     </div>
   );

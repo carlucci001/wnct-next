@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   doc,
@@ -32,7 +32,7 @@ const CREDIT_TRANSACTIONS_COLLECTION = 'creditTransactions';
  */
 export async function getCreditBalance(tenantId: string): Promise<CreditBalance> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
     const tenantSnap = await getDoc(tenantRef);
 
     if (!tenantSnap.exists()) {
@@ -151,7 +151,7 @@ export async function deductCredits(
   const creditCost = CREDIT_COSTS[feature] * quantity;
 
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
 
     let result: DeductionResult = {
       success: false,
@@ -163,7 +163,7 @@ export async function deductCredits(
       deductedFromTopOff: 0,
     };
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(getDb(), async (transaction) => {
       const tenantSnap = await transaction.get(tenantRef);
 
       if (!tenantSnap.exists()) {
@@ -204,7 +204,7 @@ export async function deductCredits(
       });
 
       // Create transaction record
-      const transactionRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+      const transactionRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
       const transactionId = transactionRef.id;
 
       // Determine which pool was primarily affected
@@ -290,7 +290,7 @@ export async function processSubscriptionRenewal(
   const newCredits = getSubscriptionCredits(plan);
 
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
 
     let result: SubscriptionRenewalResult = {
       success: false,
@@ -301,7 +301,7 @@ export async function processSubscriptionRenewal(
       topOffCredits: 0,
     };
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(getDb(), async (transaction) => {
       const tenantSnap = await transaction.get(tenantRef);
 
       if (!tenantSnap.exists()) {
@@ -329,7 +329,7 @@ export async function processSubscriptionRenewal(
 
       // Create expiry transaction if there were remaining credits
       if (expiredCredits > 0) {
-        const expiryRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+        const expiryRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
         transaction.set(expiryRef, {
           tenantId,
           type: 'expiry',
@@ -344,7 +344,7 @@ export async function processSubscriptionRenewal(
       }
 
       // Create renewal transaction
-      const renewalRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+      const renewalRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
       const transactionId = renewalRef.id;
 
       transaction.set(renewalRef, {
@@ -401,7 +401,7 @@ export async function addTopOffCredits(
   stripeSessionId?: string
 ): Promise<TopOffResult> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
 
     let result: TopOffResult = {
       success: false,
@@ -412,7 +412,7 @@ export async function addTopOffCredits(
       totalCredits: 0,
     };
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(getDb(), async (transaction) => {
       const tenantSnap = await transaction.get(tenantRef);
 
       if (!tenantSnap.exists()) {
@@ -430,7 +430,7 @@ export async function addTopOffCredits(
       });
 
       // Create transaction record
-      const transactionRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+      const transactionRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
       const transactionId = transactionRef.id;
 
       transaction.set(transactionRef, {
@@ -472,7 +472,7 @@ export async function addBonusCredits(
   reason: string
 ): Promise<TopOffResult> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
 
     let result: TopOffResult = {
       success: false,
@@ -483,7 +483,7 @@ export async function addBonusCredits(
       totalCredits: 0,
     };
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(getDb(), async (transaction) => {
       const tenantSnap = await transaction.get(tenantRef);
 
       if (!tenantSnap.exists()) {
@@ -501,7 +501,7 @@ export async function addBonusCredits(
       });
 
       // Create transaction record
-      const transactionRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+      const transactionRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
       const transactionId = transactionRef.id;
 
       transaction.set(transactionRef, {
@@ -542,7 +542,7 @@ export async function refundCredits(
   originalTransactionId?: string
 ): Promise<TopOffResult> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
 
     let result: TopOffResult = {
       success: false,
@@ -553,7 +553,7 @@ export async function refundCredits(
       totalCredits: 0,
     };
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(getDb(), async (transaction) => {
       const tenantSnap = await transaction.get(tenantRef);
 
       if (!tenantSnap.exists()) {
@@ -571,7 +571,7 @@ export async function refundCredits(
       });
 
       // Create transaction record
-      const transactionRef = doc(collection(db, CREDIT_TRANSACTIONS_COLLECTION));
+      const transactionRef = doc(collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION));
       const transactionId = transactionRef.id;
 
       transaction.set(transactionRef, {
@@ -615,7 +615,7 @@ export async function getTransactionHistory(
 ): Promise<CreditTransaction[]> {
   try {
     const q = query(
-      collection(db, CREDIT_TRANSACTIONS_COLLECTION),
+      collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION),
       where('tenantId', '==', tenantId),
       orderBy('createdAt', 'desc'),
       limit(limitCount)
@@ -647,7 +647,7 @@ export async function getTransactionsByType(
 ): Promise<CreditTransaction[]> {
   try {
     const q = query(
-      collection(db, CREDIT_TRANSACTIONS_COLLECTION),
+      collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION),
       where('tenantId', '==', tenantId),
       where('type', '==', type),
       orderBy('createdAt', 'desc'),
@@ -687,7 +687,7 @@ export async function getUsageStats(
     startDate.setDate(startDate.getDate() - days);
 
     const q = query(
-      collection(db, CREDIT_TRANSACTIONS_COLLECTION),
+      collection(getDb(), CREDIT_TRANSACTIONS_COLLECTION),
       where('tenantId', '==', tenantId),
       where('createdAt', '>=', startDate),
       orderBy('createdAt', 'desc')
@@ -759,7 +759,7 @@ export function calculateTotalCost(
  */
 export async function getDaysUntilRenewal(tenantId: string): Promise<number> {
   try {
-    const tenantRef = doc(db, TENANTS_COLLECTION, tenantId);
+    const tenantRef = doc(getDb(), TENANTS_COLLECTION, tenantId);
     const tenantSnap = await getDoc(tenantRef);
 
     if (!tenantSnap.exists()) {
