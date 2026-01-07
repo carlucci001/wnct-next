@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus';
 
 interface MenuSections {
   ai: boolean;
@@ -272,6 +272,14 @@ export function AdminSidebar({
                 iconColor="text-teal-600"
               >
                 Community
+              </NavItem>
+              <NavItem
+                active={activeTab === 'menus'}
+                onClick={() => setActiveTab('menus')}
+                icon={Menu}
+                iconColor="text-indigo-600"
+              >
+                Menus
               </NavItem>
             </CollapsibleContent>
           </Collapsible>
