@@ -19,7 +19,7 @@ import {
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
   Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2,
-  UserCog, MoreHorizontal
+  UserCog, MoreHorizontal, Wrench
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
@@ -180,7 +180,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community';
 
 interface DashboardStats {
   totalArticles: number;
@@ -398,6 +398,75 @@ export default function AdminDashboard() {
   const [maintenanceProgress, setMaintenanceProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedArticleForAction, setSelectedArticleForAction] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+
+  // Supabase Import states
+  const [supabaseConfig, setSupabaseConfig] = useState({
+    url: '',
+    key: '',
+    dateFrom: '',
+    dateTo: '',
+    importArticles: true,
+    importImages: true,
+    importCategories: true,
+    importAuthors: true,
+    clearFirst: false, // Clear all existing articles before import
+  });
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [supabaseImporting, setSupabaseImporting] = useState(false);
+  const [supabaseProgress, setSupabaseProgress] = useState({ current: 0, total: 0, message: '' });
+  const [supabaseResults, setSupabaseResults] = useState<{
+    articles?: { found: number; imported: number; skipped: number; errors: number };
+    images?: { found: number; imported: number; skipped: number; errors: number };
+    categories?: { found: number; imported: number; skipped: number };
+    authors?: { found: number; imported: number; skipped: number };
+  } | null>(null);
+
+  // Supabase Image Migration states (server-side Firebase Admin)
+  const [imageMigrationRunning, setImageMigrationRunning] = useState(false);
+  const [imageMigrationProgress, setImageMigrationProgress] = useState({ current: 0, total: 0, message: '' });
+  const [imageMigrationResults, setImageMigrationResults] = useState<{
+    preview?: { totalArticles: number; supabaseImages: number; firebaseImages: number; noImage: number; needsMigration: number };
+    results?: { total: number; migrated: number; skipped: number; errors: number; errorDetails: string[] };
+  } | null>(null);
+
+  // Status Fix Tool states
+  const [statusFixRunning, setStatusFixRunning] = useState(false);
+  const [statusFixResults, setStatusFixResults] = useState<{
+    total?: number;
+    statusCounts?: { published: number; draft: number; review: number; archived: number; other: number };
+    otherStatuses?: Record<string, number>;
+    visibleOnFrontend?: number;
+    hiddenFromFrontend?: number;
+    updated?: number;
+    skipped?: number;
+    errors?: number;
+  } | null>(null);
+
+  // Auto-Categorize Tool states
+  const [categorizingArticles, setCategorizingArticles] = useState(false);
+  const [categorizeResults, setCategorizeResults] = useState<{
+    total?: number;
+    currentDistribution?: Record<string, number>;
+    proposedDistribution?: Record<string, number>;
+    wouldChange?: number;
+    updated?: number;
+    unchanged?: number;
+    errors?: number;
+    remaining?: number;
+  } | null>(null);
+
+  // Assign Author Tool states
+  const [assigningAuthor, setAssigningAuthor] = useState(false);
+  const [authorToolData, setAuthorToolData] = useState<{
+    users?: Array<{ id: string; displayName: string; email: string; photoURL?: string; role: string }>;
+    authorDistribution?: Record<string, number>;
+    importedAuthorCount?: number;
+    totalArticles?: number;
+    selectedUserId?: string;
+    assignAll?: boolean;
+    updated?: number;
+    assignedTo?: { id: string; name: string; photoURL?: string };
+  } | null>(null);
 
   // Agent Article Editor states
   const [agentArticle, setAgentArticle] = useState<Article | null>(null);
@@ -800,6 +869,357 @@ export default function AdminDashboard() {
     } finally {
       setAssigningArticles(false);
       setMaintenanceProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  // Supabase Import handlers
+  const handleSupabasePreview = async () => {
+    if (!supabaseConfig.url || !supabaseConfig.key) {
+      toast.error('Please enter Supabase URL and API key');
+      return;
+    }
+
+    setSupabaseImporting(true);
+    setSupabaseProgress({ current: 0, total: 0, message: 'Connecting to Supabase...' });
+    setSupabaseResults(null);
+
+    try {
+      const params = new URLSearchParams({
+        supabaseUrl: supabaseConfig.url,
+        supabaseKey: supabaseConfig.key,
+      });
+      if (supabaseConfig.dateFrom) params.set('dateFrom', supabaseConfig.dateFrom);
+      if (supabaseConfig.dateTo) params.set('dateTo', supabaseConfig.dateTo);
+
+      const response = await fetch(`/api/admin/supabase-import?${params.toString()}`, {
+        method: 'GET',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.details ? `${data.error}\n${data.details}` : data.error;
+        throw new Error(errorMsg || 'Preview failed');
+      }
+
+      setSupabaseResults(data.preview);
+      toast.success(`Found ${data.preview?.articles?.found || 0} articles to import`);
+    } catch (error) {
+      console.error('Supabase preview failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Preview failed');
+    } finally {
+      setSupabaseImporting(false);
+      setSupabaseProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  const handleSupabaseImport = async () => {
+    if (!supabaseConfig.url || !supabaseConfig.key) {
+      toast.error('Please enter Supabase URL and API key');
+      return;
+    }
+
+    setSupabaseImporting(true);
+    setSupabaseProgress({
+      current: 0,
+      total: 0,
+      message: supabaseConfig.clearFirst ? 'Clearing existing articles...' : 'Starting import...'
+    });
+    setSupabaseResults(null);
+
+    try {
+      const response = await fetch('/api/admin/supabase-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          supabaseUrl: supabaseConfig.url,
+          supabaseKey: supabaseConfig.key,
+          dateFrom: supabaseConfig.dateFrom || undefined,
+          dateTo: supabaseConfig.dateTo || undefined,
+          importArticles: supabaseConfig.importArticles,
+          importImages: supabaseConfig.importImages,
+          importCategories: supabaseConfig.importCategories,
+          importAuthors: supabaseConfig.importAuthors,
+          clearFirst: supabaseConfig.clearFirst,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.details ? `${data.error}\n${data.details}` : data.error;
+        throw new Error(errorMsg || 'Import failed');
+      }
+
+      setSupabaseResults(data.results);
+      const clearedMsg = data.results?.cleared ? `Cleared ${data.results.cleared.deleted} old articles. ` : '';
+      toast.success(`${clearedMsg}Import complete! ${data.results?.articles?.imported || 0} articles imported`);
+      loadData(); // Refresh data
+    } catch (error) {
+      console.error('Supabase import failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Import failed');
+    } finally {
+      setSupabaseImporting(false);
+      setSupabaseProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  // Image Migration Handlers (Firebase Admin - server-side)
+  const handleImageMigrationPreview = async () => {
+    setImageMigrationRunning(true);
+    setImageMigrationProgress({ current: 0, total: 0, message: 'Scanning articles for Supabase images...' });
+    setImageMigrationResults(null);
+
+    try {
+      const response = await fetch('/api/admin/migrate-supabase-images');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Preview failed');
+      }
+
+      setImageMigrationResults({ preview: data.preview });
+      toast.success(`Found ${data.preview?.needsMigration || 0} images to migrate from Supabase`);
+    } catch (error) {
+      console.error('Image migration preview failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Preview failed');
+    } finally {
+      setImageMigrationRunning(false);
+      setImageMigrationProgress({ current: 0, total: 0, message: '' });
+    }
+  };
+
+  const handleImageMigrationExecute = async (batchSize: number = 50) => {
+    setImageMigrationRunning(true);
+    setImageMigrationProgress({ current: 0, total: 0, message: 'Starting image migration...' });
+
+    try {
+      const response = await fetch('/api/admin/migrate-supabase-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Migration failed');
+      }
+
+      setImageMigrationResults({ results: data.results });
+      setImageMigrationProgress({
+        current: data.results?.migrated || 0,
+        total: data.results?.total || 0,
+        message: `Migrated ${data.results?.migrated || 0} images`
+      });
+
+      if (data.remaining > 0) {
+        toast.success(`Batch complete! ${data.results?.migrated || 0} images migrated. ${data.remaining} remaining - run again to continue.`);
+      } else {
+        toast.success(`Migration complete! ${data.results?.migrated || 0} images migrated to Firebase Storage.`);
+      }
+    } catch (error) {
+      console.error('Image migration failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Migration failed');
+    } finally {
+      setImageMigrationRunning(false);
+    }
+  };
+
+  // Status Fix Tool Handlers
+  const handleStatusCheck = async () => {
+    setStatusFixRunning(true);
+    setStatusFixResults(null);
+
+    try {
+      const response = await fetch('/api/admin/fix-article-status');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Status check failed');
+      }
+
+      setStatusFixResults(data);
+
+      if (data.hiddenFromFrontend > 0) {
+        toast.warning(`${data.hiddenFromFrontend} articles are NOT visible on the frontend (not published)`);
+      } else {
+        toast.success(`All ${data.total} articles are published and visible!`);
+      }
+    } catch (error) {
+      console.error('Status check failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Status check failed');
+    } finally {
+      setStatusFixRunning(false);
+    }
+  };
+
+  const handleStatusFix = async () => {
+    setStatusFixRunning(true);
+
+    try {
+      const response = await fetch('/api/admin/fix-article-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toStatus: 'published', updateAll: true }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Status fix failed');
+      }
+
+      setStatusFixResults(prev => ({
+        ...prev,
+        updated: data.updated,
+        skipped: data.skipped,
+        errors: data.errors,
+      }));
+
+      toast.success(`Updated ${data.updated} articles to "published" status!`);
+
+      // Refresh the status check to show new counts
+      await handleStatusCheck();
+    } catch (error) {
+      console.error('Status fix failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Status fix failed');
+    } finally {
+      setStatusFixRunning(false);
+    }
+  };
+
+  // Auto-Categorize Tool Handlers
+  const handleCategorizePreview = async () => {
+    setCategorizingArticles(true);
+    setCategorizeResults(null);
+
+    try {
+      const response = await fetch('/api/admin/auto-categorize');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Preview failed');
+      }
+
+      setCategorizeResults(data);
+      toast.success(`Found ${data.wouldChange} articles that would be re-categorized`);
+    } catch (error) {
+      console.error('Categorize preview failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Preview failed');
+    } finally {
+      setCategorizingArticles(false);
+    }
+  };
+
+  const handleCategorizeExecute = async () => {
+    setCategorizingArticles(true);
+
+    try {
+      const response = await fetch('/api/admin/auto-categorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize: 200 }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Categorization failed');
+      }
+
+      setCategorizeResults(prev => ({
+        ...prev,
+        updated: data.updated,
+        unchanged: data.unchanged,
+        errors: data.errors,
+        remaining: data.remaining,
+      }));
+
+      if (data.remaining > 0) {
+        toast.success(`Categorized ${data.updated} articles. ${data.remaining} remaining - run again to continue.`);
+      } else {
+        toast.success(`Categorization complete! ${data.updated} articles updated.`);
+      }
+
+      // Refresh preview to show new distribution
+      await handleCategorizePreview();
+    } catch (error) {
+      console.error('Categorization failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Categorization failed');
+    } finally {
+      setCategorizingArticles(false);
+    }
+  };
+
+  // Assign Author Tool Handlers
+  const handleLoadAuthorData = async () => {
+    setAssigningAuthor(true);
+
+    try {
+      const response = await fetch('/api/admin/assign-author');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to load data');
+      }
+
+      setAuthorToolData({
+        users: data.users,
+        authorDistribution: data.authorDistribution,
+        importedAuthorCount: data.importedAuthorCount,
+        totalArticles: data.totalArticles,
+      });
+
+      if (data.importedAuthorCount > 0) {
+        toast.info(`Found ${data.importedAuthorCount} articles with imported/unknown authors`);
+      }
+    } catch (error) {
+      console.error('Failed to load author data:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to load data');
+    } finally {
+      setAssigningAuthor(false);
+    }
+  };
+
+  const handleAssignAuthor = async (assignAll: boolean = false) => {
+    if (!authorToolData?.selectedUserId) {
+      toast.error('Please select a user first');
+      return;
+    }
+
+    setAssigningAuthor(true);
+
+    try {
+      const response = await fetch('/api/admin/assign-author', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: authorToolData.selectedUserId,
+          assignAll,
+          onlyImported: !assignAll,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Assignment failed');
+      }
+
+      setAuthorToolData(prev => ({
+        ...prev,
+        updated: data.updated,
+        assignedTo: data.assignedTo,
+      }));
+
+      toast.success(`Assigned ${data.updated} articles to ${data.assignedTo.name}`);
+
+      // Refresh the data to show new distribution
+      await handleLoadAuthorData();
+    } catch (error) {
+      console.error('Author assignment failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Assignment failed');
+    } finally {
+      setAssigningAuthor(false);
     }
   };
 
@@ -1720,117 +2140,24 @@ Example structure:
         </Card>
       </div>
 
-      {/* Maintenance Tools */}
+      {/* Quick Link to Tools */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Database size={20} />
-            Maintenance Tools
+            <Wrench size={20} className="text-amber-600" />
+            Tools & Utilities
           </CardTitle>
-          <CardDescription>Database cleanup and migration utilities</CardDescription>
+          <CardDescription>Database cleanup, migration, and import utilities</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Image Migration */}
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
-                  <ImageIcon size={20} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium">Migrate Images</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Move all article images from temporary URLs (Supabase, DALL-E, etc.) to Firebase Storage for permanent hosting.
-                  </p>
-                  {migratingImages && maintenanceProgress.message && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <RefreshCw size={12} className="animate-spin" />
-                        {maintenanceProgress.message}
-                      </div>
-                      {maintenanceProgress.total > 0 && (
-                        <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 transition-all"
-                            style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3"
-                    onClick={handleMigrateImages}
-                    disabled={migratingImages || sanitizingArticles}
-                  >
-                    {migratingImages ? (
-                      <>
-                        <RefreshCw size={14} className="mr-2 animate-spin" />
-                        Migrating...
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={14} className="mr-2" />
-                        Migrate Images
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Content Sanitization */}
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
-                  <Sparkles size={20} className="text-green-600 dark:text-green-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium">Sanitize Content</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Clean up article HTML, remove empty tags, fix formatting issues, and regenerate clean excerpts.
-                  </p>
-                  {sanitizingArticles && maintenanceProgress.message && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <RefreshCw size={12} className="animate-spin" />
-                        {maintenanceProgress.message}
-                      </div>
-                      {maintenanceProgress.total > 0 && (
-                        <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-green-500 transition-all"
-                            style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3"
-                    onClick={handleSanitizeArticles}
-                    disabled={migratingImages || sanitizingArticles}
-                  >
-                    {sanitizingArticles ? (
-                      <>
-                        <RefreshCw size={14} className="mr-2 animate-spin" />
-                        Sanitizing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={14} className="mr-2" />
-                        Sanitize Articles
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => setActiveTab('tools')}
+            className="w-full justify-start"
+          >
+            <ArrowRight size={16} className="mr-2" />
+            Open Tools Section
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -4873,6 +5200,872 @@ Example structure:
     </div>
   );
 
+  // Tools Section with Sanitize, Migrate, and Supabase Import
+  const renderTools = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Wrench className="h-8 w-8 text-amber-600" />
+        <div>
+          <h1 className="text-2xl font-bold">Tools</h1>
+          <p className="text-muted-foreground">Database cleanup, migration, and import utilities</p>
+        </div>
+      </div>
+
+      {/* Existing Tools Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Image Migration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon size={20} className="text-blue-600" />
+              Migrate Images
+            </CardTitle>
+            <CardDescription>
+              Move all article images from temporary URLs (Supabase, DALL-E, etc.) to Firebase Storage for permanent hosting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {migratingImages && maintenanceProgress.message && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw size={14} className="animate-spin" />
+                  {maintenanceProgress.message}
+                </div>
+                {maintenanceProgress.total > 0 && (
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all"
+                      style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <Button
+              onClick={handleMigrateImages}
+              disabled={migratingImages || sanitizingArticles}
+              className="w-full"
+            >
+              {migratingImages ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Migrating...
+                </>
+              ) : (
+                <>
+                  <Upload size={16} className="mr-2" />
+                  Run Migration
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Content Sanitization */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles size={20} className="text-green-600" />
+              Sanitize Content
+            </CardTitle>
+            <CardDescription>
+              Clean up article HTML, remove empty tags, fix formatting issues, and regenerate clean excerpts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sanitizingArticles && maintenanceProgress.message && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw size={14} className="animate-spin" />
+                  {maintenanceProgress.message}
+                </div>
+                {maintenanceProgress.total > 0 && (
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all"
+                      style={{ width: `${(maintenanceProgress.current / maintenanceProgress.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <Button
+              onClick={handleSanitizeArticles}
+              disabled={migratingImages || sanitizingArticles}
+              className="w-full"
+              variant="secondary"
+            >
+              {sanitizingArticles ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Sanitizing...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} className="mr-2" />
+                  Run Sanitization
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Supabase Import Tool */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database size={20} className="text-purple-600" />
+            Supabase Import
+          </CardTitle>
+          <CardDescription>
+            Import articles, images, categories, and authors from an external Supabase database.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Connection Config */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="supabaseUrl">Supabase URL</Label>
+              <Input
+                id="supabaseUrl"
+                placeholder="https://your-project.supabase.co"
+                value={supabaseConfig.url}
+                onChange={(e) => setSupabaseConfig(prev => ({ ...prev, url: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supabaseKey">API Key (anon or service)</Label>
+              <div className="relative">
+                <Input
+                  id="supabaseKey"
+                  type={showSupabaseKey ? "text" : "password"}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  value={supabaseConfig.key}
+                  onChange={(e) => setSupabaseConfig(prev => ({ ...prev, key: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowSupabaseKey(!showSupabaseKey)}
+                >
+                  {showSupabaseKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Range */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dateFrom">From Date (optional)</Label>
+              <Input
+                id="dateFrom"
+                type="date"
+                value={supabaseConfig.dateFrom}
+                onChange={(e) => setSupabaseConfig(prev => ({ ...prev, dateFrom: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dateTo">To Date (optional)</Label>
+              <Input
+                id="dateTo"
+                type="date"
+                value={supabaseConfig.dateTo}
+                onChange={(e) => setSupabaseConfig(prev => ({ ...prev, dateTo: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Import Options */}
+          <div className="space-y-2">
+            <Label>Import Options</Label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={supabaseConfig.importArticles}
+                  onChange={(e) => setSupabaseConfig(prev => ({ ...prev, importArticles: e.target.checked }))}
+                  className="rounded border-gray-300"
+                />
+                <span>Articles</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={supabaseConfig.importImages}
+                  onChange={(e) => setSupabaseConfig(prev => ({ ...prev, importImages: e.target.checked }))}
+                  className="rounded border-gray-300"
+                />
+                <span>Images</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={supabaseConfig.importCategories}
+                  onChange={(e) => setSupabaseConfig(prev => ({ ...prev, importCategories: e.target.checked }))}
+                  className="rounded border-gray-300"
+                />
+                <span>Categories</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={supabaseConfig.importAuthors}
+                  onChange={(e) => setSupabaseConfig(prev => ({ ...prev, importAuthors: e.target.checked }))}
+                  className="rounded border-gray-300"
+                />
+                <span>Authors</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Clear First Option - Destructive */}
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={supabaseConfig.clearFirst}
+                onChange={(e) => setSupabaseConfig(prev => ({ ...prev, clearFirst: e.target.checked }))}
+                className="rounded border-red-300 text-red-600 focus:ring-red-500"
+              />
+              <div>
+                <span className="font-medium text-red-700 dark:text-red-400">Clear All & Fresh Import</span>
+                <p className="text-xs text-red-600 dark:text-red-500">
+                  Delete ALL existing articles before importing. Use this for a clean sync from Supabase.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Progress Display */}
+          {supabaseImporting && supabaseProgress.message && (
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <RefreshCw size={16} className="animate-spin text-purple-600" />
+                <span className="font-medium">{supabaseProgress.message}</span>
+              </div>
+              {supabaseProgress.total > 0 && (
+                <>
+                  <div className="h-2 bg-background rounded-full overflow-hidden mb-2">
+                    <div
+                      className="h-full bg-purple-500 transition-all"
+                      style={{ width: `${(supabaseProgress.current / supabaseProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {supabaseProgress.current} of {supabaseProgress.total} ({Math.round((supabaseProgress.current / supabaseProgress.total) * 100)}%)
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Import Results */}
+          {supabaseResults && (
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <h4 className="font-medium flex items-center gap-2">
+                <CheckCircle size={16} className="text-green-600" />
+                Import Complete
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Articles</p>
+                  <p className="font-medium">{supabaseResults.articles?.imported || 0} imported</p>
+                  {supabaseResults.articles?.skipped > 0 && (
+                    <p className="text-xs text-muted-foreground">{supabaseResults.articles.skipped} skipped</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Images</p>
+                  <p className="font-medium">{supabaseResults.images?.imported || 0} imported</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Categories</p>
+                  <p className="font-medium">{supabaseResults.categories?.imported || 0} imported</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Authors</p>
+                  <p className="font-medium">{supabaseResults.authors?.imported || 0} imported</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSupabasePreview}
+              disabled={supabaseImporting || !supabaseConfig.url || !supabaseConfig.key}
+            >
+              <Eye size={16} className="mr-2" />
+              Preview Import
+            </Button>
+            <Button
+              onClick={handleSupabaseImport}
+              disabled={supabaseImporting || !supabaseConfig.url || !supabaseConfig.key}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {supabaseImporting ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download size={16} className="mr-2" />
+                  Start Import
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Supabase Image Migration Tool (Server-side Firebase Admin) */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cloud size={20} className="text-orange-600" />
+            Migrate Supabase Images to Firebase
+          </CardTitle>
+          <CardDescription>
+            Download all images stored in Supabase and re-upload them to Firebase Storage.
+            This allows you to fully decommission Supabase and run entirely on Firebase/Vercel.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Preview Results */}
+          {imageMigrationResults?.preview && (
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <h4 className="font-medium flex items-center gap-2">
+                <Info size={16} className="text-blue-600" />
+                Image Scan Results
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Total Articles</p>
+                  <p className="font-medium text-lg">{imageMigrationResults.preview.totalArticles}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Supabase Images</p>
+                  <p className="font-medium text-lg text-orange-600">{imageMigrationResults.preview.supabaseImages}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Firebase Images</p>
+                  <p className="font-medium text-lg text-green-600">{imageMigrationResults.preview.firebaseImages}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">No Image</p>
+                  <p className="font-medium text-lg text-gray-500">{imageMigrationResults.preview.noImage}</p>
+                </div>
+              </div>
+              {imageMigrationResults.preview.needsMigration > 0 && (
+                <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded">
+                  <p className="text-orange-700 dark:text-orange-400 font-medium">
+                    {imageMigrationResults.preview.needsMigration} images need migration to Firebase Storage
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Progress Display */}
+          {imageMigrationRunning && imageMigrationProgress.message && (
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <RefreshCw size={16} className="animate-spin text-orange-600" />
+                <span className="font-medium">{imageMigrationProgress.message}</span>
+              </div>
+              {imageMigrationProgress.total > 0 && (
+                <>
+                  <div className="h-2 bg-background rounded-full overflow-hidden mb-2">
+                    <div
+                      className="h-full bg-orange-500 transition-all"
+                      style={{ width: `${(imageMigrationProgress.current / imageMigrationProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {imageMigrationProgress.current} of {imageMigrationProgress.total} ({Math.round((imageMigrationProgress.current / imageMigrationProgress.total) * 100)}%)
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Migration Results */}
+          {imageMigrationResults?.results && (
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <h4 className="font-medium flex items-center gap-2">
+                <CheckCircle size={16} className="text-green-600" />
+                Migration Results
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Total Found</p>
+                  <p className="font-medium">{imageMigrationResults.results.total}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Migrated</p>
+                  <p className="font-medium text-green-600">{imageMigrationResults.results.migrated}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Skipped</p>
+                  <p className="font-medium text-yellow-600">{imageMigrationResults.results.skipped}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Errors</p>
+                  <p className="font-medium text-red-600">{imageMigrationResults.results.errors}</p>
+                </div>
+              </div>
+              {imageMigrationResults.results.errorDetails && imageMigrationResults.results.errorDetails.length > 0 && (
+                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded max-h-40 overflow-y-auto">
+                  <p className="text-red-700 dark:text-red-400 font-medium mb-2">Errors:</p>
+                  <ul className="text-xs text-red-600 dark:text-red-500 space-y-1">
+                    {imageMigrationResults.results.errorDetails.slice(0, 10).map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                    {imageMigrationResults.results.errorDetails.length > 10 && (
+                      <li>...and {imageMigrationResults.results.errorDetails.length - 10} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleImageMigrationPreview}
+              disabled={imageMigrationRunning}
+            >
+              <Eye size={16} className="mr-2" />
+              Scan Articles
+            </Button>
+            <Button
+              onClick={() => handleImageMigrationExecute(50)}
+              disabled={imageMigrationRunning}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {imageMigrationRunning ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Migrating...
+                </>
+              ) : (
+                <>
+                  <Upload size={16} className="mr-2" />
+                  Migrate Images (Batch 50)
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Important Note */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            <p className="text-blue-700 dark:text-blue-400">
+              <strong>Note:</strong> This tool requires the <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">FIREBASE_SERVICE_ACCOUNT</code> environment
+              variable to be set. The migration runs in batches of 50 images at a time to avoid timeouts.
+              Run multiple times until all images are migrated.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Article Status Fix Tool */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckSquare size={20} className="text-emerald-600" />
+            Fix Article Visibility
+          </CardTitle>
+          <CardDescription>
+            Check and fix article statuses. Articles must have status &quot;published&quot; to appear on the public website.
+            Imported articles may have the wrong status.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Status Check Results */}
+          {statusFixResults?.statusCounts && (
+            <div className="p-4 bg-muted rounded-lg space-y-3">
+              <h4 className="font-medium flex items-center gap-2">
+                <Info size={16} className="text-blue-600" />
+                Article Status Distribution
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Published</p>
+                  <p className="font-medium text-lg text-green-600">{statusFixResults.statusCounts.published}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Draft</p>
+                  <p className="font-medium text-lg text-yellow-600">{statusFixResults.statusCounts.draft}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Review</p>
+                  <p className="font-medium text-lg text-blue-600">{statusFixResults.statusCounts.review}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Archived</p>
+                  <p className="font-medium text-lg text-gray-500">{statusFixResults.statusCounts.archived}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Other</p>
+                  <p className="font-medium text-lg text-red-500">{statusFixResults.statusCounts.other}</p>
+                </div>
+              </div>
+
+              {/* Show other status values if any */}
+              {statusFixResults.otherStatuses && Object.keys(statusFixResults.otherStatuses).length > 0 && (
+                <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
+                  <p className="text-red-700 dark:text-red-400 font-medium">Unknown statuses found:</p>
+                  <ul className="text-red-600 dark:text-red-500">
+                    {Object.entries(statusFixResults.otherStatuses).map(([status, count]) => (
+                      <li key={status}>&quot;{status}&quot;: {count} articles</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Summary */}
+              {statusFixResults.hiddenFromFrontend !== undefined && statusFixResults.hiddenFromFrontend > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
+                  <p className="text-amber-700 dark:text-amber-400 font-medium flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    {statusFixResults.hiddenFromFrontend} of {statusFixResults.total} articles are NOT visible on the public website!
+                  </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">
+                    Click &quot;Publish All Articles&quot; to make them visible.
+                  </p>
+                </div>
+              )}
+
+              {statusFixResults.hiddenFromFrontend === 0 && (
+                <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded">
+                  <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+                    <CheckCircle size={16} />
+                    All {statusFixResults.total} articles are published and visible on the website!
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Update Results */}
+          {statusFixResults?.updated !== undefined && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+                <CheckCircle size={16} />
+                Updated {statusFixResults.updated} articles to &quot;published&quot; status
+              </p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleStatusCheck}
+              disabled={statusFixRunning}
+            >
+              {statusFixRunning ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  <Eye size={16} className="mr-2" />
+                  Check Statuses
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleStatusFix}
+              disabled={statusFixRunning || !statusFixResults?.statusCounts || statusFixResults.hiddenFromFrontend === 0}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {statusFixRunning ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <CheckSquare size={16} className="mr-2" />
+                  Publish All Articles
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Info Note */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            <p className="text-blue-700 dark:text-blue-400">
+              <strong>Why can&apos;t I see my articles?</strong> The public website only shows articles with status &quot;published&quot;.
+              If articles were imported from Supabase with a different status (like &quot;live&quot; or &quot;active&quot;), they default to &quot;draft&quot;
+              and won&apos;t appear on the frontend until published.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Auto-Categorize Tool */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Folder size={20} className="text-purple-600" />
+            Auto-Categorize Articles
+          </CardTitle>
+          <CardDescription>
+            Scan article titles, content, and tags to automatically assign categories (News, Sports, Business, Entertainment, Lifestyle, Outdoors).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Current vs Proposed Distribution */}
+          {categorizeResults?.currentDistribution && (
+            <div className="p-4 bg-muted rounded-lg space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Current Distribution */}
+                <div>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Info size={16} className="text-gray-500" />
+                    Current Distribution
+                  </h4>
+                  <div className="space-y-2">
+                    {Object.entries(categorizeResults.currentDistribution).map(([cat, count]) => (
+                      <div key={cat} className="flex justify-between items-center text-sm">
+                        <span>{cat}</span>
+                        <Badge variant="secondary">{count}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Proposed Distribution */}
+                {categorizeResults.proposedDistribution && (
+                  <div>
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Sparkles size={16} className="text-purple-500" />
+                      After Auto-Categorize
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(categorizeResults.proposedDistribution).map(([cat, count]) => (
+                        <div key={cat} className="flex justify-between items-center text-sm">
+                          <span>{cat}</span>
+                          <Badge variant="default" className="bg-purple-100 text-purple-700">{count}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary */}
+              {categorizeResults.wouldChange !== undefined && categorizeResults.wouldChange > 0 && (
+                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded">
+                  <p className="text-purple-700 dark:text-purple-400 font-medium">
+                    {categorizeResults.wouldChange} of {categorizeResults.total} articles would be re-categorized
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Update Results */}
+          {categorizeResults?.updated !== undefined && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+                <CheckCircle size={16} />
+                Categorized {categorizeResults.updated} articles ({categorizeResults.unchanged} unchanged)
+              </p>
+              {categorizeResults.remaining !== undefined && categorizeResults.remaining > 0 && (
+                <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                  {categorizeResults.remaining} articles remaining - run again to continue.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleCategorizePreview}
+              disabled={categorizingArticles}
+            >
+              {categorizingArticles ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Eye size={16} className="mr-2" />
+                  Preview Categories
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleCategorizeExecute}
+              disabled={categorizingArticles || !categorizeResults?.wouldChange}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {categorizingArticles ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Categorizing...
+                </>
+              ) : (
+                <>
+                  <Folder size={16} className="mr-2" />
+                  Auto-Categorize (Batch 200)
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Info Note */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            <p className="text-blue-700 dark:text-blue-400">
+              <strong>How it works:</strong> Scans each article&apos;s title, slug, tags, and content for keywords
+              related to each category. Articles are assigned to the best matching category based on keyword frequency.
+              Run multiple batches until all articles are processed.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Assign Author Tool */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User size={20} className="text-teal-600" />
+            Assign Article Author
+          </CardTitle>
+          <CardDescription>
+            Bulk assign imported articles to a user. Currently imported articles show &quot;Imported Author&quot; - reassign them to give proper credit.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Author Distribution */}
+          {authorToolData?.authorDistribution && (
+            <div className="p-4 bg-muted rounded-lg space-y-3">
+              <h4 className="font-medium flex items-center gap-2">
+                <Info size={16} className="text-gray-500" />
+                Current Author Distribution
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm max-h-40 overflow-y-auto">
+                {Object.entries(authorToolData.authorDistribution)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([author, count]) => (
+                    <div key={author} className="flex justify-between items-center bg-background p-2 rounded">
+                      <span className="truncate mr-2">{author}</span>
+                      <Badge variant="secondary">{count}</Badge>
+                    </div>
+                  ))}
+              </div>
+              {authorToolData.importedAuthorCount !== undefined && authorToolData.importedAuthorCount > 0 && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
+                  <p className="text-amber-700 dark:text-amber-400 font-medium">
+                    {authorToolData.importedAuthorCount} articles have imported/unknown authors
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* User Selection */}
+          {authorToolData?.users && (
+            <div className="space-y-2">
+              <Label>Select User to Assign Articles To</Label>
+              <select
+                className="w-full p-2 border rounded-md bg-background"
+                value={authorToolData.selectedUserId || ''}
+                onChange={(e) => setAuthorToolData(prev => ({ ...prev, selectedUserId: e.target.value }))}
+              >
+                <option value="">-- Select a user --</option>
+                {authorToolData.users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.displayName} ({user.email}) - {user.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Update Results */}
+          {authorToolData?.updated !== undefined && authorToolData?.assignedTo && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+                <CheckCircle size={16} />
+                Assigned {authorToolData.updated} articles to {authorToolData.assignedTo.name}
+              </p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={handleLoadAuthorData}
+              disabled={assigningAuthor}
+            >
+              {assigningAuthor ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={16} className="mr-2" />
+                  Load Users &amp; Authors
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => handleAssignAuthor(false)}
+              disabled={assigningAuthor || !authorToolData?.selectedUserId || !authorToolData?.importedAuthorCount}
+              className="bg-teal-600 hover:bg-teal-700"
+            >
+              {assigningAuthor ? (
+                <>
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <User size={16} className="mr-2" />
+                  Assign Imported Only
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => handleAssignAuthor(true)}
+              disabled={assigningAuthor || !authorToolData?.selectedUserId}
+              variant="destructive"
+            >
+              <Users size={16} className="mr-2" />
+              Assign ALL Articles
+            </Button>
+          </div>
+
+          {/* Info Note */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            <p className="text-blue-700 dark:text-blue-400">
+              <strong>Assign Imported Only:</strong> Only updates articles with &quot;Imported Author&quot;, &quot;Staff Writer&quot;, or no author ID.
+              <br />
+              <strong>Assign ALL Articles:</strong> Updates every article to the selected user (use with caution).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-background flex flex-col">
       <Toaster position="top-right" richColors />
@@ -4936,6 +6129,7 @@ Example structure:
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'settings' && renderSettings()}
             {activeTab === 'infrastructure' && renderInfrastructure()}
+            {activeTab === 'tools' && renderTools()}
             {activeTab === 'categories' && renderCategories()}
             {activeTab === 'media' && <MediaManager />}
             {activeTab === 'api-config' && renderApiConfig()}

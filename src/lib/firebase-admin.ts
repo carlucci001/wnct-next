@@ -72,8 +72,9 @@ function getFirebaseAdmin(): App {
 export function getAdminFirestore(): Firestore {
   if (firestoreDb) return firestoreDb;
 
-  getFirebaseAdmin();
-  firestoreDb = getFirestore();
+  const app = getFirebaseAdmin();
+  // IMPORTANT: Must use the same database ID as client-side ('gwnct')
+  firestoreDb = getFirestore(app, 'gwnct');
   return firestoreDb;
 }
 
