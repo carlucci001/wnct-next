@@ -24,7 +24,8 @@ import { AdDisplay } from "./advertising/AdDisplay";
 const BANNER_IMAGE = "/banners/farrington-banner.png";
 const BANNER_LINK = "https://farringtondevelopment.com";
 
-const TOP_NAV = [
+// Default menus (fallback if API fails)
+const DEFAULT_TOP_NAV = [
   { label: "Home", path: "/" },
   { label: "Advertise", path: "/advertise" },
   { label: "Directory", path: "/directory" },
@@ -34,7 +35,7 @@ const TOP_NAV = [
   { label: "Contact", path: "/contact" },
 ];
 
-const MAIN_NAV = [
+const DEFAULT_MAIN_NAV = [
   { label: "News", path: "/category/news" },
   { label: "Sports", path: "/category/sports" },
   { label: "Business", path: "/category/business" },
@@ -42,6 +43,11 @@ const MAIN_NAV = [
   { label: "Lifestyle", path: "/category/lifestyle" },
   { label: "Outdoors", path: "/category/outdoors" },
 ];
+
+interface NavItem {
+  label: string;
+  path: string;
+}
 
 interface SiteSettings {
   tagline: string;
@@ -68,8 +74,42 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings || null);
   const [dateStr, setDateStr] = useState("");
 
+  // Dynamic navigation menus
+  const [topNav, setTopNav] = useState<NavItem[]>(DEFAULT_TOP_NAV);
+  const [mainNav, setMainNav] = useState<NavItem[]>(DEFAULT_MAIN_NAV);
+
   useEffect(() => {
     setMounted(true);
+
+    // Fetch dynamic menus
+    const loadMenus = async () => {
+      try {
+        const response = await fetch('/api/menus');
+        const data = await response.json();
+        if (data.success && data.menus) {
+          const topMenu = data.menus.find((m: { slug: string }) => m.slug === 'top-nav');
+          const mainMenu = data.menus.find((m: { slug: string }) => m.slug === 'main-nav');
+
+          if (topMenu?.items?.length > 0) {
+            setTopNav(topMenu.items.map((item: { label: string; path: string }) => ({
+              label: item.label,
+              path: item.path,
+            })));
+          }
+          if (mainMenu?.items?.length > 0) {
+            setMainNav(mainMenu.items.map((item: { label: string; path: string }) => ({
+              label: item.label,
+              path: item.path,
+            })));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load menus:', error);
+        // Keep defaults on error
+      }
+    };
+
+    loadMenus();
   }, []);
 
   useEffect(() => {
@@ -171,7 +211,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
 
           <div className="flex items-center space-x-4">
             <nav className="hidden md:flex items-center space-x-4">
-              {TOP_NAV.map((item) => (
+              {topNav.map((item) => (
                 <Link key={item.label} href={item.path} className="hover:text-white uppercase text-[10px] lg:text-xs font-medium transition-colors">
                   {item.label}
                 </Link>
@@ -341,7 +381,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center justify-between h-12">
             {/* Left: Navigation Links */}
             <div className="hidden md:flex items-center space-x-1">
-              {MAIN_NAV.map((item) => (
+              {mainNav.map((item) => (
                 <Link
                   key={item.label}
                   href={item.path}
@@ -417,7 +457,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                   <SlidersHorizontal size={16} className="text-gray-600 dark:text-gray-300" />
                 </Link>
               </form>
-              {[...TOP_NAV, ...MAIN_NAV].map((item) => (
+              {[...topNav, ...mainNav].map((item) => (
                 <Link key={item.label} href={item.path} className="block px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 rounded border-b border-gray-100 dark:border-slate-800 last:border-0" onClick={() => setMobileOpen(false)}>
                   {item.label}
                 </Link>
