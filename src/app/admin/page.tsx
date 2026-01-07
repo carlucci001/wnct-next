@@ -160,6 +160,16 @@ const SiteConfigManager = dynamic(() => import('@/components/admin/SiteConfigMan
   ),
 });
 
+// Dynamically import CreditsDashboard
+const CreditsDashboard = dynamic(() => import('@/components/admin/CreditsDashboard'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import AgentPromptEditor
 const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
   ssr: false,
@@ -200,7 +210,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits';
 
 interface DashboardStats {
   totalArticles: number;
@@ -308,7 +318,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
@@ -6177,6 +6187,9 @@ Example structure:
 
             {/* Site Configuration */}
             {activeTab === 'site-config' && <SiteConfigManager />}
+
+            {/* Credits & Billing */}
+            {activeTab === 'credits' && <CreditsDashboard />}
 
             {/* Modules Section Placeholder */}
             {activeTab === 'modules' && (
