@@ -1,286 +1,142 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Calendar, Tag, ArrowRight } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, PlusCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { EventCardCompact } from './EventCard';
+import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 import { Event } from '@/types/event';
-import { DEFAULT_EVENT_CATEGORIES } from '@/types/event';
+import { getUpcomingEvents } from '@/lib/events';
 
-interface EventsSidebarProps {
-  upcomingEvents: Event[];
-  categories?: string[];
-  selectedCategory?: string;
-  onCategorySelect?: (category: string) => void;
-  loading?: boolean;
-  eventsForCalendar?: Event[];
-}
+export function EventsSidebar() {
+  const [upcoming, setUpcoming] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export function EventsSidebar({
-  upcomingEvents,
-  categories = DEFAULT_EVENT_CATEGORIES,
-  selectedCategory,
-  onCategorySelect,
-  loading = false,
-  eventsForCalendar = [],
-}: EventsSidebarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-
-  // Calendar calculations
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-
-  // Get event dates for the current month
-  const eventDates = useMemo(() => {
-    const dates = new Set<number>();
-    eventsForCalendar.forEach((event) => {
-      const eventDate = event.startDate?.toDate?.();
-      if (
-        eventDate &&
-        eventDate.getMonth() === month &&
-        eventDate.getFullYear() === year
-      ) {
-        dates.add(eventDate.getDate());
+  useEffect(() => {
+    async function fetchUpcoming() {
+      try {
+        const events = await getUpcomingEvents(5);
+        setUpcoming(events);
+      } catch (error) {
+        console.error('Error fetching upcoming events:', error);
+      } finally {
+        setLoading(false);
       }
-    });
-    return dates;
-  }, [eventsForCalendar, month, year]);
-
-  const goToPrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const today = new Date();
-  const isToday = (day: number) =>
-    day === today.getDate() &&
-    month === today.getMonth() &&
-    year === today.getFullYear();
-
-  const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-  if (loading) {
-    return <EventsSidebarSkeleton />;
-  }
+    }
+    fetchUpcoming();
+  }, []);
 
   return (
-    <div className="space-y-6">
-      {/* Mini Calendar */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              {monthName}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={goToPrevMonth}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={goToNextMonth}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+    <div className="space-y-8 sticky top-24">
+      {/* Submit Event CTA */}
+      <Card className="bg-primary text-primary-foreground border-none shadow-xl overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+        <CardContent className="p-6 relative z-10">
+          <PlusCircle className="h-10 w-10 mb-4 opacity-80" />
+          <h3 className="text-xl font-bold mb-2 font-serif">Host an Event?</h3>
+          <p className="text-sm opacity-90 mb-6 leading-relaxed">
+            Reach thousands of local residents by listing your event in our community calendar.
+          </p>
+          <Button variant="secondary" className="w-full font-bold shadow-lg" asChild>
+            <Link href="/events/submit">Submit Your Event</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Mini Calendar Placeholder */}
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center">
+              <CalendarIcon size={18} className="mr-2 text-primary" />
+              January 2026
+            </span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {/* Day headers */}
-            {dayNames.map((day) => (
-              <div
-                key={day}
-                className="text-xs font-medium text-gray-500 dark:text-gray-400 py-1"
+        <CardContent className="pt-4 px-4 pb-6">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2 text-muted-foreground font-bold">
+            <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-sm">
+            {/* Simple month grid placeholder */}
+            {Array.from({ length: 31 }).map((_, i) => (
+              <div 
+                key={i} 
+                className={`py-2 rounded-md transition-colors ${
+                  [5, 12, 18, 24].includes(i + 1) 
+                    ? 'bg-primary/10 text-primary font-bold cursor-pointer hover:bg-primary/20 relative' 
+                    : 'text-muted-foreground/60'
+                }`}
               >
-                {day}
+                {i + 1}
+                {[5, 12, 18, 24].includes(i + 1) && (
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                )}
               </div>
             ))}
-            {/* Empty cells for days before first of month */}
-            {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-              <div key={`empty-${i}`} className="py-1" />
-            ))}
-            {/* Days of month */}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const hasEvent = eventDates.has(day);
-              const isTodayDay = isToday(day);
+          </div>
+        </CardContent>
+      </Card>
 
-              return (
-                <div
-                  key={day}
-                  className={`
-                    relative py-1 text-sm rounded cursor-pointer
-                    transition-colors
-                    ${isTodayDay
-                      ? 'bg-blue-600 text-white font-bold'
-                      : hasEvent
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-medium'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }
-                  `}
-                >
-                  {day}
-                  {hasEvent && !isTodayDay && (
-                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full" />
+      {/* Upcoming Events List */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            Upcoming Events
+          </h3>
+          <Link href="/events" className="text-xs text-primary font-bold hover:underline flex items-center">
+            View All <ArrowRight size={12} className="ml-1" />
+          </Link>
+        </div>
+        
+        <div className="space-y-4">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex gap-4 animate-pulse">
+                <div className="w-16 h-16 bg-muted rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                </div>
+              </div>
+            ))
+          ) : upcoming.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No upcoming events found.</p>
+          ) : (
+            upcoming.map((event) => (
+              <Link 
+                key={event.id} 
+                href={`/events/${event.slug}`}
+                className="flex gap-4 group p-2 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+              >
+                <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0 border border-border">
+                  {event.featuredImage ? (
+                    <img src={event.featuredImage} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                      <CalendarIcon size={24} />
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Upcoming Events */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-gray-900 dark:text-white">
-            Upcoming Events
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {upcomingEvents.length > 0 ? (
-            <div className="space-y-1">
-              {upcomingEvents.slice(0, 5).map((event) => (
-                <EventCardCompact key={event.id} event={event} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-              No upcoming events
-            </p>
+                <div className="min-w-0 flex flex-col justify-center">
+                  <p className="font-bold group-hover:text-primary transition-colors line-clamp-1 text-sm">
+                    {event.title}
+                  </p>
+                  <div className="flex items-center text-xs text-muted-foreground mt-1">
+                    <CalendarIcon size={10} className="mr-1" />
+                    {event.startDate.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                  <div className="flex items-center text-xs text-muted-foreground mt-0.5">
+                    <MapPin size={10} className="mr-1" />
+                    <span className="line-clamp-1">{event.location.name}</span>
+                  </div>
+                </div>
+              </Link>
+            ))
           )}
-          {upcomingEvents.length > 5 && (
-            <Link
-              href="/events"
-              className="flex items-center justify-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mt-3 pt-3 border-t border-gray-200 dark:border-gray-700"
-            >
-              View all events
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Category Quick Links */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Tag className="w-4 h-4" />
-            Categories
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onCategorySelect?.('all')}
-              className={`
-                px-3 py-1.5 text-xs font-medium rounded-full transition-colors
-                ${(!selectedCategory || selectedCategory === 'all')
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }
-              `}
-            >
-              All
-            </button>
-            {categories.slice(0, 8).map((category) => (
-              <button
-                key={category}
-                onClick={() => onCategorySelect?.(category)}
-                className={`
-                  px-3 py-1.5 text-xs font-medium rounded-full transition-colors
-                  ${selectedCategory === category
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }
-                `}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
-
-// Loading skeleton
-function EventsSidebarSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* Calendar skeleton */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <Skeleton className="w-32 h-5" />
-            <div className="flex gap-1">
-              <Skeleton className="w-7 h-7 rounded" />
-              <Skeleton className="w-7 h-7 rounded" />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: 35 }).map((_, i) => (
-              <Skeleton key={i} className="w-full h-7" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Upcoming events skeleton */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <Skeleton className="w-32 h-5" />
-        </CardHeader>
-        <CardContent className="pt-0 space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <Skeleton className="w-12 h-12 rounded" />
-              <div className="flex-grow space-y-1">
-                <Skeleton className="w-full h-4" />
-                <Skeleton className="w-2/3 h-3" />
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Categories skeleton */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-2">
-          <Skeleton className="w-24 h-5" />
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="w-16 h-7 rounded-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-export { EventsSidebarSkeleton };

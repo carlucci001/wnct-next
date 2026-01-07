@@ -13,7 +13,7 @@ import {
   type QueryDocumentSnapshot,
   type DocumentData
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { getDb } from './firebase';
 import { Article } from '@/types/article';
 import { User } from '@/types/user';
 
@@ -81,7 +81,7 @@ export async function getArticles(): Promise<Article[]> {
   try {
     // Must filter by status in query to satisfy Firestore security rules
     const q = query(
-      collection(db, ARTICLES_COLLECTION),
+      collection(getDb(), ARTICLES_COLLECTION),
       where('status', '==', 'published')
     );
     const querySnapshot = await getDocs(q);
@@ -101,7 +101,7 @@ export async function getArticleBySlug(slugOrId: string): Promise<Article | null
   try {
     // First try to find by slug field
     const q = query(
-      collection(db, ARTICLES_COLLECTION),
+      collection(getDb(), ARTICLES_COLLECTION),
       where('slug', '==', slugOrId),
       limit(1)
     );
@@ -111,7 +111,7 @@ export async function getArticleBySlug(slugOrId: string): Promise<Article | null
     }
 
     // If not found by slug, try to fetch by document ID
-    const docRef = doc(db, ARTICLES_COLLECTION, slugOrId);
+    const docRef = doc(getDb(), ARTICLES_COLLECTION, slugOrId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return convertDocToArticle(docSnap as QueryDocumentSnapshot<DocumentData, DocumentData>);
@@ -132,7 +132,7 @@ export async function getArticlesByCategory(category: string): Promise<Article[]
   try {
     // Must filter by status in query to satisfy Firestore security rules
     const q = query(
-      collection(db, ARTICLES_COLLECTION),
+      collection(getDb(), ARTICLES_COLLECTION),
       where('status', '==', 'published')
     );
     const querySnapshot = await getDocs(q);
@@ -151,7 +151,7 @@ export async function getArticlesByCategory(category: string): Promise<Article[]
  */
 export async function getAllArticles(): Promise<Article[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     return querySnapshot.docs
       .map(convertDocToArticle)
       .sort((a, b) => getSortDate(b) - getSortDate(a));
@@ -178,7 +178,7 @@ export interface SearchParams {
  */
 export async function searchArticles(params: SearchParams): Promise<Article[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const searchTerms = params.query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
 
     let results = querySnapshot.docs
@@ -263,7 +263,7 @@ export async function searchArticles(params: SearchParams): Promise<Article[]> {
  */
 export async function getCategories(): Promise<string[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const categories = new Set<string>();
 
     querySnapshot.docs.forEach(doc => {
@@ -285,7 +285,7 @@ export async function getCategories(): Promise<string[]> {
  */
 export async function getAuthors(): Promise<string[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const authors = new Set<string>();
 
     querySnapshot.docs.forEach(doc => {
@@ -307,7 +307,7 @@ export async function getAuthors(): Promise<string[]> {
  */
 export async function deleteArticle(id: string): Promise<boolean> {
   try {
-    await deleteDoc(doc(db, ARTICLES_COLLECTION, id));
+    await deleteDoc(doc(getDb(), ARTICLES_COLLECTION, id));
     return true;
   } catch (error) {
     console.error(`Error deleting article ${id}:`, error);
@@ -323,7 +323,7 @@ export async function updateArticle(
   updates: Partial<Article>
 ): Promise<boolean> {
   try {
-    const docRef = doc(db, ARTICLES_COLLECTION, id);
+    const docRef = doc(getDb(), ARTICLES_COLLECTION, id);
     await updateDoc(docRef, {
       ...updates,
       updatedAt: new Date().toISOString(),
@@ -340,8 +340,8 @@ export async function updateArticle(
  */
 export async function deleteArticles(ids: string[]): Promise<boolean> {
   try {
-    const batch = writeBatch(db);
-    ids.forEach((id) => batch.delete(doc(db, ARTICLES_COLLECTION, id)));
+    const batch = writeBatch(getDb());
+    ids.forEach((id) => batch.delete(doc(getDb(), ARTICLES_COLLECTION, id)));
     await batch.commit();
     return true;
   } catch (error) {
@@ -358,9 +358,9 @@ export async function updateArticlesStatus(
   status: Article['status']
 ): Promise<boolean> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     ids.forEach((id) =>
-      batch.update(doc(db, ARTICLES_COLLECTION, id), {
+      batch.update(doc(getDb(), ARTICLES_COLLECTION, id), {
         status,
         updatedAt: new Date().toISOString(),
       })
@@ -382,7 +382,7 @@ export async function updateArticlesCategory(
   categoryColor?: string
 ): Promise<boolean> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const updateData: Record<string, unknown> = {
       category,
       updatedAt: new Date().toISOString(),
@@ -391,7 +391,7 @@ export async function updateArticlesCategory(
       updateData.categoryColor = categoryColor;
     }
     ids.forEach((id) =>
-      batch.update(doc(db, ARTICLES_COLLECTION, id), updateData)
+      batch.update(doc(getDb(), ARTICLES_COLLECTION, id), updateData)
     );
     await batch.commit();
     return true;
@@ -409,7 +409,7 @@ export async function toggleArticleFeatured(
   isFeatured: boolean
 ): Promise<boolean> {
   try {
-    const docRef = doc(db, ARTICLES_COLLECTION, id);
+    const docRef = doc(getDb(), ARTICLES_COLLECTION, id);
     await updateDoc(docRef, {
       isFeatured,
       updatedAt: new Date().toISOString(),
@@ -581,7 +581,7 @@ export async function batchFormatArticles(
   try {
     // Get all articles
     onProgress?.(0, 0, 'Fetching articles from database...');
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const total = querySnapshot.docs.length;
 
     if (total === 0) {
@@ -593,7 +593,7 @@ export async function batchFormatArticles(
     // Process in batches of 500 (Firestore limit)
     const BATCH_SIZE = 500;
     let batchCount = 0;
-    let batch = writeBatch(db);
+    let batch = writeBatch(getDb());
 
     for (let i = 0; i < querySnapshot.docs.length; i++) {
       const docSnapshot = querySnapshot.docs[i];
@@ -610,7 +610,7 @@ export async function batchFormatArticles(
 
         // Only update if content changed
         if (formattedContent !== originalContent || formattedExcerpt !== originalExcerpt) {
-          const docRef = doc(db, ARTICLES_COLLECTION, docSnapshot.id);
+          const docRef = doc(getDb(), ARTICLES_COLLECTION, docSnapshot.id);
           batch.update(docRef, {
             content: formattedContent,
             excerpt: formattedExcerpt,
@@ -624,7 +624,7 @@ export async function batchFormatArticles(
         if (batchCount >= BATCH_SIZE) {
           onProgress?.(i + 1, total, `Committing batch of ${batchCount} updates...`);
           await batch.commit();
-          batch = writeBatch(db);
+          batch = writeBatch(getDb());
           batchCount = 0;
         }
 
@@ -669,7 +669,7 @@ export async function batchMigrateImages(
     const { storageService } = await import('./storage');
 
     onProgress?.(0, 0, 'Fetching all articles...');
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const total = querySnapshot.docs.length;
 
     if (total === 0) {
@@ -703,7 +703,7 @@ export async function batchMigrateImages(
 
         // If we got a different URL back, update the article
         if (permanentUrl !== imageUrl && permanentUrl.includes('firebasestorage.googleapis.com')) {
-          await updateDoc(doc(db, ARTICLES_COLLECTION, docSnapshot.id), {
+          await updateDoc(doc(getDb(), ARTICLES_COLLECTION, docSnapshot.id), {
             featuredImage: permanentUrl,
             imageUrl: permanentUrl,
             updatedAt: new Date().toISOString()
@@ -749,7 +749,7 @@ export async function batchAssignArticlesToUser(
   try {
     // Find user by display name
     onProgress?.(0, 0, `Searching for user "${displayName}"...`);
-    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const usersSnapshot = await getDocs(collection(getDb(), 'users'));
 
     let targetUser: User | null = null;
     for (const userDoc of usersSnapshot.docs) {
@@ -778,7 +778,7 @@ export async function batchAssignArticlesToUser(
     onProgress?.(0, 0, `Found user: ${targetUser.displayName} (Photo: ${photoURLToUse ? 'Yes' : 'No'})`);
 
     // Get all articles
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ARTICLES_COLLECTION));
     const total = querySnapshot.docs.length;
 
     if (total === 0) {
@@ -790,13 +790,13 @@ export async function batchAssignArticlesToUser(
     // Process in batches of 500 (Firestore limit)
     const BATCH_SIZE = 500;
     let batchCount = 0;
-    let batch = writeBatch(db);
+    let batch = writeBatch(getDb());
 
     for (let i = 0; i < querySnapshot.docs.length; i++) {
       const docSnapshot = querySnapshot.docs[i];
 
       try {
-        const docRef = doc(db, ARTICLES_COLLECTION, docSnapshot.id);
+        const docRef = doc(getDb(), ARTICLES_COLLECTION, docSnapshot.id);
         batch.update(docRef, {
           author: targetUser.displayName || displayName,
           authorId: targetUser.id,
@@ -810,7 +810,7 @@ export async function batchAssignArticlesToUser(
         if (batchCount >= BATCH_SIZE) {
           onProgress?.(i + 1, total, `Committing batch of ${batchCount} updates...`);
           await batch.commit();
-          batch = writeBatch(db);
+          batch = writeBatch(getDb());
           batchCount = 0;
         }
 

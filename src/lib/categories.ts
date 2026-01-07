@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   getDocs,
@@ -33,7 +33,7 @@ export function generateSlug(name: string): string {
  */
 export async function getAllCategories(activeOnly: boolean = false): Promise<Category[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const querySnapshot = await getDocs(collection(getDb(), COLLECTION_NAME));
     const categories = querySnapshot.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
@@ -75,7 +75,7 @@ export async function getAllCategories(activeOnly: boolean = false): Promise<Cat
  */
 export async function getCategory(id: string): Promise<Category | null> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
 
@@ -135,7 +135,7 @@ export async function getCategoryColorByName(name: string): Promise<string> {
  */
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
   try {
-    const q = query(collection(db, COLLECTION_NAME), where('slug', '==', slug.toLowerCase()));
+    const q = query(collection(getDb(), COLLECTION_NAME), where('slug', '==', slug.toLowerCase()));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) return null;
@@ -168,7 +168,7 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
 export async function createCategory(data: CategoryInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
       ...data,
       slug: data.slug || generateSlug(data.name),
       articleCount: 0,
@@ -187,7 +187,7 @@ export async function createCategory(data: CategoryInput): Promise<string> {
  */
 export async function updateCategory(id: string, data: CategoryUpdate): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -203,7 +203,7 @@ export async function updateCategory(id: string, data: CategoryUpdate): Promise<
  */
 export async function deleteCategory(id: string): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting category:', error);
@@ -216,9 +216,9 @@ export async function deleteCategory(id: string): Promise<void> {
  */
 export async function bulkDeleteCategories(ids: string[]): Promise<void> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     ids.forEach((id) => {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       batch.delete(docRef);
     });
     await batch.commit();
@@ -233,10 +233,10 @@ export async function bulkDeleteCategories(ids: string[]): Promise<void> {
  */
 export async function bulkUpdateCategoryStatus(ids: string[], isActive: boolean): Promise<void> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date().toISOString();
     ids.forEach((id) => {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       batch.update(docRef, { isActive, updatedAt: now });
     });
     await batch.commit();
@@ -251,7 +251,7 @@ export async function bulkUpdateCategoryStatus(ids: string[], isActive: boolean)
  */
 export async function toggleCategoryStatus(id: string, currentStatus: boolean): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       isActive: !currentStatus,
       updatedAt: new Date().toISOString(),
@@ -267,7 +267,7 @@ export async function toggleCategoryStatus(id: string, currentStatus: boolean): 
  */
 export async function updateCategoryArticleCount(id: string, count: number): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       articleCount: count,
       updatedAt: new Date().toISOString(),
@@ -289,11 +289,11 @@ export async function seedDefaultCategories(createdBy: string): Promise<void> {
       return;
     }
 
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date().toISOString();
 
     DEFAULT_CATEGORIES.forEach((cat) => {
-      const docRef = doc(collection(db, COLLECTION_NAME));
+      const docRef = doc(collection(getDb(), COLLECTION_NAME));
       batch.set(docRef, {
         ...cat,
         createdBy,
@@ -321,7 +321,7 @@ export async function migrateArticleCategories(createdBy: string): Promise<{ cre
     const existingSlugs = new Set(existingCategories.map((c) => c.slug.toLowerCase()));
 
     // Get all articles
-    const articlesSnapshot = await getDocs(collection(db, 'articles'));
+    const articlesSnapshot = await getDocs(collection(getDb(), 'articles'));
     const articleCategories = new Map<string, number>();
 
     articlesSnapshot.docs.forEach((docSnap) => {
@@ -333,14 +333,14 @@ export async function migrateArticleCategories(createdBy: string): Promise<{ cre
     });
 
     // Create categories for any that don't exist
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date().toISOString();
     let created = 0;
     let skipped = 0;
 
     articleCategories.forEach((count, slug) => {
       if (!existingSlugs.has(slug)) {
-        const docRef = doc(collection(db, COLLECTION_NAME));
+        const docRef = doc(collection(getDb(), COLLECTION_NAME));
         batch.set(docRef, {
           name: slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' '),
           slug,
@@ -388,7 +388,7 @@ export async function recalculateArticleCounts(): Promise<void> {
     const categories = await getAllCategories();
 
     // Get all articles
-    const articlesSnapshot = await getDocs(collection(db, 'articles'));
+    const articlesSnapshot = await getDocs(collection(getDb(), 'articles'));
     const counts = new Map<string, number>();
 
     articlesSnapshot.docs.forEach((docSnap) => {
@@ -400,12 +400,12 @@ export async function recalculateArticleCounts(): Promise<void> {
     });
 
     // Update each category's article count
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date().toISOString();
 
     categories.forEach((cat) => {
       const count = counts.get(cat.slug.toLowerCase()) || 0;
-      const docRef = doc(db, COLLECTION_NAME, cat.id);
+      const docRef = doc(getDb(), COLLECTION_NAME, cat.id);
       batch.update(docRef, { articleCount: count, updatedAt: now });
     });
 
