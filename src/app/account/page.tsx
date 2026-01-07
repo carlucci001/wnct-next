@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -19,8 +20,6 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster, toast } from 'sonner';
 import {
   User,
-  Mail,
-  Phone,
   Calendar,
   Shield,
   Camera,
@@ -29,10 +28,8 @@ import {
   FileText,
   PenTool,
   Building2,
-  Megaphone,
   Users,
   Clock,
-  Eye,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -40,6 +37,12 @@ import {
   UserCog,
   X,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const AdvertiserDashboard = dynamic(() => import('@/components/advertising/AdvertiserDashboard'), {
+  ssr: false,
+  loading: () => <div className="p-8 bg-muted animate-pulse rounded-3xl h-64" />
+});
 
 interface SiteSettings {
   siteName: string;
@@ -253,7 +256,7 @@ export default function AccountPage() {
           <Bookmark size={20} />
           Saved Articles
         </CardTitle>
-        <CardDescription>Articles you've bookmarked for later</CardDescription>
+        <CardDescription>Articles you&apos;ve bookmarked for later</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="text-center py-12 bg-muted/50 rounded-lg border border-dashed">
@@ -263,7 +266,7 @@ export default function AccountPage() {
             Bookmark articles to read them later
           </p>
           <Button variant="outline" asChild>
-            <a href="/">Browse Articles</a>
+            <Link href="/">Browse Articles</Link>
           </Button>
         </div>
       </CardContent>
@@ -284,10 +287,10 @@ export default function AccountPage() {
           <MessageCircle size={48} className="mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="font-semibold mb-1">No comments yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Join the conversation on articles you're interested in
+            Join the conversation on articles you&apos;re interested in
           </p>
           <Button variant="outline" asChild>
-            <a href="/">Explore Articles</a>
+            <Link href="/">Explore Articles</Link>
           </Button>
         </div>
       </CardContent>
@@ -308,7 +311,7 @@ export default function AccountPage() {
           <Users size={48} className="mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="font-semibold mb-1">Community coming soon</h3>
           <p className="text-sm text-muted-foreground">
-            We're building a space for community engagement
+            We&apos;re building a space for community engagement
           </p>
         </div>
       </CardContent>
@@ -436,33 +439,7 @@ export default function AccountPage() {
   );
 
   const renderAds = () => (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Megaphone size={20} />
-              My Ad Campaigns
-            </CardTitle>
-            <CardDescription>Manage your advertising campaigns</CardDescription>
-          </div>
-          <Button>
-            <Megaphone size={16} className="mr-2" />
-            Create Campaign
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-center py-12 bg-muted/50 rounded-lg border border-dashed">
-          <Megaphone size={48} className="mx-auto text-muted-foreground/50 mb-4" />
-          <h3 className="font-semibold mb-1">No active campaigns</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Start advertising to reach local customers
-          </p>
-          <Button>Create Your First Campaign</Button>
-        </div>
-      </CardContent>
-    </Card>
+    <AdvertiserDashboard />
   );
 
   return (

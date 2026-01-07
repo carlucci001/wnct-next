@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Calendar, TrendingUp, Mail } from "lucide-react";
 import ArticleCard from "./ArticleCard";
 import { Article } from "@/types/article";
+import { AdDisplay } from "./advertising/AdDisplay";
 
 interface SidebarProps {
   trendingArticles?: Article[];
@@ -13,11 +14,9 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ trendingArticles = [] }) => {
   return (
     <aside className="w-full">
-      {/* Advertisement */}
+      {/* Sidebar Ad Spot */}
       <div className="mb-8">
-        <div className="w-full h-[250px] bg-gray-200 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-gray-300 dark:border-slate-700">
-          Advertisement (300x250)
-        </div>
+        <AdDisplay position="sidebar_top" className="w-full" />
       </div>
 
       {/* Trending Posts */}

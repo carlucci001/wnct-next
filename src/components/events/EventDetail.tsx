@@ -1,15 +1,13 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { 
   Calendar, 
   MapPin, 
-  Clock, 
   Share2, 
   User, 
   Ticket, 
-  ChevronLeft,
   ExternalLink,
   Plus
 } from 'lucide-react';
@@ -56,19 +54,22 @@ export function EventDetail({ event, relatedEvents = [] }: EventDetailProps) {
       {/* Main Content */}
       <div className="lg:w-2/3">
         {/* Hero Section */}
-        <div className="relative aspect-[21/9] md:aspect-[24/9] rounded-2xl overflow-hidden mb-8 shadow-xl">
+        <div className="relative aspect-21/9 md:aspect-24/9 rounded-2xl overflow-hidden mb-8 shadow-xl">
           {event.featuredImage ? (
-            <img
+            <Image
               src={event.featuredImage}
               alt={event.title}
+              width={1200}
+              height={500}
               className="w-full h-full object-cover"
+              style={{ width: '100%', height: 'auto' }}
             />
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center">
               <Calendar size={64} className="text-muted-foreground/20" />
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
           
           <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full">
             <Badge className="bg-primary text-primary-foreground mb-4 border-none px-4 py-1">
@@ -113,7 +114,7 @@ export function EventDetail({ event, relatedEvents = [] }: EventDetailProps) {
                 <MapPin className="text-primary" size={24} />
               </div>
               <div>
-                <p className="font-bold text-foreground">Location</p>
+                <p className="font-semibold text-foreground">Today&apos;s Hours</p>
                 <p className="text-sm text-muted-foreground mt-1">{event.location.name}</p>
                 <p className="text-sm text-muted-foreground">{event.location.address}, {event.location.city}</p>
                 <a 
@@ -216,7 +217,13 @@ export function EventDetail({ event, relatedEvents = [] }: EventDetailProps) {
                 >
                   <div className="w-20 h-20 bg-muted rounded-xl overflow-hidden shrink-0 border border-border">
                     {re.featuredImage ? (
-                      <img src={re.featuredImage} alt={re.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <Image 
+                        src={re.featuredImage} 
+                        alt={re.title} 
+                        width={80}
+                        height={80}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
                         <Calendar size={28} />

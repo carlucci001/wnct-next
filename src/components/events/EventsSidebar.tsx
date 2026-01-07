@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, MapPin, Clock, ArrowRight, PlusCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, ArrowRight, PlusCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Event } from '@/types/event';
 import { getUpcomingEvents } from '@/lib/events';
+import { AdDisplay } from '../advertising/AdDisplay';
 
 export function EventsSidebar() {
   const [upcoming, setUpcoming] = useState<Event[]>([]);
@@ -112,7 +113,13 @@ export function EventsSidebar() {
               >
                 <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0 border border-border">
                   {event.featuredImage ? (
-                    <img src={event.featuredImage} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <Image 
+                      src={event.featuredImage} 
+                      alt={event.title} 
+                      width={64}
+                      height={64}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
                       <CalendarIcon size={24} />
@@ -137,6 +144,11 @@ export function EventsSidebar() {
           )}
         </div>
       </div>
+
+      {/* Ad Spot */}
+      <Card className="border-border/50 shadow-sm overflow-hidden p-0">
+        <AdDisplay position="sidebar_top" className="w-full" />
+      </Card>
     </div>
   );
 }

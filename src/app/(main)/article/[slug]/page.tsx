@@ -11,6 +11,7 @@ import { Article } from '@/types/article';
 import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import ImageWithFallback from '@/components/ImageWithFallback';
+import { AdDisplay } from '@/components/advertising/AdDisplay';
 
 function AuthorAvatar({ name, photoURL, size = 24 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
@@ -27,7 +28,7 @@ function AuthorAvatar({ name, photoURL, size = 24 }: { name: string; photoURL?: 
   }
   return (
     <div
-      className="rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold"
+      className="rounded-full bg-linear-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {(name?.[0] || "A").toUpperCase()}
@@ -219,10 +220,28 @@ export default function ArticlePage() {
                 )}
 
                 {article.content && (
-                  <div
-                    className="article-content prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: article.content }}
-                  />
+                  <div className="article-content prose dark:prose-invert max-w-none">
+                    {(() => {
+                      const paragraphs = article.content.split('</p>');
+                      if (paragraphs.length <= 3) {
+                        return <div dangerouslySetInnerHTML={{ __html: article.content }} />;
+                      }
+                      
+                      const midPoint = Math.floor(paragraphs.length / 2);
+                      const beforeAd = paragraphs.slice(0, midPoint).join('</p>') + '</p>';
+                      const afterAd = paragraphs.slice(midPoint).join('</p>');
+                      
+                      return (
+                        <>
+                          <div dangerouslySetInnerHTML={{ __html: beforeAd }} />
+                          <div className="my-10 py-6 border-y border-gray-100 dark:border-slate-700">
+                            <AdDisplay position="article_inline" />
+                          </div>
+                          <div dangerouslySetInnerHTML={{ __html: afterAd }} />
+                        </>
+                      );
+                    })()}
+                  </div>
                 )}
 
                 {/* Tags */}

@@ -3,13 +3,19 @@
 import React from "react";
 import Link from "next/link";
 import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
+import { AdDisplay } from "./advertising/AdDisplay";
 
 const Footer: React.FC = () => {
   const primaryColor = "#1d4ed8";
 
   return (
-    <footer className="bg-slate-900 text-gray-300 pt-16 pb-8 font-sans border-t-4" style={{ borderTopColor: primaryColor }}>
-      <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12 px-4">
+    <footer className="footer-root bg-slate-900 text-gray-300 font-sans border-t-4" style={{ borderTopColor: primaryColor }}>
+      {/* Footer Ad Spot */}
+      <div className="container mx-auto px-4 py-8 border-b border-gray-800">
+        <AdDisplay position="footer_wide" className="max-w-[970px] mx-auto" />
+      </div>
+
+      <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12 px-4 pt-16">
 
         {/* About */}
         <div>
@@ -40,6 +46,7 @@ const Footer: React.FC = () => {
           </h3>
           <ul className="space-y-3 text-sm">
             <li><Link href="/about" className="hover:text-white">About WNC Times</Link></li>
+            <li><Link href="/advertise" className="hover:text-white font-bold text-blue-400">Advertise With Us</Link></li>
             <li><Link href="/contact" className="hover:text-white">Contact Us</Link></li>
             <li><Link href="/directory" className="hover:text-white">Business Directory</Link></li>
             <li><Link href="/subscribe" className="hover:text-white">Subscribe</Link></li>

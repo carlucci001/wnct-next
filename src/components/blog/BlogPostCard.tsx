@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Calendar, ArrowRight, Eye } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,11 +18,13 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
     <Link href={`/blog/${post.slug}`} className="group block h-full">
       <Card className="h-full overflow-hidden border-border/50 hover:border-primary/50 hover:shadow-xl transition-all duration-300 flex flex-col bg-card">
         {/* Image Section */}
-        <div className="relative aspect-[16/9] overflow-hidden">
+        <div className="relative aspect-video overflow-hidden">
           {post.featuredImage ? (
-            <img
+            <Image
               src={post.featuredImage}
               alt={post.title}
+              width={600}
+              height={338}
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
           ) : (
@@ -60,7 +63,13 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
         <CardFooter className="px-6 py-4 border-t bg-muted/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {post.authorPhoto ? (
-              <img src={post.authorPhoto} alt={post.authorName} className="w-8 h-8 rounded-full border border-border" />
+              <Image 
+                src={post.authorPhoto} 
+                alt={post.authorName} 
+                width={32}
+                height={32}
+                className="w-8 h-8 rounded-full border border-border" 
+              />
             ) : (
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs border border-primary/20">
                 {post.authorName[0]}
@@ -80,7 +89,7 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
 export function BlogPostCardSkeleton() {
   return (
     <Card className="h-full overflow-hidden border-border/50 animate-pulse bg-card">
-      <div className="aspect-[16/9] bg-muted" />
+      <div className="aspect-video bg-muted" />
       <CardContent className="p-6 space-y-4">
         <div className="flex gap-4">
           <div className="h-4 bg-muted rounded w-24" />
