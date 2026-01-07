@@ -1,0 +1,22 @@
+# Firebase cached build output (causes conflicts with Vercel build)
+.firebase
+
+# Other build artifacts
+.next
+out
+build
+
+# Dependencies
+node_modules
+
+# Logs
+*.log
+*_history.txt
+
+# IDE
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
