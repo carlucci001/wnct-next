@@ -1,21 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
 
-export interface EventLocation {
-  name: string;
-  address: string;
-  city: string;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-}
-
-export interface EventOrganizer {
-  name: string;
-  email?: string;
-  phone?: string;
-}
-
 export interface Event {
   id: string;
   title: string;
@@ -27,8 +11,17 @@ export interface Event {
   startDate: Timestamp;
   endDate?: Timestamp;
   allDay: boolean;
-  location: EventLocation;
-  organizer: EventOrganizer;
+  location: {
+    name: string;
+    address: string;
+    city: string;
+    coordinates?: { lat: number; lng: number };
+  };
+  organizer: {
+    name: string;
+    email?: string;
+    phone?: string;
+  };
   ticketUrl?: string;
   price?: string;
   featured: boolean;
@@ -49,30 +42,15 @@ export interface EventsSettings {
   featuredCount: number;
 }
 
-// Default categories for events
 export const DEFAULT_EVENT_CATEGORIES = [
   'Festival',
   'Concert',
   'Sports',
   'Community',
   'Markets',
-  'Arts & Culture',
   'Food & Drink',
-  'Family',
-  'Outdoor',
+  'Arts & Culture',
+  'Workshops',
   'Nightlife',
-  'Workshop',
-  'Charity',
+  'Other'
 ];
-
-// Default event settings
-export const DEFAULT_EVENTS_SETTINGS: EventsSettings = {
-  enabled: true,
-  title: 'Community Events',
-  showInNav: true,
-  defaultView: 'list',
-  allowSubmissions: true,
-  requireApproval: true,
-  categories: DEFAULT_EVENT_CATEGORIES,
-  featuredCount: 3,
-};

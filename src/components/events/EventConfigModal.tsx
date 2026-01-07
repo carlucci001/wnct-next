@@ -1,34 +1,47 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet';
-import { Card, CardContent } from '@/components/ui/card';
-import { EventsSettings, DEFAULT_EVENTS_SETTINGS } from '@/types/event';
-import { getEventsSettings, saveEventsSettings } from '@/lib/events';
+import { Switch } from '@/components/ui/switch';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+import { EventsSettings } from '@/types/event';
+import { getEventsSettings, updateEventsSettings } from '@/lib/events';
+import { Settings, Save, X } from 'lucide-react';
 
 interface EventConfigModalProps {
   open: boolean;
   onClose: () => void;
-  onSave?: (settings: EventsSettings) => void;
 }
 
-export function EventConfigModal({ open, onClose, onSave }: EventConfigModalProps) {
-  const [settings, setSettings] = useState<EventsSettings>(DEFAULT_EVENTS_SETTINGS);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [newCategory, setNewCategory] = useState('');
-  const [error, setError] = useState<string | null>(null);
+export function EventConfigModal({ open, onClose }: EventConfigModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [settings, setSettings] = useState<EventsSettings>({
+    enabled: true,
+    title: 'Community Events',
+    showInNav: true,
+    defaultView: 'calendar',
+    allowSubmissions: true,
+    requireApproval: true,
+    categories: [],
+    featuredCount: 3
+  });
 
   useEffect(() => {
     if (open) {
@@ -36,317 +49,138 @@ export function EventConfigModal({ open, onClose, onSave }: EventConfigModalProp
     }
   }, [open]);
 
-  const loadSettings = async () => {
-    setLoading(true);
-    setError(null);
+  async function loadSettings() {
     try {
-      const savedSettings = await getEventsSettings();
-      if (savedSettings) {
-        setSettings(savedSettings);
-      } else {
-        setSettings(DEFAULT_EVENTS_SETTINGS);
+      const data = await getEventsSettings();
+      if (data) {
+        setSettings(data);
       }
-    } catch (err) {
-      console.error('Error loading settings:', err);
-      setError('Failed to load settings');
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  }
+
+  async function handleSave() {
+    setLoading(true);
+    try {
+      await updateEventsSettings(settings);
+      toast.success('Event settings updated successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to update settings');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await saveEventsSettings(settings);
-      onSave?.(settings);
-      onClose();
-    } catch (err) {
-      console.error('Error saving settings:', err);
-      setError('Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addCategory = () => {
-    if (newCategory.trim() && !settings.categories.includes(newCategory.trim())) {
-      setSettings({
-        ...settings,
-        categories: [...settings.categories, newCategory.trim()],
-      });
-      setNewCategory('');
-    }
-  };
-
-  const removeCategory = (category: string) => {
-    setSettings({
-      ...settings,
-      categories: settings.categories.filter((c) => c !== category),
-    });
-  };
-
-  const updateSetting = <K extends keyof EventsSettings>(
-    key: K,
-    value: EventsSettings[K]
-  ) => {
-    setSettings({ ...settings, [key]: value });
-  };
+  }
 
   return (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto bg-white dark:bg-gray-900">
-        <SheetHeader>
-          <SheetTitle className="text-gray-900 dark:text-white">
-            Events Settings
-          </SheetTitle>
-          <SheetDescription className="text-gray-500 dark:text-gray-400">
-            Configure the events component settings
-          </SheetDescription>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            Events Configuration
+          </DialogTitle>
+          <DialogDescription>
+            Configure how the community events calendar behaves.
+          </DialogDescription>
+        </DialogHeader>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <div className="space-y-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Enable Events Module</Label>
+              <p className="text-xs text-muted-foreground">Show the events section on the site</p>
+            </div>
+            <Switch 
+              checked={settings.enabled} 
+              onCheckedChange={(v) => setSettings({ ...settings, enabled: v })} 
+            />
           </div>
-        ) : (
-          <div className="py-6 space-y-6">
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm">
-                {error}
+
+          <div className="space-y-2">
+            <Label htmlFor="title">Module Title</Label>
+            <Input 
+              id="title" 
+              value={settings.title} 
+              onChange={(e) => setSettings({ ...settings, title: e.target.value })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Show in Navigation</Label>
+              <p className="text-xs text-muted-foreground">Add Events to the main site menu</p>
+            </div>
+            <Switch 
+              checked={settings.showInNav} 
+              onCheckedChange={(v) => setSettings({ ...settings, showInNav: v })} 
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Default View</Label>
+              <Select 
+                value={settings.defaultView} 
+                onValueChange={(v: any) => setSettings({ ...settings, defaultView: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="calendar">Calendar</SelectItem>
+                  <SelectItem value="list">List</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Featured Count</Label>
+              <Input 
+                type="number" 
+                value={settings.featuredCount} 
+                onChange={(e) => setSettings({ ...settings, featuredCount: parseInt(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Allow User Submissions</Label>
+                <p className="text-xs text-muted-foreground">Let users suggest their own events</p>
+              </div>
+              <Switch 
+                checked={settings.allowSubmissions} 
+                onCheckedChange={(v) => setSettings({ ...settings, allowSubmissions: v })} 
+              />
+            </div>
+
+            {settings.allowSubmissions && (
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Require Admin Approval</Label>
+                  <p className="text-xs text-muted-foreground">Submissions must be approved before publishing</p>
+                </div>
+                <Switch 
+                  checked={settings.requireApproval} 
+                  onCheckedChange={(v) => setSettings({ ...settings, requireApproval: v })} 
+                />
               </div>
             )}
-
-            {/* General Settings */}
-            <Card className="border-gray-200 dark:border-gray-700">
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="font-medium text-gray-900 dark:text-white mb-4">
-                  General Settings
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-gray-700 dark:text-gray-300">
-                    Page Title
-                  </Label>
-                  <Input
-                    id="title"
-                    value={settings.title}
-                    onChange={(e) => updateSetting('title', e.target.value)}
-                    placeholder="Community Events"
-                    className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="enabled" className="text-gray-700 dark:text-gray-300">
-                    Enable Events Section
-                  </Label>
-                  <button
-                    id="enabled"
-                    role="switch"
-                    aria-checked={settings.enabled}
-                    onClick={() => updateSetting('enabled', !settings.enabled)}
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                      ${settings.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                        ${settings.enabled ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="showInNav" className="text-gray-700 dark:text-gray-300">
-                    Show in Navigation
-                  </Label>
-                  <button
-                    id="showInNav"
-                    role="switch"
-                    aria-checked={settings.showInNav}
-                    onClick={() => updateSetting('showInNav', !settings.showInNav)}
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                      ${settings.showInNav ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                        ${settings.showInNav ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="defaultView" className="text-gray-700 dark:text-gray-300">
-                    Default View
-                  </Label>
-                  <select
-                    id="defaultView"
-                    value={settings.defaultView}
-                    onChange={(e) =>
-                      updateSetting('defaultView', e.target.value as 'calendar' | 'list')
-                    }
-                    className="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="list">List View</option>
-                    <option value="calendar">Calendar View</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="featuredCount" className="text-gray-700 dark:text-gray-300">
-                    Featured Events Count
-                  </Label>
-                  <Input
-                    id="featuredCount"
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={settings.featuredCount}
-                    onChange={(e) =>
-                      updateSetting('featuredCount', parseInt(e.target.value) || 0)
-                    }
-                    className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Submission Settings */}
-            <Card className="border-gray-200 dark:border-gray-700">
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="font-medium text-gray-900 dark:text-white mb-4">
-                  Submission Settings
-                </h3>
-
-                <div className="flex items-center justify-between">
-                  <Label
-                    htmlFor="allowSubmissions"
-                    className="text-gray-700 dark:text-gray-300"
-                  >
-                    Allow Event Submissions
-                  </Label>
-                  <button
-                    id="allowSubmissions"
-                    role="switch"
-                    aria-checked={settings.allowSubmissions}
-                    onClick={() =>
-                      updateSetting('allowSubmissions', !settings.allowSubmissions)
-                    }
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                      ${settings.allowSubmissions ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                        ${settings.allowSubmissions ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label
-                    htmlFor="requireApproval"
-                    className="text-gray-700 dark:text-gray-300"
-                  >
-                    Require Approval for Submissions
-                  </Label>
-                  <button
-                    id="requireApproval"
-                    role="switch"
-                    aria-checked={settings.requireApproval}
-                    onClick={() =>
-                      updateSetting('requireApproval', !settings.requireApproval)
-                    }
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-                      ${settings.requireApproval ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                        ${settings.requireApproval ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Category Management */}
-            <Card className="border-gray-200 dark:border-gray-700">
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="font-medium text-gray-900 dark:text-white mb-4">
-                  Categories
-                </h3>
-
-                <div className="flex gap-2">
-                  <Input
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="Add new category"
-                    onKeyDown={(e) => e.key === 'Enter' && addCategory()}
-                    className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                  />
-                  <Button onClick={addCategory} size="icon" variant="outline">
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {settings.categories.map((category) => (
-                    <span
-                      key={category}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-sm"
-                    >
-                      {category}
-                      <button
-                        onClick={() => removeCategory(category)}
-                        className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-
-                {settings.categories.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No categories added yet
-                  </p>
-                )}
-              </CardContent>
-            </Card>
           </div>
-        )}
+        </div>
 
-        <SheetFooter className="border-t border-gray-200 dark:border-gray-700 pt-4">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            <X size={16} className="mr-2" /> Cancel
           </Button>
-          <Button onClick={handleSave} disabled={loading || saving}>
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Settings'
-            )}
+          <Button onClick={handleSave} disabled={loading}>
+            <Save size={16} className="mr-2" /> {loading ? 'Saving...' : 'Save Settings'}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
