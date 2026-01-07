@@ -99,6 +99,16 @@ service cloud.firestore {
                     || (isWriter() && resource.data.author == request.auth.token.email && resource.data.status == 'draft');
     }
 
+    match /blogPosts/{postId} {
+      // Anyone can read published posts
+      allow read: if resource.data.status == 'published' || isEditor();
+
+      // Writers and Editors can create/update
+      allow create: if isWriter();
+      allow update: if isEditor() || (isWriter() && resource.data.authorId == request.auth.uid);
+      allow delete: if isEditor();
+    }
+
     // ============================================
     // USERS
     // ============================================
@@ -135,6 +145,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /componentSettings/{document=**} {
+      // Everyone can read component settings (blog config, etc)
+      allow read: if true;
+      // Only admins can write
+      allow write: if isAdmin();
+    }
+
     // ============================================
     // COMMUNITY (directory, events, etc.)
     // ============================================
@@ -152,8 +169,25 @@ service cloud.firestore {
     // ============================================
     // ADS / BANNERS
     // ============================================
+    match /advertising/{adId} {
+      // Anyone can read active ads
+      allow read: if resource.data.status == 'active' 
+                  || isAdmin() 
+                  || (isAuthenticated() && resource.data.clientId == request.auth.uid);
+
+      // Clients can create their own campaigns
+      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.clientId == request.auth.uid);
+
+      // Support atomic increments for impressions/clicks and admin/client updates
+      allow update: if (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['impressions', 'clicks']))
+                    || isAdmin()
+                    || (isAuthenticated() && resource.data.clientId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
     match /ads/{document=**} {
-      // Anyone can read ads (they're displayed publicly)
+      // Legacy - anyone can read ads
       allow read: if true;
 
       // Only ad managers and admins can write

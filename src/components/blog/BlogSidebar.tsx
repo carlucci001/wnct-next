@@ -10,14 +10,27 @@ import {
   User,
   Quote
 } from 'lucide-react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { AdDisplay } from '@/components/advertising/AdDisplay';
 import { BlogPost } from '@/types/blogPost';
 import { getBlogPosts, formatBlogDate } from '@/lib/blog';
+import { useBlog } from '@/app/(main)/blog/BlogProvider';
 
-export function BlogSidebar({ author }: { author?: Partial<BlogPost> }) {
+export function BlogSidebar({ author: manualAuthor }: { author?: Partial<BlogPost> }) {
+  // Try to use Blog context if it exists (for author bio)
+  let blogContext = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    blogContext = useBlog();
+  } catch {
+    // Normal case if used outside BlogProvider
+  }
+  
+  const author = manualAuthor || blogContext?.currentAuthor;
   const [recent, setRecent] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +82,13 @@ export function BlogSidebar({ author }: { author?: Partial<BlogPost> }) {
             <div className="flex flex-col items-center text-center">
               <div className="w-24 h-24 rounded-full border-4 border-background shadow-lg overflow-hidden mb-4">
                 {author.authorPhoto ? (
-                  <img src={author.authorPhoto} alt={author.authorName} className="w-full h-full object-cover" />
+                  <Image 
+                    src={author.authorPhoto} 
+                    alt={author.authorName || 'Author'} 
+                    width={96}
+                    height={96}
+                    className="w-full h-full object-cover" 
+                  />
                 ) : (
                   <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-3xl font-black italic">
                     {author.authorName?.[0]}
@@ -136,7 +155,13 @@ export function BlogSidebar({ author }: { author?: Partial<BlogPost> }) {
             >
               <div className="w-20 h-20 bg-muted rounded-xl overflow-hidden shrink-0 border border-border">
                 {post.featuredImage ? (
-                  <img src={post.featuredImage} alt={post.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <Image 
+                    src={post.featuredImage} 
+                    alt={post.title} 
+                    width={80}
+                    height={80}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 font-serif italic font-black text-xl">WNC</div>
                 )}
@@ -177,13 +202,16 @@ export function BlogSidebar({ author }: { author?: Partial<BlogPost> }) {
       <div className="bg-primary/5 p-8 rounded-3xl border border-primary/10 relative overflow-hidden group">
         <Quote className="absolute -top-4 -left-4 w-24 h-24 text-primary/10 -rotate-12 transition-transform duration-500 group-hover:scale-110" />
         <p className="text-lg font-serif font-bold relative z-10 leading-relaxed italic text-foreground/80">
-          "The voice of the community is the heart of a city. Without it, we are just a collection of buildings."
+          &ldquo;The voice of the community is the heart of a city. Without it, we are just a collection of buildings.&rdquo;
         </p>
         <div className="mt-6 flex items-center gap-3 relative z-10">
           <div className="h-0.5 w-6 bg-primary" />
           <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Local Perspective</span>
         </div>
       </div>
+
+      {/* Sidebar Ad Spot */}
+      <AdDisplay position="sidebar_sticky" />
     </div>
   );
 }

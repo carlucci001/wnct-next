@@ -9,6 +9,7 @@ import { Article } from "@/types/article";
 import HeroSection from "@/components/HeroSection";
 import Sidebar from "@/components/Sidebar";
 import ImageWithFallback from "@/components/ImageWithFallback";
+import { AdDisplay } from "@/components/advertising/AdDisplay";
 
 // Category display order
 const CATEGORY_ORDER = ['news', 'sports', 'business', 'entertainment', 'lifestyle', 'outdoors'];
@@ -258,9 +259,9 @@ export default function Home() {
               );
             })}
 
-            {/* In-Feed Ad Placeholder */}
-            <div className="w-full h-[120px] bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm mb-12 rounded">
-              Advertisement (Full Width)
+            {/* In-Feed Ad Spot */}
+            <div className="mb-12">
+              <AdDisplay position="article_inline" className="max-w-[970px] mx-auto" />
             </div>
 
           </div>

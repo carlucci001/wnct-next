@@ -1,662 +1,383 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  Megaphone, Plus, Trash2, Edit, Search,
-  MoreHorizontal, ExternalLink, ChevronLeft, ChevronRight, Eye, BarChart3
+import React, { useState, useEffect } from 'react';
+import { 
+  getAllCampaigns, 
+  createAdCampaign, 
+  updateAdCampaign, 
+  deleteAdCampaign 
+} from '@/lib/advertising';
+import { AdCampaign, AD_POSITIONS, AdPosition, AdStatus, AdType } from '@/types/advertising';
+import NextImage from 'next/image';
+import { 
+  Plus, 
+  Search, 
+  MoreHorizontal, 
+  Edit, 
+  Trash2, 
+  ExternalLink,
+  Users,
+  Eye,
+  MousePointer2,
+  Calendar,
+  Layers,
+  CheckCircle2,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Advertisement, AdStatus, AD_SIZES, AD_PLACEMENTS } from '@/types/advertisement';
-import { getAds, createAd, updateAd, deleteAd } from '@/lib/advertising';
-import { Timestamp } from 'firebase/firestore';
+import dynamic from 'next/dynamic';
+
+const MediaPickerModal = dynamic(() => import('./MediaPickerModal'), { ssr: false });
 
 export default function AdvertisingAdmin() {
-  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | AdStatus>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-
-  // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
-  const [deletingIds, setDeletingIds] = useState<string[]>([]);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'banner' as Advertisement['type'],
-    placement: 'header',
-    size: '728x90',
-    imageUrl: '',
-    linkUrl: '',
-    altText: '',
-    campaignName: '',
-    startDate: '',
-    endDate: '',
-    priority: 1,
-    status: 'draft' as AdStatus,
-  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+  const [editingAd, setEditingAd] = useState<Partial<AdCampaign> | null>(null);
 
   useEffect(() => {
-    loadAds();
+    loadCampaigns();
   }, []);
 
-  async function loadAds() {
+  async function loadCampaigns() {
     setLoading(true);
     try {
-      const data = await getAds();
-      setAds(data);
+      const data = await getAllCampaigns();
+      setCampaigns(data);
     } catch (error) {
-      console.error('Error loading ads:', error);
-      toast.error('Failed to load advertisements');
+      toast.error('Failed to load ad campaigns');
     } finally {
       setLoading(false);
     }
   }
 
-  // Filtering
-  const filteredAds = ads.filter((a) => {
-    const matchesSearch =
-      a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.campaignName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredAds.length / pageSize);
-  const paginatedAds = filteredAds.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  // Selection
-  function toggleSelect(id: string) {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === paginatedAds.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedAds.map((a) => a.id)));
-    }
-  }
-
-  // Reset form
-  function resetForm() {
-    setFormData({
-      name: '',
-      type: 'banner',
-      placement: 'header',
-      size: '728x90',
-      imageUrl: '',
-      linkUrl: '',
-      altText: '',
-      campaignName: '',
-      startDate: '',
-      endDate: '',
-      priority: 1,
-      status: 'draft',
-    });
-  }
-
-  // Add ad
-  async function handleAdd() {
-    if (!formData.name || !formData.imageUrl || !formData.linkUrl) {
-      toast.error('Name, image URL, and link URL are required');
+  const handleSave = async () => {
+    if (!editingAd?.title || !editingAd?.clientId || !editingAd?.position) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
     try {
-      await createAd({
-        name: formData.name,
-        type: formData.type,
-        placement: formData.placement,
-        size: formData.size,
-        imageUrl: formData.imageUrl,
-        linkUrl: formData.linkUrl,
-        altText: formData.altText || formData.name,
-        campaignName: formData.campaignName,
-        startDate: formData.startDate ? Timestamp.fromDate(new Date(formData.startDate)) : Timestamp.now(),
-        endDate: formData.endDate ? Timestamp.fromDate(new Date(formData.endDate)) : Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
-        priority: formData.priority,
-        status: formData.status,
-      });
-      toast.success('Advertisement created successfully');
-      setShowAddModal(false);
-      resetForm();
-      loadAds();
-    } catch (error) {
-      console.error('Error adding ad:', error);
-      toast.error('Failed to create advertisement');
-    }
-  }
-
-  // Edit ad
-  function openEditModal(ad: Advertisement) {
-    setEditingAd(ad);
-    const startDate = ad.startDate instanceof Timestamp ? ad.startDate.toDate() : new Date(ad.startDate);
-    const endDate = ad.endDate instanceof Timestamp ? ad.endDate.toDate() : new Date(ad.endDate);
-
-    setFormData({
-      name: ad.name,
-      type: ad.type,
-      placement: ad.placement,
-      size: ad.size,
-      imageUrl: ad.imageUrl,
-      linkUrl: ad.linkUrl,
-      altText: ad.altText,
-      campaignName: ad.campaignName || '',
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-      priority: ad.priority,
-      status: ad.status,
-    });
-    setShowEditModal(true);
-  }
-
-  async function handleEdit() {
-    if (!editingAd) return;
-
-    try {
-      await updateAd(editingAd.id, {
-        name: formData.name,
-        type: formData.type,
-        placement: formData.placement,
-        size: formData.size,
-        imageUrl: formData.imageUrl,
-        linkUrl: formData.linkUrl,
-        altText: formData.altText,
-        campaignName: formData.campaignName,
-        startDate: formData.startDate ? Timestamp.fromDate(new Date(formData.startDate)) : undefined,
-        endDate: formData.endDate ? Timestamp.fromDate(new Date(formData.endDate)) : undefined,
-        priority: formData.priority,
-        status: formData.status,
-      });
-      toast.success('Advertisement updated successfully');
-      setShowEditModal(false);
-      setEditingAd(null);
-      resetForm();
-      loadAds();
-    } catch (error) {
-      console.error('Error updating ad:', error);
-      toast.error('Failed to update advertisement');
-    }
-  }
-
-  // Delete
-  function openDeleteModal(ids: string[]) {
-    setDeletingIds(ids);
-    setShowDeleteModal(true);
-  }
-
-  async function handleDelete() {
-    try {
-      for (const id of deletingIds) {
-        await deleteAd(id);
+      if (editingAd.id) {
+        await updateAdCampaign(editingAd.id, editingAd);
+        toast.success('Campaign updated');
+      } else {
+        await createAdCampaign(editingAd as AdCampaign);
+        toast.success('Campaign created');
       }
-      toast.success(`Deleted ${deletingIds.length} ad(s)`);
-      setShowDeleteModal(false);
-      setDeletingIds([]);
-      setSelectedIds(new Set());
-      loadAds();
+      setIsModalOpen(false);
+      loadCampaigns();
     } catch (error) {
-      console.error('Error deleting:', error);
-      toast.error('Failed to delete');
-    }
-  }
-
-  const statusBadge = (status: AdStatus) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
-      case 'paused':
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Paused</Badge>;
-      case 'draft':
-        return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Draft</Badge>;
-      case 'expired':
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Expired</Badge>;
+      toast.error('Failed to save campaign');
     }
   };
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return '-';
-    const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this campaign?')) {
+      try {
+        await deleteAdCampaign(id);
+        toast.success('Campaign deleted');
+        loadCampaigns();
+      } catch (error) {
+        toast.error('Failed to delete');
+      }
+    }
   };
 
-  // Calculate stats
-  const totalImpressions = ads.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
-  const totalClicks = ads.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
-  const activeAds = ads.filter(a => a.status === 'active').length;
+  const filtered = campaigns.filter(c => 
+    c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.clientName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-green-600" />
-              Advertising
-            </CardTitle>
-            <CardDescription>Manage ad campaigns and placements</CardDescription>
-          </div>
-          <Button onClick={() => { resetForm(); setShowAddModal(true); }}>
-            <Plus className="h-4 w-4 mr-2" /> New Ad
-          </Button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-serif font-black tracking-tight">Ad Management</h2>
+          <p className="text-muted-foreground">Monitor performance and manage ad inventory across positions.</p>
         </div>
-      </CardHeader>
+        <Button onClick={() => { setEditingAd({ type: 'image', status: 'active', position: 'header_main', impressions: 0, clicks: 0 }); setIsModalOpen(true); }} className="rounded-full px-6 font-bold uppercase text-[10px] tracking-widest shadow-lg">
+          <Plus className="mr-2" size={16} /> New Campaign
+        </Button>
+      </div>
 
-      <CardContent>
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-muted/50 p-4 rounded-lg text-center">
-            <p className="text-2xl font-bold">{activeAds}</p>
-            <p className="text-sm text-muted-foreground">Active Ads</p>
-          </div>
-          <div className="bg-muted/50 p-4 rounded-lg text-center">
-            <p className="text-2xl font-bold">{totalImpressions.toLocaleString()}</p>
-            <p className="text-sm text-muted-foreground">Impressions</p>
-          </div>
-          <div className="bg-muted/50 p-4 rounded-lg text-center">
-            <p className="text-2xl font-bold">{totalClicks.toLocaleString()}</p>
-            <p className="text-sm text-muted-foreground">Clicks</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-border/50 flex gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search ads..."
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <Input 
+              placeholder="Search campaigns or clients..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
+              className="pl-9 bg-muted/30 border-none rounded-xl"
             />
           </div>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        {/* Bulk Actions */}
-        {selectedIds.size > 0 && (
-          <div className="bg-muted p-3 rounded-lg mb-4 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button variant="outline" size="sm" className="text-destructive" onClick={() => openDeleteModal(Array.from(selectedIds))}>
-              <Trash2 className="h-4 w-4 mr-1" /> Delete
-            </Button>
-          </div>
-        )}
-
-        {/* Table */}
-        {loading ? (
-          <div className="py-12 text-center text-muted-foreground">Loading...</div>
-        ) : filteredAds.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground">
-            <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p>No advertisements found</p>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.size === paginatedAds.length && paginatedAds.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded"
-                      />
-                    </TableHead>
-                    <TableHead>Ad</TableHead>
-                    <TableHead>Placement</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Performance</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedAds.map((ad) => (
-                    <TableRow key={ad.id}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(ad.id)}
-                          onChange={() => toggleSelect(ad.id)}
-                          className="rounded"
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-border/50">
+              <TableHead className="w-[300px] text-[10px] font-black uppercase tracking-widest">Campaign / Client</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Position</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Stats</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><div className="h-10 bg-muted/50 rounded-xl animate-pulse" /></TableCell>
+                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
+                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
+                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
+                  <TableCell><div className="h-10 bg-muted/50 rounded-xl animate-pulse w-24 ml-auto" /></TableCell>
+                </TableRow>
+              ))
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
+                  No campaigns found.
+                </TableCell>
+              </TableRow>
+            ) : filtered.map((ad) => (
+              <TableRow key={ad.id} className="group hover:bg-muted/30 transition-colors border-border/50">
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-muted border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
+                      {ad.imageUrl ? (
+                        <NextImage 
+                          src={ad.imageUrl} 
+                          alt={ad.title}
+                          width={48}
+                          height={48}
+                          className="w-full h-full object-cover" 
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{ad.name}</div>
-                          {ad.campaignName && (
-                            <div className="text-sm text-muted-foreground">{ad.campaignName}</div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{ad.placement}</Badge>
-                        <div className="text-xs text-muted-foreground mt-1">{ad.size}</div>
-                      </TableCell>
-                      <TableCell>{statusBadge(ad.status)}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div className="flex items-center gap-1">
-                            <Eye className="h-3 w-3" /> {(ad.impressions || 0).toLocaleString()}
-                          </div>
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <BarChart3 className="h-3 w-3" /> {(ad.clicks || 0).toLocaleString()} clicks
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {formatDate(ad.startDate)} - {formatDate(ad.endDate)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditModal(ad)}>
-                              <Edit className="h-4 w-4 mr-2" /> Edit
-                            </DropdownMenuItem>
-                            {ad.linkUrl && (
-                              <DropdownMenuItem onClick={() => window.open(ad.linkUrl, '_blank')}>
-                                <ExternalLink className="h-4 w-4 mr-2" /> Preview Link
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => openDeleteModal([ad.id])}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      ) : (
+                        <Layers size={20} className="text-muted-foreground/30" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-serif font-black leading-none mb-1">{ad.title}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Users size={12} /> {ad.clientName}
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase tracking-widest bg-primary/5 border-primary/10 text-primary">
+                    {ad.position.replace('_', ' ')}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {ad.status === 'active' && <CheckCircle2 className="text-emerald-500" size={14} />}
+                    {ad.status === 'paused' && <Clock className="text-amber-500" size={14} />}
+                    {ad.status === 'expired' && <AlertCircle className="text-red-500" size={14} />}
+                    <span className="text-xs font-bold capitalize">{ad.status}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-center gap-6">
+                    <div className="text-center">
+                      <p className="text-[9px] font-black uppercase text-muted-foreground">{ad.impressions.toLocaleString()}</p>
+                      <p className="text-[9px] font-black uppercase opacity-40">Views</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] font-black uppercase text-primary">{ad.clicks.toLocaleString()}</p>
+                      <p className="text-[9px] font-black uppercase opacity-40">Clicks</p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal size={18} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl">
+                      <DropdownMenuItem onClick={() => { setEditingAd(ad); setIsModalOpen(true); }} className="gap-2">
+                        <Edit size={14} /> Edit Campaign
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => window.open(ad.targetUrl, '_blank')} className="gap-2">
+                        <ExternalLink size={14} /> View Target
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleDelete(ad.id)} className="gap-2 text-red-600 focus:text-red-600">
+                        <Trash2 size={14} /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredAds.length)} of {filteredAds.length}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm">Page {currentPage} of {totalPages || 1}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages || totalPages === 0}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-
-      {/* Add/Edit Modal */}
-      <Dialog open={showAddModal || showEditModal} onOpenChange={(open) => {
-        if (!open) {
-          setShowAddModal(false);
-          setShowEditModal(false);
-          setEditingAd(null);
-          resetForm();
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{showEditModal ? 'Edit Advertisement' : 'New Advertisement'}</DialogTitle>
-            <DialogDescription>
-              {showEditModal ? 'Update ad details' : 'Create a new advertisement'}
-            </DialogDescription>
+      {/* Edit Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden">
+          <DialogHeader className="p-8 bg-muted/30 border-b border-border/50">
+            <DialogTitle className="text-2xl font-serif font-black tracking-tight italic">
+              {editingAd?.id ? 'Edit Campaign' : 'New Campaign'}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Ad Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter ad name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="campaignName">Campaign Name</Label>
-                <Input
-                  id="campaignName"
-                  value={formData.campaignName}
-                  onChange={(e) => setFormData({ ...formData, campaignName: e.target.value })}
-                  placeholder="Optional campaign name"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="type">Type</Label>
-                <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as Advertisement['type'] })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="banner">Banner</SelectItem>
-                    <SelectItem value="sidebar">Sidebar</SelectItem>
-                    <SelectItem value="sponsored">Sponsored</SelectItem>
-                    <SelectItem value="native">Native</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="placement">Placement</Label>
-                <Select value={formData.placement} onValueChange={(v) => setFormData({ ...formData, placement: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="header">Header</SelectItem>
-                    <SelectItem value="sidebar-top">Sidebar Top</SelectItem>
-                    <SelectItem value="sidebar-middle">Sidebar Middle</SelectItem>
-                    <SelectItem value="sidebar-bottom">Sidebar Bottom</SelectItem>
-                    <SelectItem value="article-inline">Article Inline</SelectItem>
-                    <SelectItem value="footer">Footer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="size">Size</Label>
-                <Select value={formData.size} onValueChange={(v) => setFormData({ ...formData, size: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(AD_SIZES).map(([key, value]) => (
-                      <SelectItem key={key} value={value}>{value}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="imageUrl">Image URL *</Label>
-              <Input
-                id="imageUrl"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                placeholder="https://..."
+          <div className="p-8 grid grid-cols-2 gap-6">
+            <div className="col-span-2 space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Campaign Title*</Label>
+              <Input 
+                value={editingAd?.title || ''} 
+                onChange={e => setEditingAd(prev => ({ ...prev, title: e.target.value }))}
+                className="rounded-xl h-12 bg-muted/30 border-none shadow-inner"
+                placeholder="Summer Sale 2024..."
               />
             </div>
 
-            <div>
-              <Label htmlFor="linkUrl">Link URL *</Label>
-              <Input
-                id="linkUrl"
-                value={formData.linkUrl}
-                onChange={(e) => setFormData({ ...formData, linkUrl: e.target.value })}
-                placeholder="https://..."
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Client Name*</Label>
+              <Input 
+                value={editingAd?.clientName || ''} 
+                onChange={e => setEditingAd(prev => ({ ...prev, clientName: e.target.value }))}
+                className="rounded-xl h-11 bg-muted/30 border-none shadow-inner"
+                placeholder="Acme Corp"
               />
             </div>
 
-            <div>
-              <Label htmlFor="altText">Alt Text</Label>
-              <Input
-                id="altText"
-                value={formData.altText}
-                onChange={(e) => setFormData({ ...formData, altText: e.target.value })}
-                placeholder="Descriptive text for the ad"
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Client ID (User UID)*</Label>
+              <Input 
+                value={editingAd?.clientId || ''} 
+                onChange={e => setEditingAd(prev => ({ ...prev, clientId: e.target.value }))}
+                className="rounded-xl h-11 bg-muted/30 border-none shadow-inner"
+                placeholder="Auth UID"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="endDate">End Date</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Position*</Label>
+              <Select 
+                value={editingAd?.position} 
+                onValueChange={v => setEditingAd(prev => ({ ...prev, position: v as AdPosition }))}
+              >
+                <SelectTrigger className="rounded-xl h-11 bg-muted/30 border-none shadow-inner">
+                  <SelectValue placeholder="Position" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-xl">
+                  {AD_POSITIONS.map(pos => (
+                    <SelectItem key={pos.value} value={pos.value}>{pos.label} ({pos.dimensions})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="priority">Priority (1-10)</Label>
-                <Input
-                  id="priority"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
-                />
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Status</Label>
+              <Select 
+                value={editingAd?.status} 
+                onValueChange={v => setEditingAd(prev => ({ ...prev, status: v as AdStatus }))}
+              >
+                <SelectTrigger className="rounded-xl h-11 bg-muted/30 border-none shadow-inner">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-xl">
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="paused">Paused</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="col-span-2 space-y-4 pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px] uppercase font-black tracking-widest text-primary">Campaign Media</Label>
+                <Button variant="outline" size="sm" onClick={() => setIsMediaPickerOpen(true)} className="rounded-full h-8 px-4 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                   Pick Image
+                </Button>
               </div>
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as AdStatus })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="paused">Paused</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                  </SelectContent>
-                </Select>
+              
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Target URL*</Label>
+                <div className="relative">
+                  <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                  <Input 
+                    value={editingAd?.targetUrl || ''} 
+                    onChange={e => setEditingAd(prev => ({ ...prev, targetUrl: e.target.value }))}
+                    className="pl-9 rounded-xl h-11 bg-muted/30 border-none shadow-inner"
+                    placeholder="https://example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black tracking-widest opacity-60">Direct Image URL (or use picker)</Label>
+                <Input 
+                  value={editingAd?.imageUrl || ''} 
+                  onChange={e => setEditingAd(prev => ({ ...prev, imageUrl: e.target.value }))}
+                  className="rounded-xl h-11 bg-muted/30 border-none shadow-inner"
+                  placeholder="https://..."
+                />
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAddModal(false);
-              setShowEditModal(false);
-              resetForm();
-            }}>
-              Cancel
-            </Button>
-            <Button onClick={showEditModal ? handleEdit : handleAdd}>
-              {showEditModal ? 'Save Changes' : 'Create Ad'}
+          <DialogFooter className="p-8 bg-muted/30 border-t border-border/50">
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="rounded-full">Cancel</Button>
+            <Button onClick={handleSave} className="rounded-full px-10 font-black uppercase text-[10px] tracking-widest shadow-lg">
+              Save Campaign
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Ad{deletingIds.length > 1 ? 's' : ''}</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {deletingIds.length} ad{deletingIds.length > 1 ? 's' : ''}? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+      <MediaPickerModal
+        open={isMediaPickerOpen}
+        onClose={() => setIsMediaPickerOpen(false)}
+        onSelect={(media) => {
+          const url = Array.isArray(media) ? media[0]?.url : media.url;
+          if (url) {
+            setEditingAd(prev => ({ ...prev, imageUrl: url }));
+            setIsMediaPickerOpen(false);
+            toast.success('Media attached to campaign');
+          }
+        }}
+        defaultFolder="advertising"
+      />
+    </div>
   );
 }

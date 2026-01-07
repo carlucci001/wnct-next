@@ -43,7 +43,7 @@ export default function EventDetailPage() {
       <div className="container mx-auto px-4 py-12 min-h-screen">
         <div className="animate-pulse space-y-8">
           <div className="h-10 bg-muted rounded w-32" />
-          <div className="aspect-[21/9] bg-muted rounded-2xl" />
+          <div className="aspect-21/9 bg-muted rounded-2xl" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="h-32 bg-muted rounded-2xl" />
             <div className="h-32 bg-muted rounded-2xl" />

@@ -12,6 +12,7 @@ import { doc, getDoc } from "firebase/firestore";
 import WeatherWidget from "./WeatherWidget";
 import BreakingNews from "./BreakingNews";
 import ThemeSelector from "./ThemeSelector";
+import { AdDisplay } from "./advertising/AdDisplay";
 
 // Header banner ad
 const BANNER_IMAGE = "/banners/farrington-banner.png";
@@ -19,8 +20,10 @@ const BANNER_LINK = "https://farringtondevelopment.com";
 
 const TOP_NAV = [
   { label: "Home", path: "/" },
-  { label: "Advertise", path: "/contact" },
+  { label: "Advertise", path: "/advertise" },
   { label: "Directory", path: "/directory" },
+  { label: "Blog", path: "/blog" },
+  { label: "Events", path: "/events" },
   { label: "Community", path: "/community" },
   { label: "Contact", path: "/contact" },
 ];
@@ -55,47 +58,43 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const { currentUser, userProfile, signOut } = useAuth();
   const { colorMode, toggleColorMode, currentTheme } = useTheme();
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    console.log('[Header Debug] currentUser:', currentUser);
-    console.log('[Header Debug] userProfile:', userProfile);
-    console.log('[Header Debug] photoURL:', userProfile?.photoURL || currentUser?.photoURL);
-  }, [currentUser, userProfile]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery("");
-    }
-  };
-
-  // Use initialSettings from server if provided, otherwise null
+  const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings || null);
+  const [dateStr, setDateStr] = useState("");
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-
-  // Sync with Firestore for real-time updates and cache to localStorage
   useEffect(() => {
-    // If no initialSettings from server, try localStorage as fallback
-    if (!initialSettings) {
-      const cached = localStorage.getItem('wnc_settings');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setSettings({
-            tagline: parsed.tagline || "Engaging Our Community",
-            logoUrl: parsed.logoUrl || "",
-            brandingMode: parsed.brandingMode || "text",
-            showTagline: parsed.showTagline !== undefined ? parsed.showTagline : true,
-            primaryColor: parsed.primaryColor || "#1d4ed8",
-          });
-        } catch {}
-      }
-    }
+    setMounted(true);
+  }, []);
 
-    // Sync with Firestore for real-time updates
-    const loadFromFirestore = async () => {
+  useEffect(() => {
+    const loadData = async () => {
+      // 1. Set Date
+      setDateStr(new Date().toLocaleDateString("en-US", { 
+        weekday: "long", 
+        month: "long", 
+        day: "numeric", 
+        year: "numeric" 
+      }));
+
+      // 2. Load settings from localStorage
+      if (!initialSettings && typeof window !== 'undefined') {
+        const cached = localStorage.getItem('wnc_settings');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            const newSettings = {
+              tagline: parsed.tagline || "Engaging Our Community",
+              logoUrl: parsed.logoUrl || "",
+              brandingMode: parsed.brandingMode || "text",
+              showTagline: parsed.showTagline !== undefined ? parsed.showTagline : true,
+              primaryColor: parsed.primaryColor || "#1d4ed8",
+            };
+            setSettings(newSettings);
+          } catch {}
+        }
+      }
+
+      // 3. Sync with Firestore
       try {
         const settingsDoc = await getDoc(doc(getDb(), "settings", "config"));
         if (settingsDoc.exists()) {
@@ -114,7 +113,15 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         console.error("[Header] Failed to load settings:", error);
       }
     };
-    loadFromFirestore();
+
+    loadData();
+
+    // 4. Click listener
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, [initialSettings]);
 
   // Use settings or fallback to defaults
@@ -126,18 +133,18 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
     primaryColor: "#1d4ed8",
   };
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
   const handleLogout = async () => {
     await signOut();
     setUserMenuOpen(false);
     router.push("/");
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+    }
   };
 
   const showLogoImage = displaySettings.brandingMode === "logo" && displaySettings.logoUrl;
@@ -151,7 +158,11 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center space-x-4">
             <WeatherWidget />
             <span className="hidden md:inline text-gray-500">|</span>
-            <span className="hidden md:block text-gray-400">{today}</span>
+            {mounted && (
+              <span className="hidden md:block text-gray-400">
+                {dateStr}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center space-x-4">
@@ -169,35 +180,39 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               </button>
 
               <div className="relative" ref={menuRef}>
-                {currentUser ? (
-                  <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                    <div className="relative">
-                      <div className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-green-500 ring-offset-1 ring-offset-slate-900">
-                        {userProfile?.photoURL || currentUser.photoURL ? (
-                          <Image
-                            src={userProfile?.photoURL || currentUser.photoURL || ''}
-                            alt={currentUser.displayName || "User"}
-                            width={28}
-                            height={28}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
-                            {(currentUser.displayName?.[0] || currentUser.email?.[0] || "U").toUpperCase()}
-                          </div>
-                        )}
+                {mounted ? (
+                  currentUser ? (
+                    <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                      <div className="relative">
+                        <div className="w-7 h-7 rounded-full overflow-hidden ring-2 ring-green-500 ring-offset-1 ring-offset-slate-900">
+                          {userProfile?.photoURL || currentUser.photoURL ? (
+                            <Image
+                              src={userProfile?.photoURL || currentUser.photoURL || ''}
+                              alt={currentUser.displayName || "User"}
+                              width={28}
+                              height={28}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
+                              {(currentUser.displayName?.[0] || currentUser.email?.[0] || "U").toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-slate-900"></span>
                       </div>
-                      <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-slate-900"></span>
-                    </div>
-                  </button>
+                    </button>
+                  ) : (
+                    <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
+                      <UserIcon size={14} className="mr-1" />
+                      <span className="hidden md:inline">Login</span>
+                    </Link>
+                  )
                 ) : (
-                  <Link href="/login" className="flex items-center text-amber-400 font-bold hover:text-white transition-colors">
-                    <UserIcon size={14} className="mr-1" />
-                    <span className="hidden md:inline">Login</span>
-                  </Link>
+                  <div className="w-7 h-7 rounded-full bg-slate-800 animate-pulse" />
                 )}
 
-                {userMenuOpen && currentUser && (
+                {mounted && userMenuOpen && currentUser && (
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border overflow-hidden z-50">
                     <div className="px-4 py-3 border-b dark:border-slate-700 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
@@ -261,21 +276,16 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         {/* Logo - Left justified, fixed 300x100 container */}
         <Link href="/" className="w-[300px] h-[100px] flex items-center shrink-0">
           {showLogoImage ? (
-            isDataUrl ? (
-              <img
-                src={displaySettings.logoUrl}
-                alt="Site Logo"
-                className="max-w-full max-h-full w-auto h-auto object-contain object-left"
-              />
-            ) : (
-              <Image
-                src={displaySettings.logoUrl}
-                alt="Site Logo"
-                width={300}
-                height={100}
-                className="max-w-full max-h-full w-auto h-auto object-contain object-left"
-              />
-            )
+            <Image
+              src={displaySettings.logoUrl}
+              alt="Site Logo"
+              width={300}
+              height={100}
+              unoptimized={!!isDataUrl}
+              priority
+              className="max-w-full max-h-full object-contain object-left"
+              style={{ width: 'auto', height: 'auto', display: 'block' }}
+            />
           ) : (
             <div className="flex flex-col items-start justify-center h-full">
               <h1 className="text-4xl md:text-5xl font-serif font-black tracking-tight text-gray-900 dark:text-white leading-none">
@@ -299,16 +309,23 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         </div>
 
         {/* Banner Ad - Right justified */}
-        <div className="hidden lg:flex shrink-0">
-          <a href={BANNER_LINK} target="_blank" rel="noopener noreferrer">
-            <img
-              src={BANNER_IMAGE}
-              alt="Farrington Development - Web Design"
-              width={728}
-              height={90}
-              className="rounded"
-            />
-          </a>
+        <div className="hidden lg:flex shrink-0 min-w-[728px] min-h-[90px] items-center justify-end">
+          <AdDisplay 
+            position="header_main" 
+            className="w-full"
+            fallback={
+              <a href={BANNER_LINK} target="_blank" rel="noopener noreferrer">
+                <Image
+                  src={BANNER_IMAGE}
+                  alt="Farrington Development - Web Design"
+                  width={728}
+                  height={90}
+                  className="rounded"
+                  style={{ width: 'auto', height: 'auto' }}
+                />
+              </a>
+            }
+          />
         </div>
       </div>
 
@@ -318,7 +335,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center justify-between h-12">
             {/* Left: Navigation Links */}
             <div className="hidden md:flex items-center space-x-1">
-              {MAIN_NAV.map((item, index) => (
+              {MAIN_NAV.map((item) => (
                 <Link
                   key={item.label}
                   href={item.path}

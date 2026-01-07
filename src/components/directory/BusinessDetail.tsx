@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   MapPin,
   Phone,
@@ -12,6 +13,7 @@ import {
   Star,
   ExternalLink,
 } from 'lucide-react';
+import { AdDisplay } from '../advertising/AdDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +38,7 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
           text: business.description,
           url: window.location.href,
         });
-      } catch (_error) {
+      } catch {
         console.log('Share cancelled');
       }
     } else {
@@ -55,16 +57,22 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
         {/* Hero Image */}
         <div className="relative h-64 md:h-80 bg-muted rounded-lg overflow-hidden mb-6">
           {business.images && business.images.length > 0 ? (
-            <img
+            <Image
               src={business.images[0]}
               alt={business.name}
+              width={800}
+              height={400}
               className="w-full h-full object-cover"
+              style={{ width: '100%', height: 'auto' }}
             />
           ) : business.logo ? (
-            <img
+            <Image
               src={business.logo}
               alt={business.name}
+              width={200}
+              height={200}
               className="w-full h-full object-contain p-8"
+              style={{ width: 'auto', height: 'auto' }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl font-bold text-muted-foreground/30">
@@ -193,9 +201,11 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {business.images.slice(1).map((img, i) => (
                 <div key={i} className="aspect-square rounded-xl overflow-hidden bg-muted group cursor-pointer border border-border">
-                  <img
+                  <Image
                     src={img}
                     alt={`${business.name} photo ${i + 2}`}
+                    width={300}
+                    height={300}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                 </div>
@@ -220,7 +230,7 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
               <ul className="space-y-2.5">
                 {dayNames.map((day, i) => {
                   const hoursKey = day.toLowerCase() as keyof typeof business.hours;
-                  const hoursValue = (business.hours as any)?.[hoursKey];
+                  const hoursValue = (business.hours as Record<string, string>)?.[hoursKey];
                   const isToday = i === today;
                   return (
                     <li
@@ -276,7 +286,13 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
                 >
                   <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0 border border-border">
                     {b.logo ? (
-                      <img src={b.logo} alt={b.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <Image 
+                        src={b.logo} 
+                        alt={b.name} 
+                        width={64}
+                        height={64}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 font-black text-xl">
                         {b.name.charAt(0)}
@@ -296,6 +312,9 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
             </div>
           </div>
         )}
+
+        {/* Ad Spot */}
+        <AdDisplay position="sidebar_sticky" />
       </div>
     </div>
   );

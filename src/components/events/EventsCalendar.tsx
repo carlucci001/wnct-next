@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Event } from '@/types/event';
 import Link from 'next/link';
@@ -47,8 +47,7 @@ export function EventsCalendar({ events, loading }: EventsCalendarProps) {
   if (loading) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-12 bg-muted rounded w-full" />
-        <div className="grid grid-cols-7 gap-px bg-muted h-96 rounded overflow-hidden" />
+        <div className="relative aspect-21/9 md:aspect-24/9 rounded-2xl overflow-hidden mb-8 shadow-xl" />
       </div>
     );
   }
@@ -76,6 +75,7 @@ export function EventsCalendar({ events, loading }: EventsCalendarProps) {
 
       {/* Days Header */}
       <div className="grid grid-cols-7 bg-muted/10 border-b">
+        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
             {day}
@@ -100,7 +100,7 @@ export function EventsCalendar({ events, loading }: EventsCalendarProps) {
                 isToday ? 'relative ring-1 ring-inset ring-primary/20 bg-primary/5' : ''
               }`}
             >
-              <span className={`text-sm font-bold inline-block w-7 h-7 flex items-center justify-center rounded-full mb-2 ${
+              <span className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full mb-2 ${
                 isToday ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
               }`}>
                 {day}
@@ -111,7 +111,7 @@ export function EventsCalendar({ events, loading }: EventsCalendarProps) {
                   <Link 
                     key={event.id} 
                     href={`/events/${event.slug}`}
-                    className="block p-1 text-[10px] leading-tight bg-primary/10 text-primary-foreground border-l-2 border-primary rounded-r bg-primary hover:bg-primary/90 transition-colors truncate"
+                    className="block p-1 text-[10px] leading-tight text-white border-l-2 border-primary rounded-r bg-primary hover:bg-primary/90 transition-colors truncate"
                     title={event.title}
                   >
                     <span className="font-bold">{event.title}</span>

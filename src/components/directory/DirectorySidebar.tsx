@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Business, DEFAULT_BUSINESS_CATEGORIES, DEFAULT_AREAS } from '@/types/business';
 import { getFeaturedBusinesses } from '@/lib/directory';
+import { AdDisplay } from '../advertising/AdDisplay';
+import Image from 'next/image';
 
 interface DirectorySidebarProps {
   selectedCategory: string;
@@ -69,9 +71,11 @@ export function DirectorySidebar({
               >
                 <div className="w-12 h-12 bg-muted rounded overflow-hidden shrink-0">
                   {business.logo ? (
-                    <img
+                    <Image
                       src={business.logo}
                       alt={business.name}
+                      width={48}
+                      height={48}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -172,6 +176,9 @@ export function DirectorySidebar({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Ad Spot */}
+      <AdDisplay position="sidebar_sticky" />
     </div>
   );
 }

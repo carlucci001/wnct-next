@@ -1,588 +1,272 @@
 "use client";
 
-import { useState } from 'react';
-import {
-  Settings,
-  Users,
+import React from 'react';
+import Link from 'next/link';
+import { 
+  BarChart3, 
+  Target, 
+  Users, 
+  Globe, 
+  CheckCircle2, 
+  ArrowRight,
   TrendingUp,
-  Target,
-  BarChart3,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Send,
-  Loader2,
-  Megaphone,
-  LayoutGrid,
-  Newspaper,
-  Monitor,
+  Mail,
+  Smartphone,
+  Layout as LayoutIcon,
+  MousePointer2
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { AdvertiseSidebar } from '@/components/advertising/AdvertiseSidebar';
-import { AdConfigModal } from '@/components/advertising/AdConfigModal';
 
-// FAQ data
-const faqs = [
-  {
-    question: 'What ad formats do you support?',
-    answer:
-      'We support various formats including leaderboard banners (728x90), medium rectangles (300x250), wide skyscrapers (160x600), native sponsored content, and custom placements. Our team can help you choose the best format for your campaign goals.',
-  },
-  {
-    question: 'How do you measure ad performance?',
-    answer:
-      'We provide detailed analytics including impressions, clicks, click-through rate (CTR), and engagement metrics. You\'ll have access to a dashboard showing real-time performance data for your campaigns.',
-  },
-  {
-    question: 'Can I target specific audiences?',
-    answer:
-      'Yes! We offer targeting options based on content categories (News, Sports, Business, etc.), geographic location within Western NC, and device type. Premium packages include advanced demographic targeting.',
-  },
-  {
-    question: 'What is the minimum ad commitment?',
-    answer:
-      'Our Starter package begins at $299/month with no long-term commitment required. We also offer discounted rates for quarterly and annual contracts.',
-  },
-  {
-    question: 'Do you offer sponsored content?',
-    answer:
-      'Absolutely! Our native advertising options include sponsored articles that integrate seamlessly with our editorial content. These are clearly labeled as sponsored but match our site\'s look and feel.',
-  },
-  {
-    question: 'How quickly can my ad go live?',
-    answer:
-      'Standard campaigns can be live within 24-48 hours after receiving your creative assets. Rush placements are available for breaking news or time-sensitive promotions.',
-  },
+const STATS = [
+  { label: 'Monthly Readers', value: '50,000+', icon: Users, color: 'text-blue-600' },
+  { label: 'Ad Impressions', value: '250k+', icon: BarChart3, color: 'text-emerald-600' },
+  { label: 'Engagement Rate', value: '3.2%', icon: Target, color: 'text-amber-600' },
+  { label: 'Local Reach', value: 'WNC Area', icon: Globe, color: 'text-purple-600' },
 ];
 
-// Pricing tiers
-const pricingTiers = [
+const PLACEMENTS = [
   {
-    name: 'Starter',
-    price: '$299',
-    period: '/month',
-    description: 'Perfect for small businesses testing the waters',
-    features: [
-      'Sidebar ad placement (300x250)',
-      '10,000 impressions/month',
-      'Basic analytics dashboard',
-      'Email support',
-      'Monthly performance report',
-    ],
-    highlighted: false,
+    title: 'Header Leaderboard',
+    desc: 'The first thing readers see. High-impact 728x90 banner space.',
+    icon: LayoutIcon,
+    tag: 'Premium',
+    position: 'header_main'
   },
   {
-    name: 'Professional',
-    price: '$599',
-    period: '/month',
-    description: 'Ideal for growing businesses seeking visibility',
-    features: [
-      'Header + Sidebar placements',
-      '50,000 impressions/month',
-      'Advanced analytics & heatmaps',
-      'Priority support',
-      'A/B testing capabilities',
-      'Custom audience targeting',
-    ],
-    highlighted: true,
+    title: 'Sidebar Box Ad',
+    desc: 'Consistent visibility alongside top news and trending stories.',
+    icon: Smartphone,
+    tag: 'Popular',
+    position: 'sidebar_top'
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: '',
-    description: 'For brands requiring maximum exposure',
-    features: [
-      'Premium homepage placement',
-      'Unlimited impressions',
-      'Dedicated account manager',
-      'Native sponsored content',
-      'Exclusive category sponsorship',
-      'Custom integrations',
-      'Quarterly strategy reviews',
-    ],
-    highlighted: false,
-  },
-];
-
-// Audience stats
-const audienceStats = [
-  { label: 'Monthly Readers', value: '50,000+', icon: Users },
-  { label: 'Page Views', value: '200,000+', icon: TrendingUp },
-  { label: 'Avg. Time on Site', value: '4:30 min', icon: Target },
-  { label: 'Local Reach', value: '85%', icon: BarChart3 },
-];
-
-// Ad placement types
-const adPlacements = [
-  {
-    title: 'Header Banner',
-    size: '728x90',
-    description: 'Premium visibility at the top of every page',
-    icon: Monitor,
-  },
-  {
-    title: 'Sidebar Rectangle',
-    size: '300x250',
-    description: 'High-engagement placement alongside content',
-    icon: LayoutGrid,
-  },
-  {
-    title: 'In-Article',
-    size: '300x250',
-    description: 'Seamless placement within article content',
-    icon: Newspaper,
-  },
-  {
-    title: 'Native Sponsored',
-    size: 'Custom',
-    description: 'Branded content that matches editorial style',
-    icon: Megaphone,
-  },
+    title: 'In-Article Native',
+    desc: 'Seamlessly integrated into the reading experience for high engagement.',
+    icon: MousePointer2,
+    tag: 'High CTR',
+    position: 'article_inline'
+  }
 ];
 
 export default function AdvertisePage() {
-  const { userProfile } = useAuth();
-  const [configOpen, setConfigOpen] = useState(false);
-  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    phone: '',
-    budget: '',
-    message: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const isAdmin =
-    userProfile?.role &&
-    ['admin', 'business-owner', 'editor-in-chief'].includes(userProfile.role);
-
-  const handleFormChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-
-    // Simulate form submission
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    toast.success('Thank you! We\'ll be in touch within 24 hours.');
-    setFormData({
-      name: '',
-      email: '',
-      company: '',
-      phone: '',
-      budget: '',
-      message: '',
-    });
-    setSubmitting(false);
-  };
-
   return (
-    <div className="container mx-auto px-4 md:px-0 py-6 min-h-screen">
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        {/* LEFT COLUMN: Main Content (2/3 width on desktop) */}
-        <div className="lg:w-2/3 flex flex-col w-full">
-          {/* Header with title and admin gear icon */}
-          <div className="mb-6 flex justify-between items-end border-b border-gray-200 dark:border-gray-700 pb-4">
-            <div>
-              <h1 className="text-3xl font-serif font-bold text-gray-900 dark:text-white">
-                Advertise With Us
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                Reach engaged readers across Western North Carolina
-              </p>
+    <div className="min-h-screen bg-white dark:bg-slate-950 font-sans">
+      {/* Hero Section */}
+      <section className="relative py-20 overflow-hidden bg-slate-900 border-b border-white/5">
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=2000')] bg-cover bg-center opacity-20" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent via-slate-900/50 to-slate-900" />
+        
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest mb-6 border border-blue-500/30">
+              <TrendingUp size={14} />
+              Partner with WNC Times
             </div>
-            {isAdmin && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setConfigOpen(true)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <Settings size={20} />
+            <h1 className="text-5xl md:text-7xl font-serif font-black text-white leading-tight mb-8">
+              Reach the heart of <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-emerald-400">Western North Carolina.</span>
+            </h1>
+            <p className="text-xl text-slate-300 leading-relaxed mb-10 max-w-2xl">
+              Connect your brand with 50,000+ local readers monthly. From local businesses to regional events, our platform offers the most targeted reach in the WNC area.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Button size="lg" className="h-14 px-8 text-lg font-bold bg-blue-600 hover:bg-blue-500 shadow-xl shadow-blue-500/20" asChild>
+                <Link href="/account?tab=ads">
+                  Launch Your Campaign <ArrowRight className="ml-2" />
+                </Link>
               </Button>
-            )}
+              <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-bold border-white/20 text-white hover:bg-white/10" asChild>
+                <Link href="#contact">
+                  Talk to Sales
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-12 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {STATS.map((stat) => (
+              <div key={stat.label} className="text-center group">
+                <div className={`w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform ${stat.color}`}>
+                  <stat.icon size={24} />
+                </div>
+                <div className="text-3xl font-black text-slate-900 dark:text-white mb-1">
+                  {stat.value}
+                </div>
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="container mx-auto px-4 py-20">
+        <div className="flex flex-col lg:flex-row gap-16">
+          {/* Main Content */}
+          <div className="lg:w-2/3 space-y-20">
+            {/* Ad Options */}
+            <div>
+              <div className="mb-10">
+                <h2 className="text-3xl font-serif font-black text-slate-900 dark:text-white mb-4">
+                  Where Your Ad Appears
+                </h2>
+                <p className="text-lg text-slate-600 dark:text-slate-400">
+                  Select the placement that best fits your campaign goals. Our responsive patterns ensure your brand looks great on every device.
+                </p>
+              </div>
+
+              <div className="grid gap-6">
+                {PLACEMENTS.map((opt) => (
+                  <Card key={opt.title} className="group overflow-hidden border-slate-200 dark:border-slate-800 hover:border-blue-500/50 transition-all hover:shadow-xl hover:shadow-blue-500/5 bg-white dark:bg-slate-900">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col md:flex-row">
+                        <div className="md:w-1/3 relative h-48 md:h-auto bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800">
+                          <opt.icon className="text-slate-400 group-hover:text-blue-500 transition-colors" size={64} strokeWidth={1} />
+                        </div>
+                        <div className="p-8 md:w-2/3">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest">
+                              {opt.tag}
+                            </span>
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                            {opt.title}
+                          </h3>
+                          <p className="text-slate-600 dark:text-slate-400 mb-6 font-medium">
+                            {opt.desc}
+                          </p>
+                          <Button variant="link" className="p-0 h-auto text-blue-600 dark:text-blue-400 font-bold group" asChild>
+                            <Link href={`/admin?tab=advertising&position=${opt.position}`}>
+                              Select Placement <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* How it Works */}
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-10 md:p-16 border border-slate-200 dark:border-slate-800">
+              <h2 className="text-3xl font-serif font-black text-slate-900 dark:text-white mb-12 text-center">
+                Launch in Minutes
+              </h2>
+              <div className="grid md:grid-cols-3 gap-12 relative">
+                {/* Connector lines for desktop */}
+                <div className="hidden md:block absolute top-10 left-1/4 right-1/4 h-px bg-slate-200 dark:bg-slate-700 -z-1" />
+                
+                {[
+                  { step: '01', title: 'Create Account', desc: 'Sign up as an advertiser in our unified portal.' },
+                  { step: '02', title: 'Upload Creative', desc: 'Choose your placement and upload your banner imagery.' },
+                  { step: '03', title: 'Go Live', desc: 'Set your budget, dates, and watch your stats grow.' }
+                ].map((item) => (
+                  <div key={item.step} className="text-center relative">
+                    <div className="w-20 h-20 rounded-full bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center mx-auto mb-6 text-2xl font-black text-blue-600 border border-slate-100 dark:border-slate-700">
+                      {item.step}
+                    </div>
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{item.title}</h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact Form Placeholder / Sales Integration */}
+            <div id="contact" className="py-10">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                  <Mail size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white">Custom Solutions</h2>
+                  <p className="text-slate-500 dark:text-slate-400">Need something bigger? Talk to our managed sales team.</p>
+                </div>
+              </div>
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <CardContent className="p-8">
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <p className="text-slate-700 dark:text-slate-300 font-medium">Looking for something specific? We offer specialized packages for:</p>
+                      <ul className="space-y-3">
+                        {['Grand Openings', 'Event Series', 'Corporate Branding', 'Native Content Stories'].map(item => (
+                          <li key={item} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <CheckCircle2 size={16} className="text-emerald-500" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex flex-col justify-center gap-4">
+                      <Button size="lg" className="h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold" asChild>
+                        <a href="mailto:advertising@wnctimes.com">Email Advertising Sales</a>
+                      </Button>
+                      <p className="text-center text-xs text-slate-500">Typical response time: &lt; 24 hours</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Hero Section */}
-          <section className="mb-10">
-            <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 dark:from-blue-700 dark:to-blue-900 rounded-xl p-8 md:p-12 text-white overflow-hidden">
-              <div className="relative z-10">
-                <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                  Connect With Your Local Community
-                </h2>
-                <p className="text-blue-100 text-lg mb-6 max-w-2xl">
-                  WNC Times reaches over 50,000 engaged readers monthly who trust us
-                  for local news, events, and community updates. Put your brand in
-                  front of the audience that matters most.
+          {/* Side Pan (Sidebar) */}
+          <aside className="lg:w-1/3 shrink-0">
+            <div className="sticky top-24">
+              <AdvertiseSidebar />
+              
+              {/* Extra Value Proposition */}
+              <div className="mt-8 rounded-3xl bg-linear-to-br from-blue-600 to-indigo-700 p-8 text-white shadow-2xl shadow-blue-500/20 overflow-hidden relative">
+                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+                <h3 className="text-xl font-bold mb-4 relative z-10">Real-Time Stats</h3>
+                <p className="text-blue-100 text-sm mb-6 leading-relaxed relative z-10">
+                  All advertisers get access to a private dashboard to track impressions, clicks, and CTR in real-time. Optimize your creative based on actual performance.
                 </p>
-                <div className="flex flex-wrap gap-4">
-                  <Button
-                    size="lg"
-                    variant="secondary"
-                    className="bg-white text-blue-700 hover:bg-blue-50"
-                    asChild
-                  >
-                    <a href="#contact-form">Get Started Today</a>
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-white/30 text-white hover:bg-white/10"
-                  >
-                    Download Media Kit
-                  </Button>
+                <div className="p-4 bg-black/20 rounded-xl border border-white/10 relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Live CTR</span>
+                    <span className="text-sm font-black text-white">4.2%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 w-[60%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+                  </div>
                 </div>
               </div>
             </div>
-          </section>
-
-          {/* Audience Stats */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Our Audience
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {audienceStats.map((stat) => (
-                <Card
-                  key={stat.label}
-                  className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                >
-                  <CardContent className="pt-6 text-center">
-                    <stat.icon className="w-8 h-8 mx-auto mb-2 text-blue-600 dark:text-blue-400" />
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {stat.value}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {stat.label}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-
-          {/* Ad Placements */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Ad Placements
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              {adPlacements.map((placement) => (
-                <Card
-                  key={placement.title}
-                  className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <placement.icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {placement.title}
-                        </h3>
-                        <Badge variant="secondary" className="mt-1 mb-2">
-                          {placement.size}
-                        </Badge>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {placement.description}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-
-          {/* Benefits */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Why Advertise With WNC Times?
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              {[
-                {
-                  title: 'Hyperlocal Reach',
-                  description:
-                    '85% of our audience lives and works in Western NC. Reach customers in your backyard.',
-                },
-                {
-                  title: 'Engaged Readers',
-                  description:
-                    'Our audience spends an average of 4+ minutes per visit, actively consuming content.',
-                },
-                {
-                  title: 'Trusted Platform',
-                  description:
-                    'As a local news source, we\'ve built trust with the community over years of journalism.',
-                },
-                {
-                  title: 'Measurable Results',
-                  description:
-                    'Real-time analytics show exactly how your campaigns perform with detailed reports.',
-                },
-                {
-                  title: 'Flexible Options',
-                  description:
-                    'From banner ads to sponsored content, choose the format that fits your goals.',
-                },
-                {
-                  title: 'Expert Support',
-                  description:
-                    'Our advertising team helps optimize your campaigns for maximum ROI.',
-                },
-              ].map((benefit) => (
-                <div
-                  key={benefit.title}
-                  className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
-                  <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white">
-                      {benefit.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {benefit.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Pricing Tiers */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Pricing Plans
-            </h2>
-            <div className="grid md:grid-cols-3 gap-4">
-              {pricingTiers.map((tier) => (
-                <Card
-                  key={tier.name}
-                  className={`relative ${
-                    tier.highlighted
-                      ? 'border-blue-500 dark:border-blue-400 border-2 bg-blue-50/50 dark:bg-blue-900/20'
-                      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {tier.highlighted && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-blue-600 text-white">Most Popular</Badge>
-                    </div>
-                  )}
-                  <CardHeader>
-                    <CardTitle className="text-lg">{tier.name}</CardTitle>
-                    <CardDescription>{tier.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="mb-4">
-                      <span className="text-3xl font-bold text-gray-900 dark:text-white">
-                        {tier.price}
-                      </span>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {tier.period}
-                      </span>
-                    </div>
-                    <ul className="space-y-2 mb-6">
-                      {tier.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-sm">
-                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Button
-                      className="w-full"
-                      variant={tier.highlighted ? 'default' : 'outline'}
-                      asChild
-                    >
-                      <a href="#contact-form">
-                        {tier.name === 'Enterprise' ? 'Contact Sales' : 'Get Started'}
-                      </a>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-
-          {/* FAQ Section */}
-          <section className="mb-10">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Frequently Asked Questions
-            </h2>
-            <div className="space-y-2">
-              {faqs.map((faq, index) => (
-                <div
-                  key={index}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setExpandedFaq(expandedFaq === index ? null : index)
-                    }
-                    className="w-full flex items-center justify-between p-4 text-left bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {faq.question}
-                    </span>
-                    {expandedFaq === index ? (
-                      <ChevronUp className="w-5 h-5 text-gray-500 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-500 shrink-0" />
-                    )}
-                  </button>
-                  {expandedFaq === index && (
-                    <div className="px-4 pb-4 bg-white dark:bg-gray-900">
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        {faq.answer}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Contact Form */}
-          <section id="contact-form" className="scroll-mt-24">
-            <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle>Ready to Get Started?</CardTitle>
-                <CardDescription>
-                  Fill out the form below and our advertising team will contact you
-                  within 24 hours.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name *</Label>
-                      <Input
-                        id="name"
-                        name="name"
-                        required
-                        value={formData.name}
-                        onChange={handleFormChange}
-                        placeholder="John Smith"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address *</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={handleFormChange}
-                        placeholder="john@company.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Company Name</Label>
-                      <Input
-                        id="company"
-                        name="company"
-                        value={formData.company}
-                        onChange={handleFormChange}
-                        placeholder="Acme Inc."
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={handleFormChange}
-                        placeholder="(828) 555-1234"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="budget">Monthly Budget</Label>
-                    <select
-                      id="budget"
-                      name="budget"
-                      value={formData.budget}
-                      onChange={handleFormChange}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-                    >
-                      <option value="">Select a budget range</option>
-                      <option value="under-500">Under $500/month</option>
-                      <option value="500-1000">$500 - $1,000/month</option>
-                      <option value="1000-2500">$1,000 - $2,500/month</option>
-                      <option value="2500-5000">$2,500 - $5,000/month</option>
-                      <option value="5000+">$5,000+/month</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="message">Tell us about your goals</Label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      rows={4}
-                      value={formData.message}
-                      onChange={handleFormChange}
-                      placeholder="What are you hoping to achieve with your advertising campaign?"
-                      className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 resize-none"
-                    />
-                  </div>
-
-                  <Button type="submit" size="lg" disabled={submitting}>
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Submit Inquiry
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </section>
-        </div>
-
-        {/* RIGHT COLUMN: Sidebar (1/3 width, hidden on mobile) */}
-        <div className="lg:w-1/3 hidden lg:flex flex-col sticky top-24 space-y-6">
-          <AdvertiseSidebar />
+          </aside>
         </div>
       </div>
-
-      {/* Admin Config Modal */}
-      <AdConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />
+      
+      {/* Final CTA Full Width */}
+      <section className="bg-slate-900 py-32 border-t border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-linear-to-br from-blue-900/20 to-transparent" />
+        <div className="container mx-auto px-4 relative z-10 text-center">
+          <h2 className="text-4xl md:text-6xl font-serif font-black text-white mb-8">
+            Ready to grow your <br />WNC business?
+          </h2>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+            <Button size="lg" className="h-16 px-12 text-xl font-black bg-blue-600 hover:bg-blue-500 rounded-full shadow-2xl shadow-blue-500/30" asChild>
+              <Link href="/admin?tab=advertising">
+                Start Your First Ad
+              </Link>
+            </Button>
+            <span className="text-slate-500 font-bold uppercase tracking-widest px-4">OR</span>
+            <Button variant="outline" size="lg" className="h-16 px-12 text-xl font-black border-white/20 text-white rounded-full hover:bg-white/10" asChild>
+              <Link href="/contact">
+                Get a Quote
+              </Link>
+            </Button>
+          </div>
+          <p className="mt-10 text-slate-500 text-sm font-medium">No minimum spend required. Cancel anytime.</p>
+        </div>
+      </section>
     </div>
   );
 }
