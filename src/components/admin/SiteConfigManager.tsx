@@ -48,6 +48,7 @@ export default function SiteConfigManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [hasChanges, setHasChanges] = useState(false);
@@ -75,6 +76,7 @@ export default function SiteConfigManager() {
     try {
       setSaving(true);
       setSaveStatus('idle');
+      setErrorMessage(null);
       const response = await fetch('/api/admin/site-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -88,10 +90,13 @@ export default function SiteConfigManager() {
         setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
         setSaveStatus('error');
+        setErrorMessage(data.error || data.details || 'Unknown error occurred');
+        console.error('Save failed:', data);
       }
     } catch (error) {
       console.error('Failed to save site config:', error);
       setSaveStatus('error');
+      setErrorMessage(error instanceof Error ? error.message : 'Network error - check your connection');
     } finally {
       setSaving(false);
     }
@@ -187,9 +192,16 @@ export default function SiteConfigManager() {
             </Badge>
           )}
           {saveStatus === 'error' && (
-            <Badge variant="destructive">
-              <AlertTriangle className="h-3 w-3 mr-1" /> Error Saving
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="destructive">
+                <AlertTriangle className="h-3 w-3 mr-1" /> Error Saving
+              </Badge>
+              {errorMessage && (
+                <span className="text-xs text-destructive max-w-xs truncate" title={errorMessage}>
+                  {errorMessage}
+                </span>
+              )}
+            </div>
           )}
           <Button variant="outline" size="sm" onClick={() => setShowResetDialog(true)}>
             <RotateCcw className="h-4 w-4 mr-2" /> Reset
