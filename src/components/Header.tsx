@@ -158,11 +158,9 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center space-x-4">
             <WeatherWidget />
             <span className="hidden md:inline text-gray-500">|</span>
-            {mounted && (
-              <span className="hidden md:block text-gray-400">
-                {dateStr}
-              </span>
-            )}
+            <span className="hidden md:block text-gray-400" suppressHydrationWarning>
+              {dateStr}
+            </span>
           </div>
 
           <div className="flex items-center space-x-4">
