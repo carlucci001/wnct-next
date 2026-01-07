@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config';
 
 interface MenuSections {
   ai: boolean;
@@ -273,16 +273,28 @@ export function AdminSidebar({
               >
                 Community
               </NavItem>
-              <NavItem
-                active={activeTab === 'menus'}
-                onClick={() => setActiveTab('menus')}
-                icon={Menu}
-                iconColor="text-indigo-600"
-              >
-                Menus
-              </NavItem>
             </CollapsibleContent>
           </Collapsible>
+
+          <Separator />
+
+          {/* Navigation Section */}
+          <div>
+            <div className="px-3 py-1 mb-2">
+              <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <Menu size={12} className="text-indigo-500" />
+                Navigation
+              </span>
+            </div>
+            <NavItem
+              active={activeTab === 'menus'}
+              onClick={() => setActiveTab('menus')}
+              icon={Menu}
+              iconColor="text-indigo-600"
+            >
+              Menu Manager
+            </NavItem>
+          </div>
 
           <Separator />
 
@@ -375,6 +387,14 @@ export function AdminSidebar({
               />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'site-config'}
+                onClick={() => setActiveTab('site-config')}
+                icon={Building2}
+                iconColor="text-emerald-600"
+              >
+                Site Configuration
+              </NavItem>
               <NavItem
                 active={activeTab === 'settings'}
                 onClick={() => setActiveTab('settings')}
