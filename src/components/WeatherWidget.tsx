@@ -17,8 +17,15 @@ interface WeatherWidgetProps {
 const WeatherWidget: React.FC<WeatherWidgetProps> = ({ variant = "compact" }) => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     const fetchWeather = async (lat: number, lon: number) => {
       try {
         // Using Open-Meteo API (free, no API key required)
@@ -77,7 +84,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ variant = "compact" }) =>
       // Fallback to Asheville, NC
       fetchWeather(35.5951, -82.5515);
     }
-  }, []);
+  }, [mounted]);
 
   const getStateAbbreviation = (state: string): string => {
     const stateMap: Record<string, string> = {
@@ -139,7 +146,8 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ variant = "compact" }) =>
     }
   };
 
-  if (loading) {
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted || loading) {
     return (
       <div className="flex items-center text-gray-400">
         <Loader2 size={14} className="mr-1.5 animate-spin" />

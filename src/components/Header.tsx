@@ -3,13 +3,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, Search, SlidersHorizontal, Palette, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDb } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import WeatherWidget from "./WeatherWidget";
+
+// Dynamic import with SSR disabled to prevent hydration mismatch
+const WeatherWidget = dynamic(() => import("./WeatherWidget"), {
+  ssr: false,
+  loading: () => <span className="text-gray-400 text-xs">Loading weather...</span>
+});
 import BreakingNews from "./BreakingNews";
 import ThemeSelector from "./ThemeSelector";
 import { AdDisplay } from "./advertising/AdDisplay";
@@ -158,7 +164,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           <div className="flex items-center space-x-4">
             <WeatherWidget />
             <span className="hidden md:inline text-gray-500">|</span>
-            <span className="hidden md:block text-gray-400" suppressHydrationWarning>
+            <span className="hidden md:block text-gray-400">
               {dateStr}
             </span>
           </div>
@@ -173,9 +179,11 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
             </nav>
 
             <div className="flex items-center space-x-3 pl-4 border-l border-gray-700">
-              <button onClick={toggleColorMode} className="hover:text-white transition-colors" title={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
-                {colorMode === "light" ? <Moon size={14} /> : <Sun size={14} />}
-              </button>
+              {mounted && (
+                <button onClick={toggleColorMode} className="hover:text-white transition-colors" title={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+                  {colorMode === "light" ? <Moon size={14} /> : <Sun size={14} />}
+                </button>
+              )}
 
               <div className="relative" ref={menuRef}>
                 {mounted ? (
@@ -291,8 +299,8 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               </h1>
               {displaySettings.showTagline && (
                 <span
-                  className="mt-1.5 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-white"
-                  style={{ backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar }}
+                  className="mt-1.5 px-2 py-0.5 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-white bg-blue-700 dark:bg-slate-800"
+                  style={mounted ? { backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar } : undefined}
                 >
                   {displaySettings.tagline}
                 </span>
@@ -328,7 +336,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       </div>
 
       {/* Main Navigation */}
-      <nav className="sticky top-0 z-30 shadow-md" style={{ backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar }}>
+      <nav className="sticky top-0 z-30 shadow-md bg-blue-700 dark:bg-slate-800" style={mounted ? { backgroundColor: colorMode === 'dark' ? currentTheme.colors.navBarDark : currentTheme.colors.navBar } : undefined}>
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-12">
             {/* Left: Navigation Links */}
