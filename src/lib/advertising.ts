@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
   collection,
   doc,
@@ -26,7 +26,7 @@ const SETTINGS_DOC_ID = 'advertising';
 export async function createAd(
   data: Omit<Advertisement, 'id' | 'createdAt' | 'impressions' | 'clicks'>
 ): Promise<string> {
-  const docRef = doc(collection(db, COLLECTION_NAME));
+  const docRef = doc(collection(getDb(), COLLECTION_NAME));
   await setDoc(docRef, {
     ...data,
     id: docRef.id,
@@ -39,7 +39,7 @@ export async function createAd(
 
 // READ (List all)
 export async function getAds(): Promise<Advertisement[]> {
-  const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+  const q = query(collection(getDb(), COLLECTION_NAME), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as Advertisement));
 }
@@ -48,7 +48,7 @@ export async function getAds(): Promise<Advertisement[]> {
 export async function getActiveAds(): Promise<Advertisement[]> {
   const now = Timestamp.now();
   const q = query(
-    collection(db, COLLECTION_NAME),
+    collection(getDb(), COLLECTION_NAME),
     where('status', '==', 'active'),
     orderBy('priority', 'desc')
   );
@@ -68,7 +68,7 @@ export async function getActiveAds(): Promise<Advertisement[]> {
 export async function getAdsByPlacement(placement: string): Promise<Advertisement[]> {
   const now = Timestamp.now();
   const q = query(
-    collection(db, COLLECTION_NAME),
+    collection(getDb(), COLLECTION_NAME),
     where('status', '==', 'active'),
     where('placement', '==', placement),
     orderBy('priority', 'desc')
@@ -88,7 +88,7 @@ export async function getAdsByPlacement(placement: string): Promise<Advertisemen
 export async function getAdsByType(type: Advertisement['type']): Promise<Advertisement[]> {
   const now = Timestamp.now();
   const q = query(
-    collection(db, COLLECTION_NAME),
+    collection(getDb(), COLLECTION_NAME),
     where('status', '==', 'active'),
     where('type', '==', type),
     orderBy('priority', 'desc')
@@ -106,7 +106,7 @@ export async function getAdsByType(type: Advertisement['type']): Promise<Adverti
 
 // READ (Single ad by ID)
 export async function getAdById(id: string): Promise<Advertisement | null> {
-  const docRef = doc(db, COLLECTION_NAME, id);
+  const docRef = doc(getDb(), COLLECTION_NAME, id);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
   return { ...docSnap.data(), id: docSnap.id } as Advertisement;
@@ -114,21 +114,21 @@ export async function getAdById(id: string): Promise<Advertisement | null> {
 
 // UPDATE
 export async function updateAd(id: string, updates: Partial<Advertisement>): Promise<void> {
-  await updateDoc(doc(db, COLLECTION_NAME, id), {
+  await updateDoc(doc(getDb(), COLLECTION_NAME, id), {
     ...updates,
   });
 }
 
 // DELETE
 export async function deleteAd(id: string): Promise<void> {
-  await deleteDoc(doc(db, COLLECTION_NAME, id));
+  await deleteDoc(doc(getDb(), COLLECTION_NAME, id));
 }
 
 // ==================== TRACKING ====================
 
 // Track Impression
 export async function trackImpression(adId: string): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, adId);
+  const docRef = doc(getDb(), COLLECTION_NAME, adId);
   await updateDoc(docRef, {
     impressions: increment(1),
   });
@@ -136,7 +136,7 @@ export async function trackImpression(adId: string): Promise<void> {
 
 // Track Click
 export async function trackClick(adId: string): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, adId);
+  const docRef = doc(getDb(), COLLECTION_NAME, adId);
   await updateDoc(docRef, {
     clicks: increment(1),
   });
@@ -146,7 +146,7 @@ export async function trackClick(adId: string): Promise<void> {
 
 // Get advertising settings
 export async function getAdvertisingSettings(): Promise<AdvertisingSettings | null> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
   return docSnap.data() as AdvertisingSettings;
@@ -156,7 +156,7 @@ export async function getAdvertisingSettings(): Promise<AdvertisingSettings | nu
 export async function updateAdvertisingSettings(
   settings: Partial<AdvertisingSettings>
 ): Promise<void> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   const docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
@@ -192,7 +192,7 @@ export async function getCampaignAnalytics(campaignName: string): Promise<{
   ads: Advertisement[];
 }> {
   const q = query(
-    collection(db, COLLECTION_NAME),
+    collection(getDb(), COLLECTION_NAME),
     where('campaignName', '==', campaignName)
   );
   const snapshot = await getDocs(q);

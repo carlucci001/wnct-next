@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '@/lib/firebase';
+import { auth, getDb } from '@/lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { UserRole } from '@/types/user';
@@ -23,7 +23,7 @@ export function useAuth() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const userDoc = await getDoc(doc(getDb(), 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUser({

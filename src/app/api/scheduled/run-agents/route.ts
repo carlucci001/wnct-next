@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { getDueScheduledAgents, updateAgentAfterRun, getAIJournalist } from '@/lib/aiJournalists';
 import { getCategoryBySlug, getCategory } from '@/lib/categories';
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Gemini API key from settings
-    const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+    const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
     const settings = settingsDoc.data();
     const geminiApiKey = settings?.geminiApiKey;
 
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           generatedBy: 'ai-agent',
         };
 
-        const articleRef = await addDoc(collection(db, 'articles'), articleData);
+        const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
 
         // Mark content item as processed
         await markItemProcessed(selectedItem.id, articleRef.id);

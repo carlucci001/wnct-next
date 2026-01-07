@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, doc, writeBatch, serverTimestamp, getDocs, deleteDoc } from 'firebase/firestore';
 
 // Force dynamic to prevent prerendering during build
@@ -323,8 +323,8 @@ function generateSlug(name: string): string {
 
 export async function GET() {
   try {
-    const batch = writeBatch(db);
-    const businessesRef = collection(db, 'businesses');
+    const batch = writeBatch(getDb());
+    const businessesRef = collection(getDb(), 'businesses');
     let totalSeeded = 0;
     const categoryStats: Record<string, number> = {};
 
@@ -398,12 +398,12 @@ export async function GET() {
 // DELETE - Clear all businesses (for re-seeding)
 export async function DELETE() {
   try {
-    const businessesRef = collection(db, 'businesses');
+    const businessesRef = collection(getDb(), 'businesses');
     const snapshot = await getDocs(businessesRef);
 
     let deleteCount = 0;
     for (const docSnap of snapshot.docs) {
-      await deleteDoc(doc(db, 'businesses', docSnap.id));
+      await deleteDoc(doc(getDb(), 'businesses', docSnap.id));
       deleteCount++;
     }
 

@@ -1,15 +1,10 @@
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
-import { db } from './firebase';
+import { getDb } from './firebase';
 import { Article, DashboardStats } from './types';
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  if (!db) {
-    console.warn("Firestore not initialized. Returning empty stats.");
-    return { totalArticles: 0, publishedArticles: 0, draftArticles: 0 };
-  }
-
   try {
-    const articlesRef = collection(db, 'articles');
+    const articlesRef = collection(getDb(), 'articles');
     const snapshot = await getDocs(articlesRef);
     const articles = snapshot.docs.map(doc => doc.data() as Article);
 
@@ -33,13 +28,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getRecentArticles(count: number = 5): Promise<Article[]> {
-  if (!db) {
-     console.warn("Firestore not initialized. Returning empty list.");
-     return [];
-  }
-
   try {
-    const articlesRef = collection(db, 'articles');
+    const articlesRef = collection(getDb(), 'articles');
     const q = query(articlesRef, orderBy('createdAt', 'desc'), limit(count));
     const querySnapshot = await getDocs(q);
 

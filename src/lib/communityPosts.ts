@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import {
   collection,
   doc,
@@ -68,7 +68,7 @@ const SETTINGS_DOC_ID = 'community';
 export async function createCommunityPost(
   data: Omit<CommunityPostData, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'likedBy' | 'commentsCount' | 'pinned' | 'status'>
 ): Promise<string> {
-  const docRef = doc(collection(db, POSTS_COLLECTION));
+  const docRef = doc(collection(getDb(), POSTS_COLLECTION));
   await setDoc(docRef, {
     ...data,
     id: docRef.id,
@@ -94,7 +94,7 @@ export async function getCommunityPosts(options?: {
   includeHidden?: boolean;
 }): Promise<CommunityPostData[]> {
   // Simple query - just order by createdAt (no composite index needed)
-  const q = query(collection(db, POSTS_COLLECTION), orderBy('createdAt', 'desc'));
+  const q = query(collection(getDb(), POSTS_COLLECTION), orderBy('createdAt', 'desc'));
 
   const snapshot = await getDocs(q);
   let posts = snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as CommunityPostData));
@@ -125,7 +125,7 @@ export async function getCommunityPosts(options?: {
  * Get a single post by ID
  */
 export async function getCommunityPostById(id: string): Promise<CommunityPostData | null> {
-  const docRef = doc(db, POSTS_COLLECTION, id);
+  const docRef = doc(getDb(), POSTS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) return null;
@@ -139,7 +139,7 @@ export async function updateCommunityPost(
   id: string,
   updates: Partial<Omit<CommunityPostData, 'id' | 'createdAt'>>
 ): Promise<void> {
-  await updateDoc(doc(db, POSTS_COLLECTION, id), {
+  await updateDoc(doc(getDb(), POSTS_COLLECTION, id), {
     ...updates,
     updatedAt: serverTimestamp(),
   });
@@ -149,7 +149,7 @@ export async function updateCommunityPost(
  * Delete a community post
  */
 export async function deleteCommunityPost(id: string): Promise<void> {
-  await deleteDoc(doc(db, POSTS_COLLECTION, id));
+  await deleteDoc(doc(getDb(), POSTS_COLLECTION, id));
 }
 
 // ============================================
@@ -160,7 +160,7 @@ export async function deleteCommunityPost(id: string): Promise<void> {
  * Like a post (optimistic UI supported)
  */
 export async function likePost(postId: string, userId: string): Promise<void> {
-  const postRef = doc(db, POSTS_COLLECTION, postId);
+  const postRef = doc(getDb(), POSTS_COLLECTION, postId);
   await updateDoc(postRef, {
     likes: increment(1),
     likedBy: arrayUnion(userId),
@@ -172,7 +172,7 @@ export async function likePost(postId: string, userId: string): Promise<void> {
  * Unlike a post
  */
 export async function unlikePost(postId: string, userId: string): Promise<void> {
-  const postRef = doc(db, POSTS_COLLECTION, postId);
+  const postRef = doc(getDb(), POSTS_COLLECTION, postId);
   await updateDoc(postRef, {
     likes: increment(-1),
     likedBy: arrayRemove(userId),
@@ -194,7 +194,7 @@ export async function getTrendingPosts(maxPosts: number = 5): Promise<CommunityP
 
   // Query posts from last 7 days, ordered by likes
   const q = query(
-    collection(db, POSTS_COLLECTION),
+    collection(getDb(), POSTS_COLLECTION),
     where('status', '==', 'active'),
     where('createdAt', '>=', sevenDaysAgoTimestamp),
     orderBy('createdAt', 'desc'),
@@ -213,7 +213,7 @@ export async function getTrendingPosts(maxPosts: number = 5): Promise<CommunityP
  */
 export async function getPinnedPosts(): Promise<CommunityPostData[]> {
   const q = query(
-    collection(db, POSTS_COLLECTION),
+    collection(getDb(), POSTS_COLLECTION),
     where('pinned', '==', true),
     where('status', '==', 'active'),
     orderBy('createdAt', 'desc')
@@ -227,7 +227,7 @@ export async function getPinnedPosts(): Promise<CommunityPostData[]> {
  * Pin/Unpin a post (admin only)
  */
 export async function togglePinPost(postId: string, pinned: boolean): Promise<void> {
-  await updateDoc(doc(db, POSTS_COLLECTION, postId), {
+  await updateDoc(doc(getDb(), POSTS_COLLECTION, postId), {
     pinned,
     updatedAt: serverTimestamp(),
   });
@@ -237,7 +237,7 @@ export async function togglePinPost(postId: string, pinned: boolean): Promise<vo
  * Flag a post for review
  */
 export async function flagPost(postId: string): Promise<void> {
-  await updateDoc(doc(db, POSTS_COLLECTION, postId), {
+  await updateDoc(doc(getDb(), POSTS_COLLECTION, postId), {
     status: 'flagged',
     updatedAt: serverTimestamp(),
   });
@@ -247,7 +247,7 @@ export async function flagPost(postId: string): Promise<void> {
  * Hide/Show a post (admin moderation)
  */
 export async function setPostVisibility(postId: string, hidden: boolean): Promise<void> {
-  await updateDoc(doc(db, POSTS_COLLECTION, postId), {
+  await updateDoc(doc(getDb(), POSTS_COLLECTION, postId), {
     status: hidden ? 'hidden' : 'active',
     updatedAt: serverTimestamp(),
   });
@@ -261,7 +261,7 @@ export async function setPostVisibility(postId: string, hidden: boolean): Promis
  * Get community settings
  */
 export async function getCommunitySettings(): Promise<CommunitySettings> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   const docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
@@ -278,7 +278,7 @@ export async function getCommunitySettings(): Promise<CommunitySettings> {
 export async function updateCommunitySettings(
   updates: Partial<CommunitySettings>
 ): Promise<void> {
-  const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   await setDoc(docRef, updates, { merge: true });
 }
 
@@ -300,14 +300,14 @@ export async function getCommunityStats(): Promise<{
 
   // Get all active posts
   const allPostsQuery = query(
-    collection(db, POSTS_COLLECTION),
+    collection(getDb(), POSTS_COLLECTION),
     where('status', '==', 'active')
   );
   const allPostsSnapshot = await getDocs(allPostsQuery);
 
   // Get posts from last week
   const recentPostsQuery = query(
-    collection(db, POSTS_COLLECTION),
+    collection(getDb(), POSTS_COLLECTION),
     where('status', '==', 'active'),
     where('createdAt', '>=', sevenDaysAgoTimestamp)
   );

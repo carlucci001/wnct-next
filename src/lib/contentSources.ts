@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   getDocs,
@@ -31,7 +31,7 @@ const ITEMS_COLLECTION = 'contentItems';
  */
 export async function getAllContentSources(activeOnly: boolean = false): Promise<ContentSource[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, SOURCES_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), SOURCES_COLLECTION));
     let sources = querySnapshot.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
@@ -84,7 +84,7 @@ export async function getSourcesForCategory(categoryId: string): Promise<Content
  */
 export async function getContentSource(id: string): Promise<ContentSource | null> {
   try {
-    const docRef = doc(db, SOURCES_COLLECTION, id);
+    const docRef = doc(getDb(), SOURCES_COLLECTION, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
 
@@ -116,7 +116,7 @@ export async function getContentSource(id: string): Promise<ContentSource | null
 export async function createContentSource(data: ContentSourceInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, SOURCES_COLLECTION), {
+    const docRef = await addDoc(collection(getDb(), SOURCES_COLLECTION), {
       ...data,
       createdAt: now,
       updatedAt: now,
@@ -136,7 +136,7 @@ export async function updateContentSource(
   data: Partial<ContentSourceInput>
 ): Promise<void> {
   try {
-    const docRef = doc(db, SOURCES_COLLECTION, id);
+    const docRef = doc(getDb(), SOURCES_COLLECTION, id);
     await updateDoc(docRef, {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -152,7 +152,7 @@ export async function updateContentSource(
  */
 export async function deleteContentSource(id: string): Promise<void> {
   try {
-    const docRef = doc(db, SOURCES_COLLECTION, id);
+    const docRef = doc(getDb(), SOURCES_COLLECTION, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting content source:', error);
@@ -171,11 +171,11 @@ export async function seedDefaultSources(): Promise<number> {
       return 0;
     }
 
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date().toISOString();
 
     DEFAULT_RSS_SOURCES.forEach((source) => {
-      const docRef = doc(collection(db, SOURCES_COLLECTION));
+      const docRef = doc(collection(getDb(), SOURCES_COLLECTION));
       batch.set(docRef, {
         ...source,
         createdAt: now,
@@ -201,11 +201,11 @@ export async function seedDefaultSources(): Promise<number> {
  */
 export async function saveContentItems(items: Omit<ContentItem, 'id'>[]): Promise<string[]> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const ids: string[] = [];
 
     for (const item of items) {
-      const docRef = doc(collection(db, ITEMS_COLLECTION));
+      const docRef = doc(collection(getDb(), ITEMS_COLLECTION));
       batch.set(docRef, item);
       ids.push(docRef.id);
     }
@@ -226,7 +226,7 @@ export async function getUnprocessedItems(
   limit: number = 10
 ): Promise<ContentItem[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ITEMS_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ITEMS_COLLECTION));
 
     let items = querySnapshot.docs
       .map((docSnap) => {
@@ -278,7 +278,7 @@ export async function getUnprocessedItems(
  */
 export async function markItemProcessed(itemId: string, articleId?: string): Promise<void> {
   try {
-    const docRef = doc(db, ITEMS_COLLECTION, itemId);
+    const docRef = doc(getDb(), ITEMS_COLLECTION, itemId);
     await updateDoc(docRef, {
       isProcessed: true,
       processedAt: new Date().toISOString(),
@@ -299,7 +299,7 @@ export async function cleanupOldItems(daysOld: number = 7): Promise<number> {
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
     const cutoff = cutoffDate.toISOString();
 
-    const querySnapshot = await getDocs(collection(db, ITEMS_COLLECTION));
+    const querySnapshot = await getDocs(collection(getDb(), ITEMS_COLLECTION));
     const itemsToDelete = querySnapshot.docs.filter((docSnap) => {
       const data = docSnap.data();
       return data.isProcessed && data.processedAt && data.processedAt < cutoff;
@@ -307,7 +307,7 @@ export async function cleanupOldItems(daysOld: number = 7): Promise<number> {
 
     if (itemsToDelete.length === 0) return 0;
 
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     itemsToDelete.forEach((docSnap) => {
       batch.delete(docSnap.ref);
     });
@@ -325,7 +325,7 @@ export async function cleanupOldItems(daysOld: number = 7): Promise<number> {
  */
 export async function updateSourceLastFetched(sourceId: string): Promise<void> {
   try {
-    const docRef = doc(db, SOURCES_COLLECTION, sourceId);
+    const docRef = doc(getDb(), SOURCES_COLLECTION, sourceId);
     await updateDoc(docRef, {
       lastFetchedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

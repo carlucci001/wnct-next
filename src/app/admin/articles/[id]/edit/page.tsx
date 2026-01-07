@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import ArticleForm from '@/components/admin/ArticleForm';
 import { Article } from '@/types/article';
@@ -20,7 +20,7 @@ export default function EditArticlePage() {
       if (!articleId) return;
 
       try {
-        const docRef = doc(db, 'articles', articleId);
+        const docRef = doc(getDb(), 'articles', articleId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {

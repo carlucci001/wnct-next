@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, writeBatch, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { generateSlug } from '@/lib/events';
 
@@ -128,11 +128,11 @@ const MOCK_EVENTS = [
 
 export async function GET() {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     const now = new Date();
     
     MOCK_EVENTS.forEach((event) => {
-      const eventRef = doc(collection(db, 'events'));
+      const eventRef = doc(collection(getDb(), 'events'));
       const startDate = new Date();
       startDate.setDate(now.getDate() + event.daysOffset);
       

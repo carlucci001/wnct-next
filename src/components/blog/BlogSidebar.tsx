@@ -1,237 +1,189 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Calendar, Tag, Archive, TrendingUp, User, Clock } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { 
+  Search, 
+  TrendingUp, 
+  Tag as TagIcon, 
+  Mail, 
+  User,
+  Quote
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { BlogPost, BlogSettings } from '@/types/blogPost';
-import { getRecentBlogPosts, getBlogArchive, getAllBlogTags, calculateReadingTime } from '@/lib/blog';
-import { Timestamp } from 'firebase/firestore';
+import { BlogPost } from '@/types/blogPost';
+import { getBlogPosts, formatBlogDate } from '@/lib/blog';
 
-interface BlogSidebarProps {
-  categories: string[];
-  activeCategory: string;
-  onCategoryChange: (category: string) => void;
-  settings?: BlogSettings | null;
-}
-
-export function BlogSidebar({ categories, activeCategory, onCategoryChange, settings }: BlogSidebarProps) {
-  const [recentPosts, setRecentPosts] = useState<BlogPost[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
-  const [archive, setArchive] = useState<{ month: string; year: number; count: number }[]>([]);
+export function BlogSidebar({ author }: { author?: Partial<BlogPost> }) {
+  const [recent, setRecent] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchSidebarData() {
+    async function loadRecent() {
       try {
-        const [postsData, tagsData, archiveData] = await Promise.all([
-          getRecentBlogPosts(5),
-          getAllBlogTags(),
-          getBlogArchive(),
-        ]);
-        setRecentPosts(postsData);
-        setTags(tagsData);
-        setArchive(archiveData.slice(0, 6)); // Only show last 6 months
+        const posts = await getBlogPosts({ status: 'published', limit: 4 });
+        setRecent(posts);
       } catch (error) {
-        console.error('Error fetching sidebar data:', error);
+        console.error('Error fetching recent blog posts:', error);
       } finally {
         setLoading(false);
       }
     }
-
-    fetchSidebarData();
+    loadRecent();
   }, []);
 
-  const formatDate = (timestamp: Timestamp | undefined) => {
-    if (!timestamp) return '';
-    const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  // Category color helper
-  const getCategoryColor = (category: string, isActive: boolean) => {
-    if (isActive) {
-      return 'bg-blue-600 text-white dark:bg-blue-500';
-    }
-    const colors: Record<string, string> = {
-      'Opinion': 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50',
-      'Column': 'bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50',
-      'Guest Post': 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-900/50',
-      'Lifestyle': 'bg-pink-100 text-pink-800 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:hover:bg-pink-900/50',
-      'Community': 'bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:hover:bg-orange-900/50',
-    };
-    return colors[category] || 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700';
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Categories */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white text-base">
-            <Tag size={18} className="text-blue-600 dark:text-blue-400" />
-            Categories
+    <div className="space-y-10 sticky top-24">
+      {/* Search Widget */}
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <CardHeader className="bg-muted/30 pb-4">
+          <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+            <Search size={14} className="text-primary" />
+            Search Blog
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onCategoryChange('all')}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                activeCategory === 'all'
-                  ? 'bg-blue-600 text-white dark:bg-blue-500'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-              }`}
-            >
-              All
-            </button>
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => onCategoryChange(category)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${getCategoryColor(
-                  category,
-                  activeCategory === category
-                )}`}
-              >
-                {category}
-              </button>
-            ))}
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search opinions, news..." 
+              className="pl-9 h-11 bg-muted/30 border-none rounded-xl"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Author Bio (if viewing a post) */}
+      {author && (
+        <Card className="border-border/50 shadow-sm overflow-hidden bg-primary/5">
+          <CardHeader className="border-b border-primary/10">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+              <User size={14} className="text-primary" />
+              About The Author
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-24 h-24 rounded-full border-4 border-background shadow-lg overflow-hidden mb-4">
+                {author.authorPhoto ? (
+                  <img src={author.authorPhoto} alt={author.authorName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary text-3xl font-black italic">
+                    {author.authorName?.[0]}
+                  </div>
+                )}
+              </div>
+              <h4 className="text-xl font-serif font-black mb-2">{author.authorName}</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed italic line-clamp-4">
+                {author.authorBio || "Bringing you unique perspectives and community voices from across Western North Carolina."}
+              </p>
+              <div className="mt-6 w-full pt-6 border-t border-primary/10">
+                <Button variant="outline" className="w-full rounded-full font-bold text-xs uppercase" size="sm">
+                  View Author Profile
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Newsletter Signup */}
+      <Card className="bg-slate-950 text-white border-none shadow-xl overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full -mr-16 -mt-16 blur-3xl" />
+        <CardContent className="p-8 relative z-10 text-center">
+          <Mail className="h-10 w-10 mb-4 mx-auto text-primary opacity-80" />
+          <h3 className="text-xl font-bold mb-2 font-serif">Community Voice</h3>
+          <p className="text-sm opacity-80 mb-6 leading-relaxed">
+            Get the best local opinion pieces and feature stories delivered to your inbox every week.
+          </p>
+          <div className="space-y-3">
+            <Input className="bg-white/10 border-white/20 text-white placeholder:text-white/40 h-11 text-center" placeholder="your@email.com" />
+            <Button className="w-full h-11 font-bold shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground border-none">
+              Subscribe Now
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Recent Posts */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white text-base">
-            <TrendingUp size={18} className="text-blue-600 dark:text-blue-400" />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b pb-2">
+          <h3 className="font-serif font-black text-lg flex items-center gap-2">
+            <TrendingUp size={18} className="text-primary" />
             Recent Posts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h3>
+        </div>
+        
+        <div className="space-y-4">
           {loading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex gap-3">
-                  <Skeleton className="w-16 h-16 rounded flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-3 w-2/3" />
-                  </div>
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex gap-4 animate-pulse">
+                <div className="w-20 h-20 bg-muted rounded-xl shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-4 bg-muted rounded w-3/4" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
                 </div>
-              ))}
-            </div>
-          ) : recentPosts.length > 0 ? (
-            <div className="space-y-4">
-              {recentPosts.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/blog/${post.slug}`}
-                  className="flex gap-3 group"
-                >
-                  <div className="relative w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700">
-                    {post.featuredImage ? (
-                      <Image
-                        src={post.featuredImage}
-                        alt={post.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-lg font-serif font-bold text-gray-300 dark:text-gray-500">
-                          {post.title.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {post.title}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={10} />
-                        {formatDate(post.publishedAt)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={10} />
-                        {calculateReadingTime(post.content)} min
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No recent posts yet.</p>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            ))
+          ) : recent.map((post) => (
+            <Link 
+              key={post.id} 
+              href={`/blog/${post.slug}`}
+              className="flex gap-4 group items-center p-2 rounded-2xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+            >
+              <div className="w-20 h-20 bg-muted rounded-xl overflow-hidden shrink-0 border border-border">
+                {post.featuredImage ? (
+                  <img src={post.featuredImage} alt={post.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 font-serif italic font-black text-xl">WNC</div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold group-hover:text-primary transition-colors line-clamp-2 text-sm leading-tight mb-1 font-serif">
+                  {post.title}
+                </h4>
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest flex items-center gap-2">
+                  <span>{formatBlogDate(post.createdAt)}</span>
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* Tags Cloud */}
-      {tags.length > 0 && (
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white text-base">
-              <Tag size={18} className="text-blue-600 dark:text-blue-400" />
-              Popular Tags
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {tags.slice(0, 12).map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  #{tag}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Archive */}
-      {archive.length > 0 && (
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white text-base">
-              <Archive size={18} className="text-blue-600 dark:text-blue-400" />
-              Archive
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {archive.map((item, index) => (
-                <li key={index}>
-                  <button
-                    className="flex items-center justify-between w-full text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                  >
-                    <span>
-                      {item.month} {item.year}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                      {item.count}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b pb-4">
+          <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+            <TagIcon size={14} className="text-primary" />
+            Popular Topics
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-2">
+            {['Asheville', 'Sustainability', 'Local Business', 'Art Scene', 'Hike WNC', 'Education', 'Politics', 'Foodie'].map((tag) => (
+              <Badge key={tag} variant="outline" className="rounded-full px-3 py-1 cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors text-[10px] font-bold uppercase tracking-wider">
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Featured Quote */}
+      <div className="bg-primary/5 p-8 rounded-3xl border border-primary/10 relative overflow-hidden group">
+        <Quote className="absolute -top-4 -left-4 w-24 h-24 text-primary/10 -rotate-12 transition-transform duration-500 group-hover:scale-110" />
+        <p className="text-lg font-serif font-bold relative z-10 leading-relaxed italic text-foreground/80">
+          "The voice of the community is the heart of a city. Without it, we are just a collection of buildings."
+        </p>
+        <div className="mt-6 flex items-center gap-3 relative z-10">
+          <div className="h-0.5 w-6 bg-primary" />
+          <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Local Perspective</span>
+        </div>
+      </div>
     </div>
   );
 }
-
-export default BlogSidebar;

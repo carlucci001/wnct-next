@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, doc, setDoc, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
@@ -71,7 +71,7 @@ const SEED_POSTS = [
 // GET - Seed community posts
 export async function GET() {
   try {
-    const postsRef = collection(db, 'communityPosts');
+    const postsRef = collection(getDb(), 'communityPosts');
 
     // Check if posts already exist
     const existingPosts = await getDocs(postsRef);
@@ -129,12 +129,12 @@ export async function GET() {
 // DELETE - Clear all community posts
 export async function DELETE() {
   try {
-    const postsRef = collection(db, 'communityPosts');
+    const postsRef = collection(getDb(), 'communityPosts');
     const snapshot = await getDocs(postsRef);
 
     let deleted = 0;
     for (const docSnap of snapshot.docs) {
-      await deleteDoc(doc(db, 'communityPosts', docSnap.id));
+      await deleteDoc(doc(getDb(), 'communityPosts', docSnap.id));
       deleted++;
     }
 

@@ -1,7 +1,7 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ChatAssistant from "@/components/ChatAssistant";
-import { db } from "@/lib/firebase";
+import { getDb } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 interface SiteSettings {
@@ -14,7 +14,7 @@ interface SiteSettings {
 
 async function getSettings(): Promise<SiteSettings> {
   try {
-    const settingsDoc = await getDoc(doc(db, "settings", "config"));
+    const settingsDoc = await getDoc(doc(getDb(), "settings", "config"));
     if (settingsDoc.exists()) {
       const data = settingsDoc.data();
       return {

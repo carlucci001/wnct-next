@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   getDocs,
@@ -30,7 +30,7 @@ const COLLECTION_NAME = 'scheduledTasks';
 export async function createScheduledTask(data: ScheduledTaskInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
       ...data,
       retryCount: 0,
       createdAt: now,
@@ -48,7 +48,7 @@ export async function createScheduledTask(data: ScheduledTaskInput): Promise<str
  */
 export async function getScheduledTask(id: string): Promise<ScheduledTask | null> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
 
@@ -83,7 +83,7 @@ export async function getScheduledTasks(options?: {
   limitCount?: number;
 }): Promise<ScheduledTask[]> {
   try {
-    let q = query(collection(db, COLLECTION_NAME), orderBy('scheduledFor', 'desc'));
+    let q = query(collection(getDb(), COLLECTION_NAME), orderBy('scheduledFor', 'desc'));
 
     // Note: Firestore doesn't support multiple inequality filters,
     // so we filter in memory for complex queries
@@ -166,7 +166,7 @@ export async function updateTaskStatus(
   result?: TaskResult
 ): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const now = new Date().toISOString();
 
     const updateData: Record<string, unknown> = {
@@ -204,7 +204,7 @@ export async function incrementRetryCount(id: string): Promise<boolean> {
     const newRetryCount = task.retryCount + 1;
     const shouldFail = newRetryCount >= task.maxRetries;
 
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       retryCount: newRetryCount,
       status: shouldFail ? 'failed' : 'pending',
@@ -246,7 +246,7 @@ export async function cancelTask(id: string): Promise<void> {
  */
 export async function deleteTask(id: string): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting task:', error);
@@ -273,9 +273,9 @@ export async function cleanupOldTasks(daysOld: number = 30): Promise<number> {
 
     if (tasksToDelete.length === 0) return 0;
 
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     tasksToDelete.forEach((task) => {
-      const docRef = doc(db, COLLECTION_NAME, task.id);
+      const docRef = doc(getDb(), COLLECTION_NAME, task.id);
       batch.delete(docRef);
     });
 

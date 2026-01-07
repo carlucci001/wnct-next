@@ -3,7 +3,7 @@
  * Firestore CRUD operations for media file metadata
  */
 
-import { db } from './firebase';
+import { getDb } from './firebase';
 import {
   collection,
   getDocs,
@@ -37,7 +37,7 @@ const COLLECTION_NAME = 'media';
 export async function createMediaFile(data: MediaFileInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
       ...data,
       usedInCount: 0,
       uploadedAt: now,
@@ -54,16 +54,16 @@ export async function createMediaFile(data: MediaFileInput): Promise<string> {
  */
 export async function getAllMedia(filters?: MediaFilter): Promise<MediaFile[]> {
   try {
-    let q = query(collection(db, COLLECTION_NAME), orderBy('uploadedAt', 'desc'));
+    let q = query(collection(getDb(), COLLECTION_NAME), orderBy('uploadedAt', 'desc'));
 
     // Apply folder filter
     if (filters?.folder && filters.folder !== 'all') {
-      q = query(collection(db, COLLECTION_NAME), where('folder', '==', filters.folder), orderBy('uploadedAt', 'desc'));
+      q = query(collection(getDb(), COLLECTION_NAME), where('folder', '==', filters.folder), orderBy('uploadedAt', 'desc'));
     }
 
     // Apply file type filter
     if (filters?.fileType && filters.fileType !== 'all') {
-      q = query(collection(db, COLLECTION_NAME), where('fileType', '==', filters.fileType), orderBy('uploadedAt', 'desc'));
+      q = query(collection(getDb(), COLLECTION_NAME), where('fileType', '==', filters.fileType), orderBy('uploadedAt', 'desc'));
     }
 
     const querySnapshot = await getDocs(q);
@@ -133,7 +133,7 @@ export async function getAllMedia(filters?: MediaFilter): Promise<MediaFile[]> {
  */
 export async function getMediaById(id: string): Promise<MediaFile | null> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
 
@@ -196,7 +196,7 @@ export async function getMediaByIds(ids: string[]): Promise<MediaFile[]> {
  */
 export async function updateMediaFile(id: string, updates: MediaFileUpdate): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...updates,
     });
@@ -211,9 +211,9 @@ export async function updateMediaFile(id: string, updates: MediaFileUpdate): Pro
  */
 export async function moveMediaToFolder(ids: string[], folder: MediaFolder): Promise<void> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     ids.forEach((id) => {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       batch.update(docRef, { folder });
     });
     await batch.commit();
@@ -230,7 +230,7 @@ export async function incrementUsageCount(id: string): Promise<void> {
   try {
     const media = await getMediaById(id);
     if (media) {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       await updateDoc(docRef, {
         usedInCount: (media.usedInCount || 0) + 1,
       });
@@ -248,7 +248,7 @@ export async function decrementUsageCount(id: string): Promise<void> {
   try {
     const media = await getMediaById(id);
     if (media) {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       await updateDoc(docRef, {
         usedInCount: Math.max(0, (media.usedInCount || 0) - 1),
       });
@@ -264,7 +264,7 @@ export async function decrementUsageCount(id: string): Promise<void> {
  */
 export async function deleteMediaFile(id: string): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, id);
+    const docRef = doc(getDb(), COLLECTION_NAME, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting media file:', error);
@@ -277,9 +277,9 @@ export async function deleteMediaFile(id: string): Promise<void> {
  */
 export async function bulkDeleteMedia(ids: string[]): Promise<void> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     ids.forEach((id) => {
-      const docRef = doc(db, COLLECTION_NAME, id);
+      const docRef = doc(getDb(), COLLECTION_NAME, id);
       batch.delete(docRef);
     });
     await batch.commit();
@@ -341,7 +341,7 @@ export async function getFolderStats(): Promise<Record<MediaFolder, number>> {
 export async function getRecentMedia(count: number = 10): Promise<MediaFile[]> {
   try {
     const q = query(
-      collection(db, COLLECTION_NAME),
+      collection(getDb(), COLLECTION_NAME),
       orderBy('uploadedAt', 'desc'),
       limit(count)
     );

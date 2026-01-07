@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const settingsDoc = await getDoc(doc(db, "settings", "config"));
+    const settingsDoc = await getDoc(doc(getDb(), "settings", "config"));
 
     if (settingsDoc.exists()) {
       const data = settingsDoc.data();

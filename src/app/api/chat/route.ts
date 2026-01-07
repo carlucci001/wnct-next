@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get settings from Firestore
-    const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+    const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
     const settings = settingsDoc.data();
 
     const apiKey = settings?.geminiApiKey;

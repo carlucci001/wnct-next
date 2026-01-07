@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   try {
     // Fetch all articles
-    const articlesSnapshot = await getDocs(collection(db, 'articles'));
+    const articlesSnapshot = await getDocs(collection(getDb(), 'articles'));
     const articles = articlesSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -30,7 +30,7 @@ export async function POST() {
     });
 
     // For each category, sort by date and update featured status
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     let featuredCount = 0;
     let unfeaturedCount = 0;
     let breakingClearedCount = 0;
@@ -58,7 +58,7 @@ export async function POST() {
           (isBreaking && !shouldBeBreaking);
 
         if (needsUpdate) {
-          const docRef = doc(db, 'articles', article.id);
+          const docRef = doc(getDb(), 'articles', article.id);
           const updates: Record<string, unknown> = {
             isFeatured: shouldBeFeatured,
             updatedAt: new Date().toISOString(),
@@ -118,7 +118,7 @@ export async function POST() {
 export async function GET() {
   try {
     // Fetch all articles
-    const articlesSnapshot = await getDocs(collection(db, 'articles'));
+    const articlesSnapshot = await getDocs(collection(getDb(), 'articles'));
     const articles = articlesSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Menu, X, Sun, Moon, User as UserIcon, LogOut, LayoutDashboard, Search, SlidersHorizontal, Palette, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { db } from "@/lib/firebase";
+import { getDb } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import WeatherWidget from "./WeatherWidget";
 import BreakingNews from "./BreakingNews";
@@ -97,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
     // Sync with Firestore for real-time updates
     const loadFromFirestore = async () => {
       try {
-        const settingsDoc = await getDoc(doc(db, "settings", "config"));
+        const settingsDoc = await getDoc(doc(getDb(), "settings", "config"));
         if (settingsDoc.exists()) {
           const data = settingsDoc.data();
           const newSettings = {
