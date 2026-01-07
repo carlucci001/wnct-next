@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getDb } from '@/lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Article } from '@/types/article';
-import { SiteMenu, MenuItem } from '@/types/menu';
 import {
   LayoutDashboard, FileText, Settings, Users, Database, User,
   Plus, Trash2, Edit, Save, X, RefreshCw, CheckCircle, LogOut,
@@ -141,6 +140,26 @@ const CommunityAdmin = dynamic(() => import('@/components/admin/CommunityAdmin')
   ),
 });
 
+// Dynamically import MenuManager
+const MenuManager = dynamic(() => import('@/components/admin/MenuManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
+// Dynamically import SiteConfigManager
+const SiteConfigManager = dynamic(() => import('@/components/admin/SiteConfigManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import AgentPromptEditor
 const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
   ssr: false,
@@ -181,7 +200,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config';
 
 interface DashboardStats {
   totalArticles: number;
@@ -340,14 +359,6 @@ export default function AdminDashboard() {
     totalViews: 0,
     categoryCounts: {},
   });
-
-  // Menu Management State
-  const [siteMenus, setSiteMenus] = useState<SiteMenu[]>([]);
-  const [loadingMenus, setLoadingMenus] = useState(false);
-  const [savingMenus, setSavingMenus] = useState(false);
-  const [editingMenuItem, setEditingMenuItem] = useState<{ menuId: string; itemId: string; label: string; path: string } | null>(null);
-  const [addingItemToMenu, setAddingItemToMenu] = useState<string | null>(null);
-  const [newMenuItem, setNewMenuItem] = useState({ label: '', path: '' });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -713,144 +724,6 @@ export default function AdminDashboard() {
       toast.error(text);
     }
   };
-
-  // Menu Management Functions
-  const loadMenus = async () => {
-    setLoadingMenus(true);
-    try {
-      const response = await fetch('/api/admin/menus');
-      const data = await response.json();
-      if (data.success) {
-        setSiteMenus(data.menus);
-      } else {
-        showMessage('error', data.error || 'Failed to load menus');
-      }
-    } catch (error) {
-      console.error('Error loading menus:', error);
-      showMessage('error', 'Failed to load menus');
-    } finally {
-      setLoadingMenus(false);
-    }
-  };
-
-  const saveMenu = async (menu: SiteMenu) => {
-    setSavingMenus(true);
-    try {
-      const response = await fetch('/api/admin/menus', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ menuId: menu.id, updates: menu }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setSiteMenus(prev => prev.map(m => m.id === menu.id ? data.menu : m));
-        showMessage('success', 'Menu saved successfully');
-      } else {
-        showMessage('error', data.error || 'Failed to save menu');
-      }
-    } catch (error) {
-      console.error('Error saving menu:', error);
-      showMessage('error', 'Failed to save menu');
-    } finally {
-      setSavingMenus(false);
-    }
-  };
-
-  const toggleMenuItem = async (menuId: string, itemId: string) => {
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const updatedItems = menu.items.map(item =>
-      item.id === itemId ? { ...item, enabled: !item.enabled } : item
-    );
-    const updatedMenu = { ...menu, items: updatedItems };
-    await saveMenu(updatedMenu);
-  };
-
-  const toggleMenu = async (menuId: string) => {
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const updatedMenu = { ...menu, enabled: !menu.enabled };
-    await saveMenu(updatedMenu);
-  };
-
-  const updateMenuItem = async (menuId: string, itemId: string, label: string, path: string) => {
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const updatedItems = menu.items.map(item =>
-      item.id === itemId ? { ...item, label, path } : item
-    );
-    const updatedMenu = { ...menu, items: updatedItems };
-    await saveMenu(updatedMenu);
-    setEditingMenuItem(null);
-  };
-
-  const addMenuItem = async (menuId: string) => {
-    if (!newMenuItem.label || !newMenuItem.path) {
-      showMessage('error', 'Label and path are required');
-      return;
-    }
-
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const newItem: MenuItem = {
-      id: `item-${Date.now()}`,
-      label: newMenuItem.label,
-      path: newMenuItem.path,
-      enabled: true,
-      order: menu.items.length,
-    };
-
-    const updatedMenu = { ...menu, items: [...menu.items, newItem] };
-    await saveMenu(updatedMenu);
-    setNewMenuItem({ label: '', path: '' });
-    setAddingItemToMenu(null);
-  };
-
-  const deleteMenuItem = async (menuId: string, itemId: string) => {
-    if (!confirm('Are you sure you want to remove this menu item?')) return;
-
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const updatedItems = menu.items
-      .filter(item => item.id !== itemId)
-      .map((item, index) => ({ ...item, order: index }));
-    const updatedMenu = { ...menu, items: updatedItems };
-    await saveMenu(updatedMenu);
-  };
-
-  const moveMenuItem = async (menuId: string, itemId: string, direction: 'up' | 'down') => {
-    const menu = siteMenus.find(m => m.id === menuId);
-    if (!menu) return;
-
-    const itemIndex = menu.items.findIndex(item => item.id === itemId);
-    if (itemIndex === -1) return;
-    if (direction === 'up' && itemIndex === 0) return;
-    if (direction === 'down' && itemIndex === menu.items.length - 1) return;
-
-    const newItems = [...menu.items];
-    const swapIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
-    [newItems[itemIndex], newItems[swapIndex]] = [newItems[swapIndex], newItems[itemIndex]];
-
-    // Update order values
-    newItems.forEach((item, index) => {
-      item.order = index;
-    });
-
-    const updatedMenu = { ...menu, items: newItems };
-    await saveMenu(updatedMenu);
-  };
-
-  // Load menus when menus tab is active
-  useEffect(() => {
-    if (activeTab === 'menus' && siteMenus.length === 0) {
-      loadMenus();
-    }
-  }, [activeTab]);
 
   const handleDeleteArticle = async (articleId: string) => {
     if (!confirm('Are you sure you want to delete this article?')) return;
@@ -6300,225 +6173,10 @@ Example structure:
             {activeTab === 'community' && <CommunityAdmin />}
 
             {/* Menus Management */}
-            {activeTab === 'menus' && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Menu className="h-5 w-5 text-indigo-600" />
-                      Menu Management
-                    </CardTitle>
-                    <CardDescription>
-                      Manage navigation menus across your site. Toggle items on/off, reorder, or add new menu items.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingMenus ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    ) : siteMenus.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Menu className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
-                        <p className="text-muted-foreground">No menus found. Loading defaults...</p>
-                        <Button onClick={loadMenus} className="mt-4" variant="outline">
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Refresh
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-8">
-                        {siteMenus.map((menu) => (
-                          <div key={menu.id} className="border rounded-lg overflow-hidden">
-                            {/* Menu Header */}
-                            <div className="bg-muted/50 px-4 py-3 flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <button
-                                  onClick={() => toggleMenu(menu.id)}
-                                  className={`p-1 rounded transition-colors ${menu.enabled ? 'text-green-600 hover:text-green-700' : 'text-muted-foreground hover:text-foreground'}`}
-                                  title={menu.enabled ? 'Menu is enabled' : 'Menu is disabled'}
-                                  disabled={savingMenus}
-                                >
-                                  {menu.enabled ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-                                </button>
-                                <div>
-                                  <h3 className="font-semibold">{menu.name}</h3>
-                                  <p className="text-xs text-muted-foreground">{menu.description}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={menu.enabled ? "default" : "secondary"}>
-                                  {menu.items.filter(i => i.enabled).length} / {menu.items.length} items active
-                                </Badge>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setAddingItemToMenu(addingItemToMenu === menu.id ? null : menu.id)}
-                                  disabled={savingMenus}
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Add Item
-                                </Button>
-                              </div>
-                            </div>
+            {activeTab === 'menus' && <MenuManager />}
 
-                            {/* Add New Item Form */}
-                            {addingItemToMenu === menu.id && (
-                              <div className="bg-blue-50 dark:bg-blue-950/20 px-4 py-3 border-b flex items-center gap-3">
-                                <Input
-                                  placeholder="Label (e.g., About)"
-                                  value={newMenuItem.label}
-                                  onChange={(e) => setNewMenuItem(prev => ({ ...prev, label: e.target.value }))}
-                                  className="max-w-[200px]"
-                                />
-                                <Input
-                                  placeholder="Path (e.g., /about)"
-                                  value={newMenuItem.path}
-                                  onChange={(e) => setNewMenuItem(prev => ({ ...prev, path: e.target.value }))}
-                                  className="max-w-[250px]"
-                                />
-                                <Button size="sm" onClick={() => addMenuItem(menu.id)} disabled={savingMenus}>
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Add
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => { setAddingItemToMenu(null); setNewMenuItem({ label: '', path: '' }); }}>
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-
-                            {/* Menu Items */}
-                            <div className="divide-y">
-                              {menu.items.sort((a, b) => a.order - b.order).map((item, index) => (
-                                <div
-                                  key={item.id}
-                                  className={`px-4 py-3 flex items-center gap-3 ${!item.enabled ? 'bg-muted/30 opacity-60' : ''}`}
-                                >
-                                  {/* Drag Handle */}
-                                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-
-                                  {/* Toggle */}
-                                  <button
-                                    onClick={() => toggleMenuItem(menu.id, item.id)}
-                                    className={`p-0.5 rounded transition-colors ${item.enabled ? 'text-green-600' : 'text-muted-foreground'}`}
-                                    disabled={savingMenus}
-                                  >
-                                    {item.enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                                  </button>
-
-                                  {/* Content - Editing or Display */}
-                                  {editingMenuItem?.menuId === menu.id && editingMenuItem?.itemId === item.id ? (
-                                    <>
-                                      <Input
-                                        value={editingMenuItem.label}
-                                        onChange={(e) => setEditingMenuItem(prev => prev ? { ...prev, label: e.target.value } : null)}
-                                        className="max-w-[150px] h-8"
-                                      />
-                                      <Input
-                                        value={editingMenuItem.path}
-                                        onChange={(e) => setEditingMenuItem(prev => prev ? { ...prev, path: e.target.value } : null)}
-                                        className="max-w-[200px] h-8"
-                                      />
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => updateMenuItem(menu.id, item.id, editingMenuItem.label, editingMenuItem.path)}
-                                        disabled={savingMenus}
-                                      >
-                                        <Save className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setEditingMenuItem(null)}
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className={`font-medium min-w-[120px] ${!item.enabled ? 'line-through' : ''}`}>
-                                        {item.label}
-                                      </span>
-                                      <span className="text-sm text-muted-foreground font-mono">
-                                        {item.path}
-                                      </span>
-                                      <div className="ml-auto flex items-center gap-1">
-                                        {/* Move buttons */}
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => moveMenuItem(menu.id, item.id, 'up')}
-                                          disabled={index === 0 || savingMenus}
-                                          className="h-7 w-7 p-0"
-                                        >
-                                          <ArrowUp className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => moveMenuItem(menu.id, item.id, 'down')}
-                                          disabled={index === menu.items.length - 1 || savingMenus}
-                                          className="h-7 w-7 p-0"
-                                        >
-                                          <ArrowDown className="h-3 w-3" />
-                                        </Button>
-                                        {/* Edit button */}
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => setEditingMenuItem({ menuId: menu.id, itemId: item.id, label: item.label, path: item.path })}
-                                          disabled={savingMenus}
-                                          className="h-7 w-7 p-0"
-                                        >
-                                          <Edit className="h-3 w-3" />
-                                        </Button>
-                                        {/* Delete button */}
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => deleteMenuItem(menu.id, item.id)}
-                                          disabled={savingMenus}
-                                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
-                              {menu.items.length === 0 && (
-                                <div className="px-4 py-8 text-center text-muted-foreground">
-                                  No menu items. Click "Add Item" to create one.
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Help Card */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      How Menu Management Works
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground space-y-2">
-                    <p><strong>Top Navigation:</strong> Links shown in the dark bar at the top of the page (Home, Advertise, Directory, etc.)</p>
-                    <p><strong>Main Navigation:</strong> Category links in the blue navigation bar below the logo.</p>
-                    <p><Eye className="h-4 w-4 inline mr-1" /> Toggle visibility of individual menu items on or off.</p>
-                    <p><ArrowUp className="h-4 w-4 inline mr-1" /><ArrowDown className="h-4 w-4 inline mr-1" /> Reorder items within a menu.</p>
-                    <p>Changes are saved immediately and will appear on the live site.</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {/* Site Configuration */}
+            {activeTab === 'site-config' && <SiteConfigManager />}
 
             {/* Modules Section Placeholder */}
             {activeTab === 'modules' && (

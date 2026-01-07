@@ -165,7 +165,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Prevent deletion of core menus
-    if (['top-nav', 'main-nav'].includes(menuId)) {
+    const CORE_MENUS = ['top-nav', 'main-nav', 'footer-quick-links', 'footer-categories'];
+    if (CORE_MENUS.includes(menuId)) {
       return NextResponse.json(
         { error: 'Cannot delete core system menus' },
         { status: 403 }
