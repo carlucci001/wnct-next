@@ -74,14 +74,19 @@ const getSortDate = (article: Article): number => {
 };
 
 /**
- * Fetch all published articles (client-side filtering to avoid index)
+ * Fetch all published articles
+ * Uses where clause to match Firestore security rules (required for unauthenticated reads)
  */
 export async function getArticles(): Promise<Article[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    // Must filter by status in query to satisfy Firestore security rules
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      where('status', '==', 'published')
+    );
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs
       .map(convertDocToArticle)
-      .filter(article => isPublished(article.status))
       .sort((a, b) => getSortDate(b) - getSortDate(a));
   } catch (error) {
     console.error('Error fetching articles:', error);
@@ -120,14 +125,20 @@ export async function getArticleBySlug(slugOrId: string): Promise<Article | null
 }
 
 /**
- * Fetch articles by category (client-side filtering to avoid index)
+ * Fetch articles by category
+ * Uses where clause to match Firestore security rules
  */
 export async function getArticlesByCategory(category: string): Promise<Article[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, ARTICLES_COLLECTION));
+    // Must filter by status in query to satisfy Firestore security rules
+    const q = query(
+      collection(db, ARTICLES_COLLECTION),
+      where('status', '==', 'published')
+    );
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs
       .map(convertDocToArticle)
-      .filter(article => article.category.toLowerCase() === category.toLowerCase() && isPublished(article.status))
+      .filter(article => article.category.toLowerCase() === category.toLowerCase())
       .sort((a, b) => getSortDate(b) - getSortDate(a));
   } catch (error) {
     console.error(`Error fetching articles in category ${category}:`, error);
