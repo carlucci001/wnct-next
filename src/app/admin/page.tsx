@@ -170,6 +170,16 @@ const CreditsDashboard = dynamic(() => import('@/components/admin/CreditsDashboa
   ),
 });
 
+// Dynamically import PaperPartnerAdmin
+const PaperPartnerAdmin = dynamic(() => import('@/components/admin/PaperPartnerAdmin'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import AgentPromptEditor
 const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
   ssr: false,
@@ -210,7 +220,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface DashboardStats {
   totalArticles: number;
@@ -6193,6 +6203,9 @@ Example structure:
 
             {/* Credits & Billing */}
             {activeTab === 'credits' && <CreditsDashboard />}
+
+            {/* Paper Partner Admin - Super Admin Only */}
+            {activeTab === 'paper-partners' && <PaperPartnerAdmin />}
 
             {/* Modules Section Placeholder */}
             {activeTab === 'modules' && (
