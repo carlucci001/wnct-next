@@ -77,12 +77,16 @@ export default function CategoryPage({
   // Use categoryColor from state (fetched from Firestore)
   const accentColor = categoryColor;
 
-  // Pagination logic
-  const totalItems = articles.length;
+  // Exclude slider articles from the main list to avoid duplication
+  const sliderArticleIds = new Set(sliderArticles.map(a => a.id));
+  const remainingArticles = articles.filter(a => !sliderArticleIds.has(a.id));
+
+  // Pagination logic (using remaining articles, not all)
+  const totalItems = remainingArticles.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentArticles = articles.slice(indexOfFirstItem, indexOfLastItem);
+  const currentArticles = remainingArticles.slice(indexOfFirstItem, indexOfLastItem);
 
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
