@@ -12,13 +12,13 @@ function getFirebaseAdmin(): App {
     return app;
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)?.trim();
 
   // Option 1: Use service account JSON from environment variable
-  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountKey) {
     try {
-      const serviceAccount = JSON.parse(serviceAccountKey);
+      const serviceAccount = JSON.parse(serviceAccountKey.trim());
       app = initializeApp({
         credential: cert(serviceAccount),
         projectId,
@@ -26,7 +26,7 @@ function getFirebaseAdmin(): App {
       console.log('[Firebase Admin] Initialized with service account key');
       return app;
     } catch (error) {
-      console.error('[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', error);
+      console.error('[Firebase Admin] Failed to parse service account JSON:', error);
     }
   }
 

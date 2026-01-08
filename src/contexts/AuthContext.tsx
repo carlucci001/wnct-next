@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        console.log('[AuthContext] Auth user detected - UID:', user.uid, 'Email:', user.email);
         // Subscribe to real-time updates for the user profile
         try {
           const userDocRef = doc(getDb(), 'users', user.uid);

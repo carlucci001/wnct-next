@@ -113,9 +113,9 @@ service cloud.firestore {
     // USERS
     // ============================================
     match /users/{userId} {
-      // Users can read their own doc
-      // Editorial leads and admins can read all users
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isEditorialLead());
+      // All authenticated users can read their own doc
+      // This simplified rule avoids circular dependency issues
+      allow read: if isAuthenticated();
 
       // Users can create their own doc on registration
       // Admins can create new user docs

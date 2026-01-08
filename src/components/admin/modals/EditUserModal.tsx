@@ -6,7 +6,8 @@ import { User, UserRole, AccountType } from '@/types/user';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS, hasPermission } from '@/data/rolePermissions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
-import { X, Edit2, Shield, ChevronDown, Check, Camera, Phone } from 'lucide-react';
+import { X, Edit2, Shield, ChevronDown, Check, Camera, Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ROLES: UserRole[] = [
   'admin',
@@ -54,6 +55,7 @@ interface EditModalProps {
 }
 
 export function EditUserModal({ user, onClose, onSave, currentUserRole }: EditModalProps) {
+  const { currentUser } = useAuth();
   const [displayName, setDisplayName] = useState(user.displayName || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [role, setRole] = useState<UserRole>(user.role);
@@ -64,6 +66,12 @@ export function EditUserModal({ user, onClose, onSave, currentUserRole }: EditMo
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Password change state
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const canAssignRoles = hasPermission({ role: currentUserRole }, 'canAssignRoles');
 
@@ -104,6 +112,44 @@ export function EditUserModal({ user, onClose, onSave, currentUserRole }: EditMo
       alert('Failed to save user');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    setChangingPassword(true);
+    setPasswordMessage(null);
+
+    try {
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          newPassword,
+          adminUid: currentUser?.uid,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to change password');
+      }
+
+      setPasswordMessage({ type: 'success', text: 'Password changed successfully!' });
+      setNewPassword('');
+    } catch (error) {
+      setPasswordMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to change password'
+      });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -334,6 +380,45 @@ export function EditUserModal({ user, onClose, onSave, currentUserRole }: EditMo
             }`}>
               {user.status === 'active' ? 'Active' : 'Blocked'}
             </span>
+          </div>
+
+          {/* Change Password */}
+          <div className="pt-3 border-t border-gray-100">
+            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <Lock size={14} />
+              Change Password
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={changingPassword || !newPassword}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+              >
+                {changingPassword ? 'Changing...' : 'Set Password'}
+              </button>
+            </div>
+            {passwordMessage && (
+              <p className={`text-xs mt-2 ${passwordMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {passwordMessage.text}
+              </p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
           </div>
         </div>
 

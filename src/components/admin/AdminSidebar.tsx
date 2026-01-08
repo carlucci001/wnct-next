@@ -22,6 +22,7 @@ interface MenuSections {
   ai: boolean;
   content: boolean;
   components: boolean;
+  navigation: boolean;
   modules: boolean;
   plugins: boolean;
   users: boolean;
@@ -279,22 +280,26 @@ export function AdminSidebar({
           <Separator />
 
           {/* Navigation Section */}
-          <div>
-            <div className="px-3 py-1 mb-2">
-              <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                <Menu size={12} className="text-indigo-500" />
-                Navigation
-              </span>
-            </div>
-            <NavItem
-              active={activeTab === 'menus'}
-              onClick={() => setActiveTab('menus')}
-              icon={Menu}
-              iconColor="text-indigo-600"
-            >
-              Menu Manager
-            </NavItem>
-          </div>
+          <Collapsible open={menuSections.navigation} onOpenChange={() => toggleMenuSection('navigation')}>
+            <CollapsibleTrigger className="w-full">
+              <SectionHeader
+                title="Navigation"
+                icon={Menu}
+                iconColor="text-indigo-500"
+                isOpen={menuSections.navigation}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'menus'}
+                onClick={() => setActiveTab('menus')}
+                icon={Menu}
+                iconColor="text-indigo-600"
+              >
+                Menu Manager
+              </NavItem>
+            </CollapsibleContent>
+          </Collapsible>
 
           <Separator />
 
