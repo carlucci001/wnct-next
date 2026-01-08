@@ -4,8 +4,10 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins, Newspaper
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { canAccessSuperAdmin, IS_MASTER_SITE } from '@/config/masterSite';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -16,7 +18,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface MenuSections {
   ai: boolean;
@@ -100,6 +102,9 @@ export function AdminSidebar({
   mobileMenuOpen,
   onMobileMenuClose
 }: AdminSidebarProps) {
+  const { currentUser } = useAuth();
+  const showPaperPartnerAdmin = canAccessSuperAdmin(currentUser?.uid);
+
   // Accordion behavior: close other sections when opening a new one
   const handleSectionToggle = (section: keyof MenuSections) => {
     // Only allow one section open at a time
@@ -432,6 +437,27 @@ export function AdminSidebar({
               </NavItem>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Paper Partner Admin - Super Admin Only */}
+          {showPaperPartnerAdmin && (
+            <>
+              <Separator />
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3 py-1 flex items-center gap-2">
+                  <Newspaper size={12} className="text-red-500" />
+                  <span>Paper Partner Admin</span>
+                </div>
+                <NavItem
+                  active={activeTab === 'paper-partners'}
+                  onClick={() => setActiveTab('paper-partners')}
+                  icon={ShieldAlert}
+                  iconColor="text-red-600"
+                >
+                  Manage Partners
+                </NavItem>
+              </div>
+            </>
+          )}
         </div>
     </ScrollArea>
   );
