@@ -39,7 +39,13 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ variant = "compact" }) =>
           `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
         );
         const geoData = await geoResponse.json();
-        const city = geoData.address?.city || geoData.address?.town || geoData.address?.village || "Unknown";
+        const city = geoData.address?.city ||
+          geoData.address?.town ||
+          geoData.address?.village ||
+          geoData.address?.municipality ||
+          geoData.address?.hamlet ||
+          geoData.address?.county ||
+          "Asheville"; // Default to Asheville for WNC region
         const state = geoData.address?.state || "";
         const stateAbbr = getStateAbbreviation(state);
 
