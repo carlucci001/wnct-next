@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getDb } from '@/lib/firebase';
+import { getDb, auth } from '@/lib/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { AccountSidebar } from '@/components/account/AccountSidebar';
 import { AccountHeader } from '@/components/account/AccountHeader';
@@ -36,6 +37,8 @@ import {
   RefreshCw,
   UserCog,
   X,
+  Lock,
+  Mail,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -243,6 +246,47 @@ export default function AccountPage() {
               </h3>
             </div>
             <Button variant="outline">Upgrade Plan</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Security / Password */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock size={20} />
+            Security
+          </CardTitle>
+          <CardDescription>Manage your password and account security</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 bg-muted rounded-lg">
+            <div>
+              <p className="font-medium">Change Password</p>
+              <p className="text-sm text-muted-foreground">
+                We&apos;ll send a password reset link to your email
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const email = userProfile?.email || currentUser?.email;
+                if (!email) {
+                  toast.error('No email address found');
+                  return;
+                }
+                try {
+                  await sendPasswordResetEmail(auth, email);
+                  toast.success('Password reset email sent! Check your inbox.');
+                } catch (error) {
+                  console.error('Error sending password reset:', error);
+                  toast.error(error instanceof Error ? error.message : 'Failed to send reset email');
+                }
+              }}
+            >
+              <Mail size={16} className="mr-2" />
+              Send Reset Email
+            </Button>
           </div>
         </CardContent>
       </Card>

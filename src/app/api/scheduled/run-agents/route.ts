@@ -385,10 +385,140 @@ function generateSlug(title: string): string {
 
 /**
  * GET /api/scheduled/run-agents
- * Returns status of scheduled agents
+ * When called by Vercel cron, runs due agents
+ * Otherwise returns status of scheduled agents
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Check if this is a Vercel cron request
+    const isCronRequest = request.headers.get('x-vercel-cron') === '1';
+
+    if (isCronRequest) {
+      // Run due agents (same logic as POST but without body params)
+      const dueAgents = await getDueScheduledAgents();
+
+      if (dueAgents.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No agents due to run',
+          agentsProcessed: 0,
+        });
+      }
+
+      // Get Gemini API key from settings
+      const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
+      const settings = settingsDoc.data();
+      const geminiApiKey = settings?.geminiApiKey;
+
+      if (!geminiApiKey) {
+        return NextResponse.json(
+          { error: 'Gemini API key not configured' },
+          { status: 503 }
+        );
+      }
+
+      const results: {
+        agentId: string;
+        agentName: string;
+        success: boolean;
+        articleId?: string;
+        error?: string;
+      }[] = [];
+
+      // Process each due agent
+      for (const agent of dueAgents) {
+        const agentStartTime = Date.now();
+
+        const taskId = await createScheduledTask({
+          agentId: agent.id,
+          agentName: agent.name,
+          taskType: 'generate-article',
+          status: 'running',
+          scheduledFor: new Date().toISOString(),
+          maxRetries: 3,
+        });
+
+        try {
+          const categorySlug = agent.taskConfig?.categoryId
+            ? (await getCategory(agent.taskConfig.categoryId))?.slug
+            : agent.beat;
+
+          const category = categorySlug ? await getCategoryBySlug(categorySlug) : null;
+          const contentItems = await getUnprocessedItems(categorySlug, 5);
+
+          if (contentItems.length === 0) {
+            throw new Error('No content items available for article generation');
+          }
+
+          const selectedItem = contentItems[0];
+          const article = await generateArticleCron(geminiApiKey, agent, category, selectedItem);
+
+          const articleData = {
+            title: article.title,
+            content: formatArticleContent(article.content),
+            excerpt: formatExcerpt(article.content.replace(/<[^>]+>/g, ''), 200),
+            slug: generateSlugCron(article.title),
+            author: agent.name,
+            authorId: agent.id,
+            authorPhotoURL: agent.photoURL || '',
+            category: category?.name || agent.beat || 'News',
+            categoryColor: category?.color || '#2563eb',
+            tags: article.tags || [],
+            status: agent.taskConfig?.autoPublish ? 'published' : 'draft',
+            publishedAt: agent.taskConfig?.autoPublish ? new Date().toISOString() : null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            featuredImage: selectedItem.imageUrl || '',
+            imageUrl: selectedItem.imageUrl || '',
+            isFeatured: agent.taskConfig?.isFeatured ?? false,
+            isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
+            breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
+            views: 0,
+            sourceUrl: selectedItem.url,
+            sourceItemId: selectedItem.id,
+            generatedBy: 'ai-agent',
+          };
+
+          const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
+          await markItemProcessed(selectedItem.id, articleRef.id);
+
+          const generationTime = Date.now() - agentStartTime;
+          await updateTaskStatus(taskId, 'completed', {
+            articleId: articleRef.id,
+            generationTime,
+          });
+          await updateAgentAfterRun(agent.id, true, generationTime);
+
+          results.push({
+            agentId: agent.id,
+            agentName: agent.name,
+            success: true,
+            articleId: articleRef.id,
+          });
+        } catch (error) {
+          console.error(`Error running agent ${agent.name}:`, error);
+          await updateTaskStatus(taskId, 'failed', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          await updateAgentAfterRun(agent.id, false);
+          results.push({
+            agentId: agent.id,
+            agentName: agent.name,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        agentsProcessed: results.length,
+        successCount: results.filter((r) => r.success).length,
+        results,
+      });
+    }
+
+    // Normal GET: return status
     const dueAgents = await getDueScheduledAgents();
     const { getScheduledAgents } = await import('@/lib/aiJournalists');
     const allScheduled = await getScheduledAgents();
@@ -409,7 +539,66 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error('Error getting scheduled status:', error);
-    return NextResponse.json({ error: 'Failed to get status' }, { status: 500 });
+    console.error('Error in GET handler:', error);
+    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
   }
+}
+
+// Helper functions for cron (duplicated to avoid scope issues)
+async function generateArticleCron(
+  apiKey: string,
+  agent: AIJournalist,
+  category: Category | null,
+  sourceItem: ContentItem
+): Promise<{ title: string; content: string; tags: string[] }> {
+  const model = 'gemini-2.0-flash';
+  let prompt = `You are ${agent.name}, ${agent.title}`;
+  if (agent.beat) prompt += ` covering the ${agent.beat} beat`;
+  prompt += ` for the WNC Times, a local news website covering Western North Carolina.\n\n`;
+  if (agent.bio) prompt += `About you: ${agent.bio}\n\n`;
+  if (category?.editorialDirective) {
+    prompt += `EDITORIAL DIRECTIVE for ${category.name} articles:\n${category.editorialDirective}\n\n`;
+  }
+  prompt += `SOURCE MATERIAL:\nTitle: ${sourceItem.title}\nSource: ${sourceItem.sourceName}\nPublished: ${new Date(sourceItem.publishedAt).toLocaleDateString()}\n`;
+  if (sourceItem.description) prompt += `Summary: ${sourceItem.description}\n`;
+  prompt += `URL: ${sourceItem.url}\n\n`;
+  prompt += `TASK: Write a news article based on the source material above.\n\nFORMAT YOUR RESPONSE:\nTITLE: [headline]\n\nCONTENT:\n[article]\n\nTAGS: [comma-separated]`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 2000, temperature: 0.7 },
+      }),
+    }
+  );
+
+  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
+  const data = await response.json();
+  const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!responseText) throw new Error('No response from Gemini API');
+
+  // Parse response
+  const titleMatch = responseText.match(/TITLE:\s*(.+?)(?:\n|CONTENT:)/i);
+  const title = titleMatch ? titleMatch[1].trim() : `Local Update: ${sourceItem.title}`;
+
+  const contentMatch = responseText.match(/CONTENT:\s*([\s\S]+?)(?:TAGS:|$)/i);
+  let content = '';
+  if (contentMatch) {
+    content = contentMatch[1].trim().split(/\n\n+/).filter((p: string) => p.trim()).map((p: string) => `<p>${p.trim()}</p>`).join('\n');
+  }
+
+  const tagsMatch = responseText.match(/TAGS:\s*(.+?)$/im);
+  const tags = tagsMatch ? tagsMatch[1].split(',').map((t: string) => t.trim().toLowerCase()).filter((t: string) => t.length > 0) : [];
+
+  return { title, content, tags };
+}
+
+function generateSlugCron(title: string): string {
+  const timestamp = Date.now().toString(36);
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '').substring(0, 50);
+  return `${slug}-${timestamp}`;
 }

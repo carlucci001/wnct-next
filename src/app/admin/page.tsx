@@ -277,6 +277,7 @@ interface MenuSections {
   ai: boolean;
   content: boolean;
   components: boolean;
+  navigation: boolean;
   modules: boolean;
   plugins: boolean;
   users: boolean;
@@ -383,6 +384,7 @@ export default function AdminDashboard() {
     ai: true,
     content: true,
     components: false,
+    navigation: false,
     modules: false,
     plugins: false,
     users: true,
@@ -1427,10 +1429,10 @@ Return ONLY valid JSON array with no markdown:
         imageUrl: articleData.imageUrl || articleData.featuredImage || '',
         content: formattedContent,
         excerpt: articleData.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
-        authorId: currentUser?.uid || articleData.authorId,
-        authorPhotoURL: currentUser?.photoURL || articleData.authorPhotoURL,
+        authorId: currentUser?.uid || articleData.authorId || '',
+        authorPhotoURL: currentUser?.photoURL || articleData.authorPhotoURL || '',
         // Set breaking news timestamp when isBreakingNews is true
-        breakingNewsTimestamp: articleData.isBreakingNews ? new Date().toISOString() : undefined,
+        breakingNewsTimestamp: articleData.isBreakingNews ? new Date().toISOString() : null,
       };
 
       // Save to Firestore
@@ -1452,8 +1454,9 @@ Return ONLY valid JSON array with no markdown:
 
       return articleToSave;
     } catch (err) {
-      showMessage('error', 'Failed to save article');
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      showMessage('error', `Failed to save article: ${errorMessage}`);
+      console.error('Article save error:', err);
     }
   };
 

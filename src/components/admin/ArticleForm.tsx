@@ -232,7 +232,7 @@ export default function ArticleForm({ isEditing, initialData, articleId }: Artic
       if (isBreakingNews) {
         articleData.breakingNewsTimestamp = new Date().toISOString();
       } else {
-        articleData.breakingNewsTimestamp = undefined;
+        articleData.breakingNewsTimestamp = null;
       }
 
       if (status === 'published' && (!initialData?.publishedAt)) {
