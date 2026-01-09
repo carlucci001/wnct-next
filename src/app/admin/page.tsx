@@ -1490,6 +1490,10 @@ Return ONLY valid JSON array with no markdown:
 
       const promptText = `IMPORTANT: Generate an image with ZERO text, ZERO words, ZERO letters, ZERO watermarks, ZERO captions, ZERO logos, ZERO signs with writing. The image must be completely text-free. Subject: ${agentArticle.title}. ${agentArticle.excerpt || ''}. Style: Professional AP-style news photography, high resolution, photorealistic, editorial documentary style.`;
 
+      console.log('[Image Gen] Starting DALL-E request...');
+      console.log('[Image Gen] API Key present:', !!apiKey, 'Key prefix:', apiKey?.substring(0, 10));
+      console.log('[Image Gen] Prompt length:', promptText.length);
+
       const response = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
@@ -1526,8 +1530,10 @@ Return ONLY valid JSON array with no markdown:
     } catch (err) {
       const errorMessage = (err as Error).message;
       console.error('[Image Gen] Failed:', errorMessage);
+      // Show error in multiple places to make sure user sees it
+      alert(`Image Generation Error:\n\n${errorMessage}`);
       setChatHistory(prev => [...prev, { role: 'model', text: `❌ Image generation failed: ${errorMessage}` }]);
-      showMessage('error', `Image generation failed: ${errorMessage}`);
+      showMessage('error', `Failed: ${errorMessage.substring(0, 100)}`);
     } finally {
       setIsGeneratingImage(false);
     }
