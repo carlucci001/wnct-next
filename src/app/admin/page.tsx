@@ -1488,19 +1488,47 @@ Return ONLY valid JSON array with no markdown:
         return;
       }
 
-      // Try with specific title first, fallback to generic category image if safety-rejected
+      /*
+       * IMAGE GENERATION FALLBACK SYSTEM
+       * ================================
+       *
+       * Why this exists:
+       * - OpenAI's DALL-E has a safety filter that blocks images for sensitive news topics
+       *   (protests, violence, political figures, crime, ICE/immigration, etc.)
+       * - News articles frequently cover these topics, so we need a fallback
+       *
+       * How it works:
+       * 1. First tries to generate an image specific to the article title
+       * 2. If DALL-E's safety filter rejects it, falls back to a category-appropriate generic image
+       *
+       * Why NO PEOPLE in fallbacks:
+       * - DALL-E has known bias issues when depicting people (race, gender, religion stereotypes)
+       * - Example: When asked for "classroom" it generated people in hijabs inappropriately
+       * - Using scenery/objects only avoids these bias issues entirely
+       *
+       * Image variation:
+       * - DALL-E 3 generates unique images each time, even with identical prompts
+       * - We add random lighting/weather variations to increase diversity further
+       */
+
       const specificPrompt = `A photorealistic news photograph depicting: ${agentArticle.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+
+      // Random variations for more diverse fallback images
+      const timeVariations = ['at dawn', 'at golden hour', 'at sunset', 'at dusk', 'in morning light', 'in afternoon light'];
+      const weatherVariations = ['on a clear day', 'with dramatic clouds', 'with soft overcast sky', 'with blue sky'];
+      const randomTime = timeVariations[Math.floor(Math.random() * timeVariations.length)];
+      const randomWeather = weatherVariations[Math.floor(Math.random() * weatherVariations.length)];
 
       // Generic fallback prompts by category - NO PEOPLE to avoid AI bias issues
       const categoryFallbacks: Record<string, string> = {
-        'News': 'A photorealistic image of stacked newspapers on a wooden desk with morning light, no people',
-        'Politics': 'A photorealistic image of the US Capitol building dome at golden hour, no people, architectural photography',
-        'Sports': 'A photorealistic image of an empty football field with stadium lights at dusk, no people',
-        'Business': 'A photorealistic image of a modern glass skyscraper reflecting clouds, no people, architectural',
-        'Entertainment': 'A photorealistic image of an empty theater with red velvet seats and stage lights, no people',
-        'Lifestyle': 'A photorealistic image of a steaming coffee cup on a cafe table by a window, no people',
-        'Outdoors': 'A photorealistic landscape of Blue Ridge Mountains at sunrise with morning mist, no people',
-        'default': 'A photorealistic landscape of Western North Carolina mountains with autumn foliage, no people'
+        'News': `A photorealistic image of stacked newspapers and a coffee cup on a wooden desk ${randomTime}, no people, editorial style`,
+        'Politics': `A photorealistic image of the US Capitol building dome ${randomTime} ${randomWeather}, no people, architectural photography`,
+        'Sports': `A photorealistic image of an empty stadium ${randomTime}, dramatic lighting, no people`,
+        'Business': `A photorealistic image of a modern glass skyscraper ${randomTime} ${randomWeather}, no people, architectural`,
+        'Entertainment': `A photorealistic image of an empty theater with red velvet seats and stage lights, cinematic lighting, no people`,
+        'Lifestyle': `A photorealistic image of a steaming coffee cup on a cafe table by a window ${randomTime}, cozy atmosphere, no people`,
+        'Outdoors': `A photorealistic landscape of Blue Ridge Mountains ${randomTime} with morning mist, no people, nature photography`,
+        'default': `A photorealistic landscape of Western North Carolina mountains ${randomTime} ${randomWeather}, no people, scenic`
       };
 
       const generateWithPrompt = async (prompt: string): Promise<{success: boolean; url?: string; error?: string}> => {
