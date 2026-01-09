@@ -215,16 +215,26 @@ export async function togglePersonaChatAvailability(
 }
 
 /**
+ * Site context for building prompts
+ */
+interface SiteContext {
+  serviceArea: string;
+  siteName: string;
+}
+
+/**
  * Build a system prompt for chat using persona data
  */
-export function buildPersonaChatPrompt(persona: Persona): string {
+export function buildPersonaChatPrompt(persona: Persona, siteContext?: SiteContext): string {
   const { promptConfig, skills, name, title } = persona;
+  const area = siteContext?.serviceArea || 'your local area';
+  const site = siteContext?.siteName || 'the news site';
 
-  let prompt = promptConfig.baseSystemPrompt || `You are ${name}, a ${title}.`;
+  let prompt = promptConfig.baseSystemPrompt || `You are ${name}, a ${title} for ${site} covering ${area}.`;
 
   // Add expertise context
   if (skills.topicExpertise.length > 0) {
-    prompt += `\n\nYour areas of expertise include: ${skills.topicExpertise.join(', ')}.`;
+    prompt += `\n\nYour areas of expertise include: ${skills.topicExpertise.join(', ')} - all focused on ${area}.`;
   }
 
   // Add writing style context
@@ -239,8 +249,11 @@ export function buildPersonaChatPrompt(persona: Persona): string {
 
   // Add capability context
   if (skills.communication.canReceiveTips) {
-    prompt += '\n\nYou can receive news tips from readers. Encourage them to share information about local events or stories worth covering.';
+    prompt += `\n\nYou can receive news tips from readers. Encourage them to share information about local events or stories worth covering in ${area}.`;
   }
+
+  // Add formatting instruction
+  prompt += '\n\nIMPORTANT: Do not use markdown formatting like **bold** or *italic* in your responses. Use plain text only.';
 
   return prompt;
 }
