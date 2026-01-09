@@ -435,22 +435,34 @@ export default function ArticlesAdmin() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => window.open(`/admin?action=edit-article&id=${article.id}`, '_blank')}>
-                              <Edit className="h-4 w-4 mr-2" /> Edit
+                          <DropdownMenuContent align="end" className="bg-white dark:bg-gray-900">
+                            <DropdownMenuItem
+                              onClick={() => window.open(`/admin?action=edit-article&id=${article.id}`, '_blank')}
+                              className="text-gray-900 dark:text-gray-100 cursor-pointer"
+                            >
+                              <Edit className="h-4 w-4 mr-2 text-blue-600" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.open(`/article/${article.slug}`, '_blank')}>
-                              <ExternalLink className="h-4 w-4 mr-2" /> View
+                            <DropdownMenuItem
+                              onClick={() => window.open(`/article/${article.slug}`, '_blank')}
+                              className="text-gray-900 dark:text-gray-100 cursor-pointer"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2 text-green-600" /> View
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleFeatured(article)}>
-                              <Star className="h-4 w-4 mr-2" /> {article.isFeatured ? 'Unfeature' : 'Feature'}
+                            <DropdownMenuItem
+                              onClick={() => handleToggleFeatured(article)}
+                              className="text-gray-900 dark:text-gray-100 cursor-pointer"
+                            >
+                              <Star className="h-4 w-4 mr-2 text-yellow-500" /> {article.isFeatured ? 'Unfeature' : 'Feature'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setFactCheckPanel({ isOpen: true, article })}>
-                              <Shield className="h-4 w-4 mr-2" /> Fact Check
+                            <DropdownMenuItem
+                              onClick={() => setFactCheckPanel({ isOpen: true, article })}
+                              className="text-gray-900 dark:text-gray-100 cursor-pointer"
+                            >
+                              <Shield className="h-4 w-4 mr-2 text-purple-600" /> Fact Check
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="text-destructive"
+                              className="text-red-600 dark:text-red-400 cursor-pointer"
                               onClick={() => openDeleteModal([article.id])}
                             >
                               <Trash2 className="h-4 w-4 mr-2" /> Delete
