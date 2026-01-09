@@ -44,7 +44,7 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
       src={imgSrc}
       alt={alt}
       onError={handleError}
-      unoptimized={imgSrc === INLINE_PLACEHOLDER}
+      unoptimized={true}
     />
   );
 };
