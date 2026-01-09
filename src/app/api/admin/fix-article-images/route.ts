@@ -12,6 +12,8 @@ function isExternalUrl(url: string): boolean {
   if (!url) return false;
   // Already in Firebase Storage - skip
   if (url.includes('firebasestorage.googleapis.com')) return false;
+  // Already in Google Cloud Storage (alternate Firebase URL format) - skip
+  if (url.includes('storage.googleapis.com')) return false;
   // Data URLs - skip
   if (url.startsWith('data:')) return false;
   // Local placeholder - skip
@@ -208,6 +210,7 @@ export async function GET() {
     let firebaseStorage = 0;
     let externalUrls = 0;
     let localPaths = 0;
+    const noImageArticles: Array<{ id: string; title: string; isFeatured: boolean }> = [];
 
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
@@ -216,7 +219,12 @@ export async function GET() {
 
       if (!imageUrl) {
         noImage++;
-      } else if (imageUrl.includes('firebasestorage.googleapis.com')) {
+        noImageArticles.push({
+          id: docSnap.id,
+          title: (data.title || 'Untitled').substring(0, 50),
+          isFeatured: data.isFeatured || false,
+        });
+      } else if (imageUrl.includes('firebasestorage.googleapis.com') || imageUrl.includes('storage.googleapis.com')) {
         firebaseStorage++;
       } else if (imageUrl.startsWith('/') || imageUrl.startsWith('data:')) {
         localPaths++;
@@ -233,6 +241,7 @@ export async function GET() {
         externalUrls,
         localPaths,
       },
+      noImageArticles,
       needsMigration: externalUrls,
       message: externalUrls > 0
         ? `${externalUrls} articles have external image URLs that should be migrated`
