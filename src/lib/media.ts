@@ -37,8 +37,17 @@ const COLLECTION_NAME = 'media';
 export async function createMediaFile(data: MediaFileInput): Promise<string> {
   try {
     const now = new Date().toISOString();
+
+    // Filter out undefined values - Firestore doesn't accept undefined
+    const cleanData: Record<string, unknown> = {};
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    });
+
     const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
-      ...data,
+      ...cleanData,
       usedInCount: 0,
       uploadedAt: now,
     });
