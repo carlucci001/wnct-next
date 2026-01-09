@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { agentId, force } = body; // Optional: run specific agent or force run
+    const { agentId, force, preview } = body; // Optional: run specific agent, force run, or preview mode
 
     // Get agents that are due
     let dueAgents: AIJournalist[];
@@ -178,16 +178,18 @@ export async function POST(request: NextRequest) {
         const openaiApiKey = settings?.openaiApiKey as string;
         const persistedImageUrl = await generateAIImage(openaiApiKey, article.title, settings);
 
-        // Save article to Firestore
+        // Prepare article data
+        const formattedContent = formatArticleContent(article.content);
         const articleData = {
           title: article.title,
-          content: formatArticleContent(article.content),
+          content: formattedContent,
           excerpt: formatExcerpt(article.content.replace(/<[^>]+>/g, ''), 200),
           slug: generateSlug(article.title),
           author: agent.name,
           authorId: agent.id,
           authorPhotoURL: agent.photoURL || '',
           category: category?.name || agent.beat || 'News',
+          categoryId: category?.id || '',
           categoryColor: category?.color || '#2563eb',
           tags: article.tags || [],
           status: agent.taskConfig?.autoPublish ? 'published' : 'draft',
@@ -202,10 +204,57 @@ export async function POST(request: NextRequest) {
           views: 0,
           // Source tracking
           sourceUrl: selectedItem.url,
+          sourceTitle: selectedItem.title,
+          sourceSummary: selectedItem.description,
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
         };
 
+        // PREVIEW MODE: Run fact-check and return data without saving
+        if (preview) {
+          // Run quick fact-check
+          let factCheckResult = null;
+          try {
+            const factCheckResponse = await fetch(new URL('/api/fact-check', request.url).toString(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: 'quick',
+                title: article.title,
+                content: formattedContent,
+                sourceTitle: selectedItem.title,
+                sourceSummary: selectedItem.description,
+                sourceUrl: selectedItem.url,
+              }),
+            });
+            if (factCheckResponse.ok) {
+              factCheckResult = await factCheckResponse.json();
+            }
+          } catch (fcError) {
+            console.error('Fact-check failed:', fcError);
+          }
+
+          // Return preview data without saving (don't update task status for previews)
+          return NextResponse.json({
+            success: true,
+            preview: true,
+            article: articleData,
+            factCheck: factCheckResult,
+            sourceItem: {
+              id: selectedItem.id,
+              title: selectedItem.title,
+              description: selectedItem.description,
+              url: selectedItem.url,
+            },
+            agent: {
+              id: agent.id,
+              name: agent.name,
+              photoURL: agent.photoURL,
+            },
+          });
+        }
+
+        // NORMAL MODE: Save article to Firestore
         const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
 
         // Mark content item as processed

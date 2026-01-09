@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   FileText, Plus, Trash2, Edit, Search, Eye,
   CheckCircle, Clock, Archive, Send, Star, MoreHorizontal,
-  ChevronLeft, ChevronRight, ExternalLink, FolderInput
+  ChevronLeft, ChevronRight, ExternalLink, FolderInput, Shield
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,8 +28,12 @@ import {
   getAllArticles, deleteArticle, deleteArticles, updateArticle,
   updateArticlesStatus, updateArticlesCategory, toggleArticleFeatured, getCategories
 } from '@/lib/articles';
+import FactCheckBadge from './FactCheckBadge';
+import FactCheckPanel from './FactCheckPanel';
+import { FactCheckResult, FactCheckStatus } from '@/types/factCheck';
 
 type StatusFilter = 'all' | 'draft' | 'review' | 'published' | 'archived';
+type FactCheckFilter = 'all' | 'passed' | 'review_recommended' | 'caution' | 'high_risk' | 'not_checked';
 
 export default function ArticlesAdmin() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -47,6 +51,13 @@ export default function ArticlesAdmin() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [targetCategory, setTargetCategory] = useState<string>('');
+
+  // Fact-check state
+  const [factCheckFilter, setFactCheckFilter] = useState<FactCheckFilter>('all');
+  const [factCheckPanel, setFactCheckPanel] = useState<{
+    isOpen: boolean;
+    article: Article | null;
+  }>({ isOpen: false, article: null });
 
   useEffect(() => {
     loadData();
@@ -78,7 +89,9 @@ export default function ArticlesAdmin() {
     const articleStatus = a.status?.toLowerCase() || 'draft';
     const matchesStatus = statusFilter === 'all' || articleStatus === statusFilter;
     const matchesCategory = categoryFilter === 'all' || a.category === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
+    const articleFactCheck = a.factCheckStatus || 'not_checked';
+    const matchesFactCheck = factCheckFilter === 'all' || articleFactCheck === factCheckFilter;
+    return matchesSearch && matchesStatus && matchesCategory && matchesFactCheck;
   });
 
   // Pagination
@@ -91,7 +104,7 @@ export default function ArticlesAdmin() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, categoryFilter]);
+  }, [searchTerm, statusFilter, categoryFilter, factCheckFilter]);
 
   // Selection
   function toggleSelect(id: string) {
@@ -265,6 +278,19 @@ export default function ArticlesAdmin() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={factCheckFilter} onValueChange={(v) => setFactCheckFilter(v as FactCheckFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Fact Check" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Fact Checks</SelectItem>
+              <SelectItem value="passed">Passed</SelectItem>
+              <SelectItem value="review_recommended">Review Needed</SelectItem>
+              <SelectItem value="caution">Caution</SelectItem>
+              <SelectItem value="high_risk">High Risk</SelectItem>
+              <SelectItem value="not_checked">Not Checked</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Bulk Actions */}
@@ -327,6 +353,7 @@ export default function ArticlesAdmin() {
                     <TableHead>Category</TableHead>
                     <TableHead>Author</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Fact Check</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -386,6 +413,18 @@ export default function ArticlesAdmin() {
                         </div>
                       </TableCell>
                       <TableCell>{statusBadge(article.status)}</TableCell>
+                      <TableCell>
+                        <FactCheckBadge
+                          status={article.factCheckStatus as FactCheckStatus | undefined}
+                          confidence={article.factCheckConfidence}
+                          size="sm"
+                          showLabel={true}
+                          onClick={(e) => {
+                            e?.stopPropagation();
+                            setFactCheckPanel({ isOpen: true, article });
+                          }}
+                        />
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(article.publishedAt || article.createdAt)}
                       </TableCell>
@@ -405,6 +444,9 @@ export default function ArticlesAdmin() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleToggleFeatured(article)}>
                               <Star className="h-4 w-4 mr-2" /> {article.isFeatured ? 'Unfeature' : 'Feature'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setFactCheckPanel({ isOpen: true, article })}>
+                              <Shield className="h-4 w-4 mr-2" /> Fact Check
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -502,6 +544,52 @@ export default function ArticlesAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fact Check Panel */}
+      {factCheckPanel.article && (
+        <FactCheckPanel
+          isOpen={factCheckPanel.isOpen}
+          onClose={() => setFactCheckPanel({ isOpen: false, article: null })}
+          articleId={factCheckPanel.article.id}
+          title={factCheckPanel.article.title}
+          content={factCheckPanel.article.content || ''}
+          sourceTitle={factCheckPanel.article.sourceTitle}
+          sourceSummary={factCheckPanel.article.sourceSummary}
+          sourceUrl={factCheckPanel.article.sourceUrl}
+          initialResult={factCheckPanel.article.factCheckStatus ? {
+            mode: (factCheckPanel.article.factCheckMode || 'quick') as 'quick' | 'detailed',
+            status: factCheckPanel.article.factCheckStatus,
+            summary: factCheckPanel.article.factCheckSummary || '',
+            confidence: factCheckPanel.article.factCheckConfidence || 0,
+            checkedAt: factCheckPanel.article.factCheckedAt || new Date().toISOString(),
+            ...(factCheckPanel.article.factCheckMode === 'detailed' ? {
+              claims: factCheckPanel.article.factCheckClaims || [],
+              recommendations: factCheckPanel.article.factCheckRecommendations || [],
+            } : {}),
+          } as FactCheckResult : undefined}
+          onResultUpdate={async (result: FactCheckResult) => {
+            // Save fact-check result to article
+            try {
+              await updateArticle(factCheckPanel.article!.id, {
+                factCheckStatus: result.status,
+                factCheckSummary: result.summary,
+                factCheckConfidence: result.confidence,
+                factCheckedAt: result.checkedAt,
+                factCheckMode: result.mode,
+                ...(result.mode === 'detailed' ? {
+                  factCheckClaims: (result as any).claims,
+                  factCheckRecommendations: (result as any).recommendations,
+                } : {}),
+              });
+              toast.success('Fact-check result saved');
+              loadData();
+            } catch (error) {
+              console.error('Error saving fact-check result:', error);
+              toast.error('Failed to save fact-check result');
+            }
+          }}
+        />
+      )}
     </Card>
   );
 }

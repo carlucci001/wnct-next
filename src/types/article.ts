@@ -30,6 +30,25 @@ export interface Article {
   tenantId?: string;           // The tenant this article belongs to
   creditsUsed?: number;        // Credits consumed to generate this article
   generatedWithAI?: boolean;   // Whether AI was used to create this
+
+  // Fact-Check Fields
+  factCheckStatus?: 'passed' | 'review_recommended' | 'caution' | 'high_risk' | 'not_checked';
+  factCheckSummary?: string;
+  factCheckConfidence?: number;
+  factCheckedAt?: string;
+  factCheckMode?: 'quick' | 'detailed';
+  factCheckClaims?: Array<{
+    text: string;
+    status: 'verified' | 'unverified' | 'disputed' | 'opinion';
+    explanation: string;
+  }>;
+  factCheckRecommendations?: string[];
+
+  // Source tracking for AI-generated articles
+  sourceUrl?: string;
+  sourceTitle?: string;
+  sourceSummary?: string;
+  sourceItemId?: string;
 }
 
 export interface CategoryData {
