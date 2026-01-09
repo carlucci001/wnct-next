@@ -318,19 +318,18 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       <BreakingNews />
 
       {/* Logo Area with Weather Module */}
-      <div className="container mx-auto px-4 py-3 flex items-center bg-white dark:bg-slate-900">
-        {/* Logo - Left justified, fixed 300x100 container */}
-        <Link href="/" className="w-[300px] h-[100px] flex items-center shrink-0">
+      <div className="container mx-auto px-4 py-2 flex items-center justify-between gap-5 bg-white dark:bg-slate-900">
+        {/* Logo - Left justified, max 90px tall */}
+        <Link href="/" className="h-[90px] flex items-center shrink-0">
           {showLogoImage ? (
             <Image
               src={displaySettings.logoUrl}
               alt="Site Logo"
               width={300}
-              height={100}
+              height={90}
               unoptimized={!!isDataUrl}
               priority
-              className="max-w-full max-h-full object-contain object-left"
-              style={{ width: 'auto', height: 'auto', display: 'block' }}
+              className="max-h-[90px] w-auto object-contain object-left"
             />
           ) : (
             <div className="flex flex-col items-start justify-center h-full">
@@ -349,16 +348,16 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           )}
         </Link>
 
-        {/* Weather Module - Flexible center space */}
-        <div className="hidden md:flex flex-1 justify-center px-6">
+        {/* Weather Module - Center, 90px tall */}
+        <div className="hidden md:flex items-center justify-center">
           <WeatherWidget variant="full" />
         </div>
 
-        {/* Banner Ad - Right justified */}
-        <div className="hidden lg:flex shrink-0 min-w-[728px] min-h-[90px] items-center justify-end">
-          <AdDisplay 
-            position="header_main" 
-            className="w-full"
+        {/* Banner Ad - Right justified, 90px tall */}
+        <div className="hidden lg:flex shrink-0 h-[90px] items-center">
+          <AdDisplay
+            position="header_main"
+            className="h-[90px]"
             fallback={
               <a href={BANNER_LINK} target="_blank" rel="noopener noreferrer">
                 <Image
@@ -366,8 +365,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                   alt="Farrington Development - Web Design"
                   width={728}
                   height={90}
-                  className="rounded"
-                  style={{ width: 'auto', height: 'auto' }}
+                  className="rounded h-[90px] w-auto"
                 />
               </a>
             }

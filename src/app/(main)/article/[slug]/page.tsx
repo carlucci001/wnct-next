@@ -12,6 +12,8 @@ import Sidebar from '@/components/Sidebar';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import ImageWithFallback from '@/components/ImageWithFallback';
 import { AdDisplay } from '@/components/advertising/AdDisplay';
+import { CommentSection } from '@/components/comments/CommentSection';
+
 
 function AuthorAvatar({ name, photoURL, size = 24 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
@@ -261,6 +263,9 @@ export default function ArticlePage() {
                 )}
               </div>
             </article>
+
+            {/* Comment Section */}
+            <CommentSection articleId={article.id} articleTitle={article.title} />
 
             {/* Related Articles */}
             {relatedArticles.length > 0 && (

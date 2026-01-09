@@ -164,45 +164,45 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ variant = "compact" }) =>
 
   if (variant === "full") {
     return (
-      <div className="relative flex items-center justify-between h-[90px] px-5 text-white rounded-xl shadow-lg min-w-[300px] overflow-hidden">
+      <div className="relative flex items-center justify-between h-[90px] px-6 text-white rounded-xl shadow-lg min-w-[340px] w-[340px] overflow-hidden">
         {/* Sky gradient background */}
         <div className="absolute inset-0 bg-gradient-to-b from-sky-400 via-sky-500 to-blue-600" />
 
         {/* Mountain silhouette */}
         <svg
           className="absolute bottom-0 left-0 right-0 h-[45px] text-slate-700/30"
-          viewBox="0 0 300 45"
+          viewBox="0 0 340 45"
           preserveAspectRatio="none"
         >
           <path
             fill="currentColor"
-            d="M0,45 L0,35 L30,20 L60,30 L90,15 L120,25 L150,10 L180,22 L210,12 L240,28 L270,18 L300,30 L300,45 Z"
+            d="M0,45 L0,35 L30,20 L60,30 L90,15 L120,25 L150,10 L180,22 L210,12 L240,28 L270,18 L300,30 L340,25 L340,45 Z"
           />
         </svg>
         <svg
           className="absolute bottom-0 left-0 right-0 h-[30px] text-slate-800/40"
-          viewBox="0 0 300 30"
+          viewBox="0 0 340 30"
           preserveAspectRatio="none"
         >
           <path
             fill="currentColor"
-            d="M0,30 L0,25 L40,15 L80,22 L120,10 L160,18 L200,8 L240,20 L280,12 L300,20 L300,30 Z"
+            d="M0,30 L0,25 L40,15 L80,22 L120,10 L160,18 L200,8 L240,20 L280,12 L320,18 L340,22 L340,30 Z"
           />
         </svg>
 
         {/* Content */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="text-white drop-shadow-lg">{renderIcon(48)}</div>
+          <div className="text-white drop-shadow-lg">{renderIcon(44)}</div>
           <div>
-            <div className="text-3xl font-bold leading-none drop-shadow-md">{weather?.temp}°F</div>
-            <div className="text-xs text-white/90 mt-0.5 drop-shadow">{weather?.description}</div>
+            <div className="text-2xl font-bold leading-none drop-shadow-md">{weather?.temp}°F</div>
+            <div className="text-[11px] text-white/90 mt-0.5 drop-shadow">{weather?.description}</div>
           </div>
         </div>
 
         {/* Location */}
         <div className="relative z-10 text-right">
-          <div className="text-sm font-semibold drop-shadow">{weather?.location}</div>
-          <div className="text-[10px] text-white/80">Local Weather</div>
+          <div className="text-xs font-semibold drop-shadow truncate max-w-[100px]">{weather?.location}</div>
+          <div className="text-[9px] text-white/80">Local Weather</div>
         </div>
       </div>
     );
