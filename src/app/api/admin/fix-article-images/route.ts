@@ -24,12 +24,11 @@ function isExternalUrl(url: string): boolean {
  * Fetch an external image and upload to Firebase Storage
  * Server-side version that works without proxy
  */
-async function persistImageServerSide(imageUrl: string): Promise<string | null> {
-  if (!imageUrl || !isExternalUrl(imageUrl)) return null;
+async function persistImageServerSide(imageUrl: string): Promise<{ url: string | null; error?: string }> {
+  if (!imageUrl || !isExternalUrl(imageUrl)) return { url: null, error: 'Invalid URL' };
 
   try {
     // Fetch the image directly (no CORS restrictions on server)
-    console.log('[Migration] Fetching:', imageUrl.substring(0, 60));
     const response = await fetch(imageUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; NewsroomOS/1.0)',
@@ -37,14 +36,18 @@ async function persistImageServerSide(imageUrl: string): Promise<string | null> 
     });
 
     if (!response.ok) {
-      console.log('[Migration] Fetch failed:', response.status);
-      return null;
+      return { url: null, error: `Fetch failed: ${response.status} ${response.statusText}` };
     }
 
     // Get the image as buffer
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Check if it's actually an image
+    if (!contentType.includes('image')) {
+      return { url: null, error: `Not an image: ${contentType}` };
+    }
 
     // Determine file extension
     let extension = 'jpg';
@@ -59,18 +62,16 @@ async function persistImageServerSide(imageUrl: string): Promise<string | null> 
     const storage = getStorageInstance();
     const storageRef = ref(storage, fileName);
 
-    console.log('[Migration] Uploading to:', fileName);
     const snapshot = await uploadBytes(storageRef, buffer, {
       contentType: contentType,
     });
 
     const downloadUrl = await getDownloadURL(snapshot.ref);
-    console.log('[Migration] Success:', downloadUrl.substring(0, 60));
-    return downloadUrl;
+    return { url: downloadUrl };
 
   } catch (error) {
-    console.error('[Migration] Error:', error);
-    return null;
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return { url: null, error: errMsg };
   }
 }
 
@@ -137,13 +138,13 @@ export async function POST(request: NextRequest) {
       }
 
       // Try to persist the image
-      const newUrl = await persistImageServerSide(currentImageUrl);
+      const result = await persistImageServerSide(currentImageUrl);
 
-      if (newUrl) {
+      if (result.url) {
         // Update the article
         await updateDoc(doc(db, 'articles', id), {
-          featuredImage: newUrl,
-          imageUrl: newUrl,
+          featuredImage: result.url,
+          imageUrl: result.url,
           updatedAt: new Date().toISOString(),
         });
 
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
           title,
           action: 'fixed',
           oldUrl: currentImageUrl.substring(0, 80),
-          newUrl: newUrl.substring(0, 80),
+          newUrl: result.url.substring(0, 80),
         });
       } else {
         results.failed++;
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
           title,
           action: 'failed',
           oldUrl: currentImageUrl.substring(0, 80),
-          error: 'Could not fetch or upload image',
+          error: result.error || 'Unknown error',
         });
       }
     }
