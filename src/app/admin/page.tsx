@@ -1507,6 +1507,8 @@ Return ONLY valid JSON array with no markdown:
       });
 
       const data = await response.json();
+      console.log('[Image Gen] OpenAI response:', JSON.stringify(data).substring(0, 500));
+
       if (data.data?.[0]?.url) {
         const tempUrl = data.data[0].url;
         setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ **Image Generated!** Saving to permanent storage...` }]);
@@ -1517,11 +1519,15 @@ Return ONLY valid JSON array with no markdown:
         setAgentArticle({ ...agentArticle, imageUrl: permanentUrl, featuredImage: permanentUrl });
         setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Image Saved!** Your featured image has been permanently stored.` }]);
       } else {
-        throw new Error(data.error?.message || 'Failed to generate image');
+        const errorMsg = data.error?.message || data.error?.code || JSON.stringify(data.error) || 'Unknown error from OpenAI';
+        console.error('[Image Gen] OpenAI error:', errorMsg);
+        throw new Error(errorMsg);
       }
     } catch (err) {
-      setChatHistory(prev => [...prev, { role: 'model', text: `❌ Image generation failed: ${(err as Error).message}` }]);
-      showMessage('error', 'Failed to generate image');
+      const errorMessage = (err as Error).message;
+      console.error('[Image Gen] Failed:', errorMessage);
+      setChatHistory(prev => [...prev, { role: 'model', text: `❌ Image generation failed: ${errorMessage}` }]);
+      showMessage('error', `Image generation failed: ${errorMessage}`);
     } finally {
       setIsGeneratingImage(false);
     }
