@@ -35,24 +35,33 @@ export async function POST(request: NextRequest) {
 
     const model = 'gemini-2.0-flash';
 
+    // Get site context from settings
+    const siteContext = {
+      serviceArea: settings?.serviceArea || 'your local area',
+      siteName: settings?.siteName || 'Local News',
+    };
+
     // Build system prompt - use persona if provided, otherwise fall back to settings or default
     let systemPrompt: string;
     if (personaId) {
       try {
         const persona = await getPersona(personaId);
         if (persona && persona.isActive && persona.isAvailableForChat) {
-          systemPrompt = buildPersonaChatPrompt(persona);
+          systemPrompt = buildPersonaChatPrompt(persona, siteContext);
         } else {
           // Persona not found or not available for chat, use default
-          systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+          systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt(siteContext);
         }
       } catch (error) {
         console.error('Error loading persona:', error);
-        systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+        systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt(siteContext);
       }
     } else {
-      systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+      systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt(siteContext);
     }
+
+    // Always append regional focus constraint
+    systemPrompt += getRegionalFocusConstraint(siteContext);
 
     // Build conversation contents for Gemini API
     const conversationContents = buildConversationContents(
@@ -115,13 +124,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function getDefaultSystemPrompt(): string {
-  return `You are the WNC Times Reader Assistant, a helpful AI for a local news website covering Western North Carolina.
+interface SiteContext {
+  serviceArea: string;
+  siteName: string;
+}
+
+function getDefaultSystemPrompt(context: SiteContext): string {
+  return `You are the ${context.siteName} Reader Assistant, a helpful AI for a local news website covering ${context.serviceArea}.
 
 Your capabilities:
-- Help readers find articles and news about Western North Carolina
+- Help readers find articles and news about ${context.serviceArea}
 - Answer questions about local events, weather, businesses, and community happenings
-- Provide information about the WNC Times website
+- Provide information about the ${context.siteName} website
 - Be friendly, concise, and helpful
 
 Guidelines:
@@ -129,7 +143,22 @@ Guidelines:
 - If asked about a specific article, reference it by title
 - For topics you don't have information about, suggest the reader check the website or contact the newsroom
 - Do not provide medical, legal, or financial advice
-- Stay focused on WNC-related topics and news`;
+- Stay focused on ${context.serviceArea}-related topics and news
+- Do not use markdown formatting like **bold** or *italic* in your responses`;
+}
+
+function getRegionalFocusConstraint(context: SiteContext): string {
+  return `
+
+IMPORTANT REGIONAL FOCUS:
+You serve readers in ${context.serviceArea}. When discussing any topic (business, sports, politics, weather, etc.), always focus on the LOCAL perspective:
+- For business news: discuss local businesses, local economy, local job market in ${context.serviceArea}
+- For sports: focus on local teams, high school sports, local athletes
+- For politics: focus on local government, local elections, state-level issues affecting the region
+- For weather: focus on conditions and forecasts for ${context.serviceArea}
+- Do NOT drift into national or world news unless it directly impacts ${context.serviceArea}
+- If asked about global topics, relate them back to how they affect ${context.serviceArea} residents
+- Keep all responses relevant to your local community`;
 }
 
 function buildConversationContents(

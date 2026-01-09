@@ -59,6 +59,15 @@ declare global {
   }
 }
 
+// Strip markdown formatting (bold **text**, italic *text*) from responses
+const stripMarkdown = (text: string): string => {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove **bold**
+    .replace(/\*([^*]+)\*/g, '$1')       // Remove *italic*
+    .replace(/__([^_]+)__/g, '$1')       // Remove __bold__
+    .replace(/_([^_]+)_/g, '$1');        // Remove _italic_
+};
+
 const ChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -556,11 +565,14 @@ const ChatAssistant: React.FC = () => {
         throw new Error('No response received from AI. Please try again.');
       }
 
-      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: responseText };
+      // Strip markdown formatting for clean display and speech
+      const cleanText = stripMarkdown(responseText);
+
+      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: cleanText };
       setMessages(prev => [...prev, botMsg]);
 
       if (isVoiceEnabled) {
-        speakText(responseText);
+        speakText(cleanText);
       } else if (isLiveMode) {
         // In live mode without voice, restart listening after response
         setTimeout(() => startListeningRef.current(), 500);
@@ -620,11 +632,14 @@ const ChatAssistant: React.FC = () => {
         throw new Error('No response received from AI. Please try again.');
       }
 
-      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: responseText };
+      // Strip markdown formatting for clean display and speech
+      const cleanText = stripMarkdown(responseText);
+
+      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: cleanText };
       setMessages(prev => [...prev, botMsg]);
 
       if (isVoiceEnabled) {
-        speakText(responseText);
+        speakText(cleanText);
       }
 
     } catch (err) {
@@ -688,7 +703,7 @@ const ChatAssistant: React.FC = () => {
               <button
                 onClick={toggleVoice}
                 className={`hover:bg-white/20 p-1.5 rounded transition ${isVoiceEnabled ? 'text-white' : 'text-white/50'}`}
-                title={isVoiceEnabled ? "Mute Voice" : "Enable Voice"}
+                title={isVoiceEnabled ? "Turn off voice responses" : "Turn on voice responses (AI will speak)"}
               >
                 {isVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               </button>
@@ -696,7 +711,7 @@ const ChatAssistant: React.FC = () => {
                 <button
                   onClick={toggleLiveMode}
                   className={`hover:bg-white/20 p-1.5 rounded transition flex items-center gap-1 ${isLiveMode ? 'text-white bg-white/20' : 'text-white/50'}`}
-                  title={isLiveMode ? "Disable Live Mode" : "Enable Live Mode (continuous voice conversation)"}
+                  title={isLiveMode ? "Turn off hands-free mode" : "Hands-free mode: speak and AI responds automatically"}
                 >
                   <Radio size={14} className={isLiveMode ? 'animate-pulse' : ''} />
                   {isLiveMode && <span className="text-[10px] font-medium">LIVE</span>}
@@ -777,7 +792,7 @@ const ChatAssistant: React.FC = () => {
                       : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                   } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label={isListening ? "Stop listening" : "Start voice input"}
-                  title={isListening ? "Stop listening" : "Voice input"}
+                  title={isListening ? "Tap to stop" : "Tap to speak (press-to-talk)"}
                 >
                   {isListening ? <MicOff size={18} /> : <Mic size={18} />}
                 </button>
