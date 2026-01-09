@@ -1488,7 +1488,7 @@ Return ONLY valid JSON array with no markdown:
         return;
       }
 
-      const promptText = `IMPORTANT: Generate an image with ZERO text, ZERO words, ZERO letters, ZERO watermarks, ZERO captions, ZERO logos, ZERO signs with writing. The image must be completely text-free. Subject: ${agentArticle.title}. ${agentArticle.excerpt || ''}. Style: Professional AP-style news photography, high resolution, photorealistic, editorial documentary style.`;
+      const promptText = `A photorealistic news photograph depicting: ${agentArticle.title}. ${agentArticle.excerpt || ''}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
 
       console.log('[Image Gen] Starting DALL-E request...');
       console.log('[Image Gen] API Key present:', !!apiKey, 'Key prefix:', apiKey?.substring(0, 10));
@@ -1793,7 +1793,7 @@ Example structure:
       let imageUrl = '';
       if (settings?.openaiApiKey) {
         try {
-          const imagePrompt = `IMPORTANT: Generate an image with ZERO text, ZERO words, ZERO letters, ZERO watermarks, ZERO captions, ZERO logos, ZERO signs with writing. The image must be completely text-free. Subject: ${suggestion.title}. Style: Professional AP-style news photography, high resolution, photorealistic, editorial documentary style.`;
+          const imagePrompt = `A photorealistic news photograph depicting: ${suggestion.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
           const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
             headers: {
