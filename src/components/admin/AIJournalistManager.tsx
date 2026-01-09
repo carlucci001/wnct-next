@@ -21,6 +21,16 @@ import {
   toggleScheduleStatus,
 } from '@/lib/aiJournalists';
 import ScheduleModal from './ScheduleModal';
+import ArticleReviewModal, { GeneratedArticleData } from './ArticleReviewModal';
+import { QuickFactCheckResult } from '@/types/factCheck';
+
+interface ReviewModalState {
+  isOpen: boolean;
+  article: GeneratedArticleData | null;
+  factCheck: QuickFactCheckResult | null;
+  journalist: AIJournalist | null;
+  sourceItemId: string | null;
+}
 
 interface AIJournalistManagerProps {
   categories: CategoryData[];
@@ -43,6 +53,13 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'add', journalist: null });
   const [scheduleModal, setScheduleModal] = useState<ScheduleModalState>({ isOpen: false, journalist: null });
+  const [reviewModal, setReviewModal] = useState<ReviewModalState>({
+    isOpen: false,
+    article: null,
+    factCheck: null,
+    journalist: null,
+    sourceItemId: null,
+  });
   const [fullCategories, setFullCategories] = useState<Category[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
 
@@ -246,12 +263,13 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
 
     setRunningAgentId(journalist.id);
     try {
+      // Use preview mode to get article + fact-check without saving
       const response = await fetch('/api/scheduled/run-agents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ agentId: journalist.id, force: true }),
+        body: JSON.stringify({ agentId: journalist.id, force: true, preview: true }),
       });
 
       const result = await response.json();
@@ -260,21 +278,92 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         throw new Error(result.error || 'Failed to run agent');
       }
 
-      if (result.results?.[0]?.success) {
+      if (result.preview && result.article) {
+        // Show review modal with generated article and fact-check results
+        setReviewModal({
+          isOpen: true,
+          article: {
+            title: result.article.title,
+            content: result.article.content,
+            excerpt: result.article.excerpt,
+            category: result.article.category,
+            categoryId: result.article.categoryId,
+            tags: result.article.tags || [],
+            imageUrl: result.article.imageUrl || result.article.featuredImage,
+            sourceTitle: result.sourceItem?.title,
+            sourceSummary: result.sourceItem?.summary,
+            sourceUrl: result.sourceItem?.url,
+          },
+          factCheck: result.factCheck,
+          journalist,
+          sourceItemId: result.sourceItem?.id || null,
+        });
+      } else if (result.results?.[0]?.success) {
         alert(`Article generated successfully by ${journalist.name}!`);
+        await loadJournalists();
       } else if (result.results?.[0]?.error) {
         alert(`Error: ${result.results[0].error}`);
       } else {
         alert(result.message || 'Agent run completed');
       }
-
-      await loadJournalists();
     } catch (error) {
       console.error('Error running agent:', error);
       alert(error instanceof Error ? error.message : 'Failed to run agent');
     } finally {
       setRunningAgentId(null);
     }
+  };
+
+  const handleSaveArticle = async (status: 'draft' | 'published') => {
+    if (!reviewModal.article || !reviewModal.journalist) return;
+
+    try {
+      const response = await fetch('/api/articles/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          article: {
+            ...reviewModal.article,
+            author: reviewModal.journalist.name,
+            authorId: reviewModal.journalist.id,
+            authorPhotoURL: reviewModal.journalist.photoURL || '',
+            generatedBy: 'ai-agent',
+            factCheckStatus: reviewModal.factCheck?.status || 'not_checked',
+            factCheckSummary: reviewModal.factCheck?.summary,
+            factCheckConfidence: reviewModal.factCheck?.confidence,
+            factCheckedAt: reviewModal.factCheck?.checkedAt,
+            factCheckMode: 'quick',
+          },
+          sourceItemId: reviewModal.sourceItemId,
+          agentId: reviewModal.journalist.id,
+          status,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save article');
+      }
+
+      alert(`Article ${status === 'published' ? 'published' : 'saved as draft'} successfully!`);
+      setReviewModal({ isOpen: false, article: null, factCheck: null, journalist: null, sourceItemId: null });
+      await loadJournalists();
+    } catch (error) {
+      console.error('Error saving article:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save article');
+    }
+  };
+
+  const handleEditArticle = () => {
+    // For now, save as draft and alert user to edit in articles admin
+    // In a full implementation, this could open the article editor
+    alert('Article will be saved as draft. Edit it in the Articles section.');
+    handleSaveArticle('draft');
+  };
+
+  const closeReviewModal = () => {
+    setReviewModal({ isOpen: false, article: null, factCheck: null, journalist: null, sourceItemId: null });
   };
 
   if (loading) {
@@ -680,6 +769,20 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
           categories={fullCategories}
           onClose={closeScheduleModal}
           onSaved={loadJournalists}
+        />
+      )}
+
+      {/* Article Review Modal (after AI generation) */}
+      {reviewModal.isOpen && reviewModal.article && reviewModal.journalist && (
+        <ArticleReviewModal
+          isOpen={reviewModal.isOpen}
+          onClose={closeReviewModal}
+          article={reviewModal.article}
+          factCheckResult={reviewModal.factCheck}
+          authorName={reviewModal.journalist.name}
+          onSaveDraft={() => handleSaveArticle('draft')}
+          onPublish={() => handleSaveArticle('published')}
+          onEdit={handleEditArticle}
         />
       )}
     </div>
