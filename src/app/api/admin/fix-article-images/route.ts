@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, query, orderBy, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
-import { storageService } from '@/lib/storage';
+import { getDb, getStorageInstance } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,147 +21,148 @@ function isExternalUrl(url: string): boolean {
 }
 
 /**
- * Check if a URL is broken (returns 404 or error)
+ * Fetch an external image and upload to Firebase Storage
+ * Server-side version that works without proxy
  */
-async function isUrlBroken(url: string): Promise<boolean> {
-  if (!url || url.startsWith('/') || url.startsWith('data:')) return false;
+async function persistImageServerSide(imageUrl: string): Promise<string | null> {
+  if (!imageUrl || !isExternalUrl(imageUrl)) return null;
 
   try {
-    const response = await fetch(url, {
-      method: 'HEAD',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsroomOS/1.0)' }
+    // Fetch the image directly (no CORS restrictions on server)
+    console.log('[Migration] Fetching:', imageUrl.substring(0, 60));
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NewsroomOS/1.0)',
+      },
     });
-    return !response.ok;
-  } catch {
-    return true;
+
+    if (!response.ok) {
+      console.log('[Migration] Fetch failed:', response.status);
+      return null;
+    }
+
+    // Get the image as buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // Determine file extension
+    let extension = 'jpg';
+    if (contentType.includes('png')) extension = 'png';
+    else if (contentType.includes('gif')) extension = 'gif';
+    else if (contentType.includes('webp')) extension = 'webp';
+
+    // Generate unique filename
+    const fileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+
+    // Upload to Firebase Storage
+    const storage = getStorageInstance();
+    const storageRef = ref(storage, fileName);
+
+    console.log('[Migration] Uploading to:', fileName);
+    const snapshot = await uploadBytes(storageRef, buffer, {
+      contentType: contentType,
+    });
+
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    console.log('[Migration] Success:', downloadUrl.substring(0, 60));
+    return downloadUrl;
+
+  } catch (error) {
+    console.error('[Migration] Error:', error);
+    return null;
   }
 }
 
 /**
  * POST /api/admin/fix-article-images
  * Migrates external image URLs to Firebase Storage
- *
- * Body options:
- * - dryRun: boolean - Just report what would be fixed, don't actually fix
- * - batchSize: number - How many articles to process (default 50)
- * - onlyBroken: boolean - Only fix URLs that are actually broken (slower)
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { dryRun = false, batchSize = 50, onlyBroken = false } = body;
+    const { dryRun = false, batchSize = 50 } = body;
 
     const db = getDb();
     const articlesRef = collection(db, 'articles');
 
-    // Get articles ordered by creation date (newest first)
-    const q = query(articlesRef, orderBy('createdAt', 'desc'), limit(batchSize));
-    const snapshot = await getDocs(q);
+    // Get ALL articles to find ones with external URLs
+    const allDocs = await getDocs(articlesRef);
+
+    // Filter to only those needing migration
+    const articlesToFix: Array<{ id: string; data: any }> = [];
+    allDocs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const imageUrl = data.featuredImage || data.imageUrl || '';
+      if (isExternalUrl(imageUrl)) {
+        articlesToFix.push({ id: docSnap.id, data });
+      }
+    });
+
+    // Only process up to batchSize
+    const toProcess = articlesToFix.slice(0, batchSize);
 
     const results = {
-      total: snapshot.size,
-      processed: 0,
+      totalWithExternalUrls: articlesToFix.length,
+      processing: toProcess.length,
       fixed: 0,
-      skipped: 0,
-      errors: 0,
+      failed: 0,
       details: [] as Array<{
         id: string;
         title: string;
-        action: 'fixed' | 'skipped' | 'error';
+        action: 'fixed' | 'failed';
         oldUrl?: string;
         newUrl?: string;
-        reason?: string;
+        error?: string;
       }>,
     };
 
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
-      const articleId = docSnap.id;
+    for (const article of toProcess) {
+      const { id, data } = article;
       const title = (data.title || 'Untitled').substring(0, 50);
       const currentImageUrl = data.featuredImage || data.imageUrl || '';
 
-      results.processed++;
-
-      // Skip if no image or already in Firebase Storage
-      if (!isExternalUrl(currentImageUrl)) {
-        results.skipped++;
-        results.details.push({
-          id: articleId,
-          title,
-          action: 'skipped',
-          reason: currentImageUrl ? 'Already in Firebase Storage or local' : 'No image URL',
-        });
-        continue;
-      }
-
-      // If onlyBroken is true, check if URL is actually broken
-      if (onlyBroken) {
-        const broken = await isUrlBroken(currentImageUrl);
-        if (!broken) {
-          results.skipped++;
-          results.details.push({
-            id: articleId,
-            title,
-            action: 'skipped',
-            oldUrl: currentImageUrl.substring(0, 80),
-            reason: 'URL still works',
-          });
-          continue;
-        }
-      }
-
-      // Try to persist the image
       if (dryRun) {
         results.fixed++;
         results.details.push({
-          id: articleId,
+          id,
           title,
           action: 'fixed',
           oldUrl: currentImageUrl.substring(0, 80),
-          reason: 'Would be migrated (dry run)',
+          newUrl: '(dry run - would migrate)',
         });
         continue;
       }
 
-      try {
-        const newUrl = await storageService.uploadAssetFromUrl(currentImageUrl);
+      // Try to persist the image
+      const newUrl = await persistImageServerSide(currentImageUrl);
 
-        // Only update if we got a different URL (successfully persisted)
-        if (newUrl && newUrl !== currentImageUrl) {
-          await updateDoc(doc(db, 'articles', articleId), {
-            featuredImage: newUrl,
-            imageUrl: newUrl,
-            updatedAt: new Date().toISOString(),
-          });
+      if (newUrl) {
+        // Update the article
+        await updateDoc(doc(db, 'articles', id), {
+          featuredImage: newUrl,
+          imageUrl: newUrl,
+          updatedAt: new Date().toISOString(),
+        });
 
-          results.fixed++;
-          results.details.push({
-            id: articleId,
-            title,
-            action: 'fixed',
-            oldUrl: currentImageUrl.substring(0, 80),
-            newUrl: newUrl.substring(0, 80),
-          });
-        } else {
-          results.skipped++;
-          results.details.push({
-            id: articleId,
-            title,
-            action: 'skipped',
-            oldUrl: currentImageUrl.substring(0, 80),
-            reason: 'Could not persist (URL may be inaccessible)',
-          });
-        }
-      } catch (error) {
-        results.errors++;
+        results.fixed++;
         results.details.push({
-          id: articleId,
+          id,
           title,
-          action: 'error',
+          action: 'fixed',
           oldUrl: currentImageUrl.substring(0, 80),
-          reason: error instanceof Error ? error.message : 'Unknown error',
+          newUrl: newUrl.substring(0, 80),
+        });
+      } else {
+        results.failed++;
+        results.details.push({
+          id,
+          title,
+          action: 'failed',
+          oldUrl: currentImageUrl.substring(0, 80),
+          error: 'Could not fetch or upload image',
         });
       }
     }
@@ -173,11 +174,11 @@ export async function POST(request: NextRequest) {
       dryRun,
       duration: `${duration}ms`,
       summary: {
-        total: results.total,
-        processed: results.processed,
+        totalWithExternalUrls: results.totalWithExternalUrls,
+        processed: results.processing,
         fixed: results.fixed,
-        skipped: results.skipped,
-        errors: results.errors,
+        failed: results.failed,
+        remaining: results.totalWithExternalUrls - results.processing,
       },
       details: results.details,
     });
