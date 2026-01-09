@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { text } = await request.json();
+    const { text, voiceConfig } = await request.json();
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -25,9 +25,15 @@ export async function POST(request: NextRequest) {
     // Check which TTS provider to use
     const ttsProvider = settings?.ttsProvider || 'google';
 
-    if (ttsProvider === 'elevenlabs' && settings?.elevenLabsApiKey && settings?.elevenLabsVoiceId) {
-      // Use ElevenLabs
-      return await elevenLabsTTS(trimmedText, settings.elevenLabsApiKey as string, settings.elevenLabsVoiceId as string, settings);
+    if (ttsProvider === 'elevenlabs' && settings?.elevenLabsApiKey) {
+      // Use persona's voice if provided, otherwise fall back to global settings
+      const voiceId = voiceConfig?.voiceId || settings?.elevenLabsVoiceId;
+      if (!voiceId) {
+        // No voice configured, fall back to Google TTS
+        return await googleTTS(trimmedText, settings);
+      }
+      // Use ElevenLabs with persona voice settings override
+      return await elevenLabsTTS(trimmedText, settings.elevenLabsApiKey as string, voiceId as string, settings, voiceConfig);
     } else {
       // Use Google Cloud TTS
       return await googleTTS(trimmedText, settings);
@@ -42,15 +48,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Voice config from persona
+interface PersonaVoiceConfig {
+  voiceId?: string;
+  voiceName?: string;
+  stability?: number;
+  similarityBoost?: number;
+  style?: number;
+  useSpeakerBoost?: boolean;
+}
+
 // ElevenLabs TTS
-async function elevenLabsTTS(text: string, apiKey: string, voiceId: string, settings: Record<string, unknown> | undefined) {
+async function elevenLabsTTS(
+  text: string,
+  apiKey: string,
+  voiceId: string,
+  settings: Record<string, unknown> | undefined,
+  voiceConfig?: PersonaVoiceConfig
+) {
   try {
-    // Get voice settings from Firestore config
+    // Use persona voice settings if provided, otherwise fall back to global settings
     const model = (settings?.elevenLabsModel as string) || 'eleven_turbo_v2';
-    const stability = (settings?.elevenLabsStability as number) ?? 0.5;
-    const similarity = (settings?.elevenLabsSimilarity as number) ?? 0.75;
-    const style = (settings?.elevenLabsStyle as number) ?? 0;
-    const speakerBoost = (settings?.elevenLabsSpeakerBoost as boolean) ?? true;
+    const stability = voiceConfig?.stability ?? (settings?.elevenLabsStability as number) ?? 0.5;
+    const similarity = voiceConfig?.similarityBoost ?? (settings?.elevenLabsSimilarity as number) ?? 0.75;
+    const style = voiceConfig?.style ?? (settings?.elevenLabsStyle as number) ?? 0;
+    const speakerBoost = voiceConfig?.useSpeakerBoost ?? (settings?.elevenLabsSpeakerBoost as boolean) ?? true;
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,

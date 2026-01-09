@@ -294,35 +294,46 @@ export async function getCommunityStats(): Promise<{
   postsThisWeek: number;
   activeTopics: number;
 }> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const sevenDaysAgoTimestamp = Timestamp.fromDate(sevenDaysAgo);
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Get all active posts
-  const allPostsQuery = query(
-    collection(getDb(), POSTS_COLLECTION),
-    where('status', '==', 'active')
-  );
-  const allPostsSnapshot = await getDocs(allPostsQuery);
+    // Get all active posts (single where clause - no composite index needed)
+    const allPostsQuery = query(
+      collection(getDb(), POSTS_COLLECTION),
+      where('status', '==', 'active')
+    );
+    const allPostsSnapshot = await getDocs(allPostsQuery);
 
-  // Get posts from last week
-  const recentPostsQuery = query(
-    collection(getDb(), POSTS_COLLECTION),
-    where('status', '==', 'active'),
-    where('createdAt', '>=', sevenDaysAgoTimestamp)
-  );
-  const recentPostsSnapshot = await getDocs(recentPostsQuery);
+    // Count posts from last week and unique topics in-memory
+    // (avoids needing a composite index for status + createdAt)
+    let postsThisWeek = 0;
+    const topics = new Set<string>();
 
-  // Count unique topics
-  const topics = new Set<string>();
-  allPostsSnapshot.docs.forEach((doc) => {
-    const data = doc.data();
-    if (data.topic) topics.add(data.topic);
-  });
+    allPostsSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.topic) topics.add(data.topic);
 
-  return {
-    totalPosts: allPostsSnapshot.size,
-    postsThisWeek: recentPostsSnapshot.size,
-    activeTopics: topics.size,
-  };
+      // Check if post is from last week
+      if (data.createdAt) {
+        const postDate = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+        if (postDate >= sevenDaysAgo) {
+          postsThisWeek++;
+        }
+      }
+    });
+
+    return {
+      totalPosts: allPostsSnapshot.size,
+      postsThisWeek,
+      activeTopics: topics.size,
+    };
+  } catch (error) {
+    console.error('Error getting community stats:', error);
+    return {
+      totalPosts: 0,
+      postsThisWeek: 0,
+      activeTopics: 0,
+    };
+  }
 }

@@ -2,13 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Bot, Plus, Edit2, Trash2, X, Camera, Check, Power, PowerOff, Clock, Calendar, Play, Pause, Zap, Loader2 } from 'lucide-react';
+import { Bot, Plus, Edit2, Trash2, X, Camera, Check, Power, PowerOff, Clock, Calendar, Play, Pause, Zap, Loader2, UserCircle2 } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { AIJournalist, AIJournalistInput } from '@/types/aiJournalist';
 import { CategoryData } from '@/types/article';
 import { Category } from '@/types/category';
+import { Persona } from '@/types/persona';
 import { getAllCategories } from '@/lib/categories';
+import { getAllPersonas } from '@/lib/personas';
 import {
   getAllAIJournalists,
   createAIJournalist,
@@ -42,6 +44,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
   const [modal, setModal] = useState<ModalState>({ isOpen: false, mode: 'add', journalist: null });
   const [scheduleModal, setScheduleModal] = useState<ScheduleModalState>({ isOpen: false, journalist: null });
   const [fullCategories, setFullCategories] = useState<Category[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
 
   // Form state
   const [name, setName] = useState('');
@@ -50,15 +53,17 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
   const [bio, setBio] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [personaId, setPersonaId] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load journalists and categories on mount
+  // Load journalists, categories, and personas on mount
   useEffect(() => {
     loadJournalists();
     loadCategories();
+    loadPersonas();
   }, []);
 
   const loadJournalists = async () => {
@@ -79,6 +84,15 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
       setFullCategories(cats);
     } catch (error) {
       console.error('Error loading categories:', error);
+    }
+  };
+
+  const loadPersonas = async () => {
+    try {
+      const data = await getAllPersonas(true);
+      setPersonas(data);
+    } catch (error) {
+      console.error('Error loading personas:', error);
     }
   };
 
@@ -113,6 +127,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
     setBio('');
     setPhotoURL('');
     setIsActive(true);
+    setPersonaId('');
     setModal({ isOpen: true, mode: 'add', journalist: null });
   };
 
@@ -123,6 +138,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
     setBio(journalist.bio || '');
     setPhotoURL(journalist.photoURL);
     setIsActive(journalist.isActive);
+    setPersonaId(journalist.personaId || '');
     setModal({ isOpen: true, mode: 'edit', journalist });
   };
 
@@ -177,6 +193,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         isActive,
         createdBy: currentUserId,
         agentRole: 'journalist', // Default role for new journalists
+        personaId: personaId || undefined,
       };
 
       if (modal.mode === 'add') {
@@ -564,6 +581,31 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
                   ))}
                 </select>
                 <p className="text-xs text-slate-500 mt-1">The topic area this journalist specializes in</p>
+              </div>
+
+              {/* Linked Persona */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <span className="flex items-center gap-2">
+                    <UserCircle2 size={16} className="text-violet-600" />
+                    Linked Persona
+                  </span>
+                </label>
+                <select
+                  value={personaId}
+                  onChange={(e) => setPersonaId(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                >
+                  <option value="">No persona linked</option>
+                  {personas.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.name} - {persona.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Link to a persona for skills, prompts, and chat capabilities
+                </p>
               </div>
 
               {/* Bio */}

@@ -15,7 +15,7 @@ import {
   arrayRemove,
   limit
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { getDb } from './firebase';
 import { Comment, CommentStatus, CommentSettings } from '@/types/comment';
 
 const COLLECTION_NAME = 'comments';
@@ -23,7 +23,7 @@ const SETTINGS_DOC_ID = 'comments';
 
 // CREATE
 export async function createComment(data: Omit<Comment, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'likedBy' | 'repliesCount'>): Promise<string> {
-  const docRef = doc(collection(db, COLLECTION_NAME));
+  const docRef = doc(collection(getDb(), COLLECTION_NAME));
   const newComment = {
     ...data,
     id: docRef.id,
@@ -41,36 +41,52 @@ export async function createComment(data: Omit<Comment, 'id' | 'createdAt' | 'up
 
 // READ (List for Article)
 export async function getCommentsForArticle(articleId: string, includeHidden = false): Promise<Comment[]> {
-  let q = query(
-    collection(db, COLLECTION_NAME),
+  // Simple query for all comments of an article
+  const q = query(
+    collection(getDb(), COLLECTION_NAME), 
     where('articleId', '==', articleId)
   );
 
+  const snapshot = await getDocs(q);
+  let comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+
+  // Sort by date manually to avoid the index requirement for where + orderBy
+  comments.sort((a, b) => {
+    const getMs = (date: any) => {
+      if (!date) return 0;
+      if (typeof date.toDate === 'function') return date.toDate().getTime();
+      return new Date(date).getTime();
+    };
+    return getMs(b.createdAt) - getMs(a.createdAt);
+  });
+
+  // Filter approved only if not admin
   if (!includeHidden) {
-    q = query(q, where('status', '==', 'approved'));
+    comments = comments.filter(c => c.status === 'approved');
   }
 
-  q = query(q, orderBy('createdAt', 'desc'));
-  
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
+  return comments;
 }
 
 // READ (All for Admin)
 export async function getAllComments(status?: CommentStatus, limitCount = 50): Promise<Comment[]> {
-  let q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'), limit(limitCount));
-  
-  if (status) {
-    q = query(q, where('status', '==', status));
-  }
+  // Simple query by date
+  const q = query(collection(getDb(), COLLECTION_NAME), orderBy('createdAt', 'desc'), limit(limitCount));
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
+  let comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+
+  // Filter by status client-side
+  if (status) {
+    comments = comments.filter(c => c.status === status);
+  }
+
+  return comments;
 }
 
 // UPDATE
 export async function updateComment(id: string, updates: Partial<Comment>): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, id);
+  const docRef = doc(getDb(), COLLECTION_NAME, id);
   await updateDoc(docRef, {
     ...updates,
     updatedAt: serverTimestamp(),
@@ -79,12 +95,12 @@ export async function updateComment(id: string, updates: Partial<Comment>): Prom
 
 // DELETE
 export async function deleteComment(id: string): Promise<void> {
-  await deleteDoc(doc(db, COLLECTION_NAME, id));
+  await deleteDoc(doc(getDb(), COLLECTION_NAME, id));
 }
 
 // LIKE/UNLIKE
 export async function toggleLikeComment(commentId: string, userId: string, isLiking: boolean): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, commentId);
+  const docRef = doc(getDb(), COLLECTION_NAME, commentId);
   await updateDoc(docRef, {
     likes: increment(isLiking ? 1 : -1),
     likedBy: isLiking ? arrayUnion(userId) : arrayRemove(userId),
@@ -94,7 +110,7 @@ export async function toggleLikeComment(commentId: string, userId: string, isLik
 
 // SETTINGS
 export async function getCommentSettings(): Promise<CommentSettings> {
-  const docRef = doc(db, 'componentSettings', SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), 'componentSettings', SETTINGS_DOC_ID);
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
@@ -112,6 +128,6 @@ export async function getCommentSettings(): Promise<CommentSettings> {
 }
 
 export async function updateCommentSettings(settings: Partial<CommentSettings>): Promise<void> {
-  const docRef = doc(db, 'componentSettings', SETTINGS_DOC_ID);
+  const docRef = doc(getDb(), 'componentSettings', SETTINGS_DOC_ID);
   await setDoc(docRef, settings, { merge: true });
 }

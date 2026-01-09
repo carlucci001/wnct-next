@@ -4,10 +4,10 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins, Newspaper
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins, Newspaper, UserCircle2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccessSuperAdmin, IS_MASTER_SITE } from '@/config/masterSite';
+import { canAccessSuperAdmin } from '@/config/masterSite';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface MenuSections {
   ai: boolean;
@@ -105,11 +105,6 @@ export function AdminSidebar({
   const { currentUser } = useAuth();
   const showPaperPartnerAdmin = canAccessSuperAdmin(currentUser?.uid);
 
-  // Accordion behavior: close other sections when opening a new one
-  const handleSectionToggle = (section: keyof MenuSections) => {
-    // Only allow one section open at a time
-    toggleMenuSection(section);
-  };
 
   const sidebarContent = (
     <ScrollArea className="flex-1 min-h-0">
@@ -215,6 +210,13 @@ export function AdminSidebar({
                 icon={ListOrdered}
               >
                 Categories
+              </NavItem>
+              <NavItem
+                active={activeTab === 'comments'}
+                onClick={() => setActiveTab('comments')}
+                icon={MessageSquare}
+              >
+                Comments
               </NavItem>
               <NavItem
                 active={activeTab === 'media'}
@@ -373,6 +375,14 @@ export function AdminSidebar({
                 icon={Users}
               >
                 User Management
+              </NavItem>
+              <NavItem
+                active={activeTab === 'personas'}
+                onClick={() => setActiveTab('personas')}
+                icon={UserCircle2}
+                iconColor="text-violet-600"
+              >
+                Persona Management
               </NavItem>
               <NavItem
                 active={activeTab === 'roles'}
