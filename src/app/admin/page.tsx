@@ -1491,16 +1491,16 @@ Return ONLY valid JSON array with no markdown:
       // Try with specific title first, fallback to generic category image if safety-rejected
       const specificPrompt = `A photorealistic news photograph depicting: ${agentArticle.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
 
-      // Generic fallback prompts by category
+      // Generic fallback prompts by category - NO PEOPLE to avoid AI bias issues
       const categoryFallbacks: Record<string, string> = {
-        'News': 'A photorealistic image of a newspaper office with journalists working, professional lighting',
-        'Politics': 'A photorealistic image of a government building exterior with American flag, golden hour lighting',
-        'Sports': 'A photorealistic image of an empty sports stadium at sunset, dramatic lighting',
-        'Business': 'A photorealistic image of a modern office building exterior, professional photography',
-        'Entertainment': 'A photorealistic image of a theater marquee at night, cinematic lighting',
-        'Lifestyle': 'A photorealistic image of a cozy coffee shop interior, warm natural lighting',
-        'Outdoors': 'A photorealistic landscape of Blue Ridge Mountains at sunrise, dramatic lighting',
-        'default': 'A photorealistic image of Western North Carolina mountain scenery, professional photography'
+        'News': 'A photorealistic image of stacked newspapers on a wooden desk with morning light, no people',
+        'Politics': 'A photorealistic image of the US Capitol building dome at golden hour, no people, architectural photography',
+        'Sports': 'A photorealistic image of an empty football field with stadium lights at dusk, no people',
+        'Business': 'A photorealistic image of a modern glass skyscraper reflecting clouds, no people, architectural',
+        'Entertainment': 'A photorealistic image of an empty theater with red velvet seats and stage lights, no people',
+        'Lifestyle': 'A photorealistic image of a steaming coffee cup on a cafe table by a window, no people',
+        'Outdoors': 'A photorealistic landscape of Blue Ridge Mountains at sunrise with morning mist, no people',
+        'default': 'A photorealistic landscape of Western North Carolina mountains with autumn foliage, no people'
       };
 
       const generateWithPrompt = async (prompt: string): Promise<{success: boolean; url?: string; error?: string}> => {
