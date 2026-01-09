@@ -79,10 +79,28 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
 
   if (!ad) {
     if (fallback) return <>{fallback}</>;
-    
-    // Default Premium Fallback
+
+    // Header banner - pixel perfect 728x90
+    if (position === 'header_main') {
+      return (
+        <a
+          href="/contact"
+          className={`group relative block w-[728px] h-[90px] overflow-hidden rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 ${className}`}
+        >
+          {/* Subtle pattern */}
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+          {/* Centered text overlay */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
+              Advertise Here
+            </span>
+          </div>
+        </a>
+      );
+    }
+
+    // Default fallback for other positions
     const dimMap: Record<string, string> = {
-      header_main: 'max-h-[90px] aspect-[728/90]',
       sidebar_top: 'aspect-square md:aspect-[300/250]',
       sidebar_sticky: 'aspect-square md:aspect-[300/600]',
       article_inline: 'aspect-[21/9] md:aspect-[970/250]',
@@ -92,24 +110,19 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
     const dims = dimMap[position] || 'aspect-video';
 
     return (
-      <div className={`group relative overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/20 bg-muted/5 flex flex-col items-center justify-center p-8 transition-all hover:bg-muted/10 hover:border-primary/20 ${dims} ${className}`}>
-        <div className="absolute inset-0 bg-linear-to-br from-primary/5 via-transparent to-primary/5 opacity-50" />
-        <div className="relative z-10 flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/></svg>
-          </div>
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-foreground/60">Advertise Here</p>
-            <p className="text-[10px] text-muted-foreground font-medium mt-1">Reach 50k+ local WNC readers monthly</p>
-          </div>
-          <a
-            href="/contact"
-            className="mt-2 px-6 py-2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0"
-          >
-            Contact Us
-          </a>
+      <a
+        href="/contact"
+        className={`group relative block overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 ${dims} ${className}`}
+      >
+        {/* Subtle pattern */}
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '16px 16px' }} />
+        {/* Centered text overlay */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
+            Advertise Here
+          </span>
         </div>
-      </div>
+      </a>
     );
   }
 
