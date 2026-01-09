@@ -69,6 +69,10 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
   };
 
   if (loading) {
+    // Header banner loading - no text, exact dimensions
+    if (position === 'header_main') {
+      return <Skeleton className={`w-[728px] h-[90px] rounded-lg ${className}`} />;
+    }
     return (
       <div className={`flex flex-col gap-2 ${className}`}>
         <Skeleton className="w-full h-full min-h-[100px] rounded-lg" />
@@ -126,37 +130,70 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
     );
   }
 
+  // Header banner - pixel perfect, no labels
+  if (position === 'header_main') {
+    return (
+      <div ref={adRef} className={`w-[728px] h-[90px] overflow-hidden rounded-lg ${className}`}>
+        {ad.type === 'image' && (
+          <a
+            href={ad.targetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleClick}
+            className="block w-full h-full"
+          >
+            <Image
+              src={ad.imageUrl || ''}
+              alt={ad.title}
+              width={728}
+              height={90}
+              priority={priority}
+              className="w-[728px] h-[90px] object-cover"
+            />
+          </a>
+        )}
+        {ad.type === 'html' && (
+          <div
+            dangerouslySetInnerHTML={{ __html: ad.htmlContent || '' }}
+            className="w-full h-full"
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Other positions - with label
   return (
     <div ref={adRef} className={`relative flex flex-col items-center gap-1.5 ${className}`}>
       <span className="text-[9px] text-muted-foreground/50 uppercase tracking-[0.2em] font-black">Advertisement</span>
-      
+
       <div className="relative group w-full overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all border border-border/50 bg-muted/20">
         {ad.type === 'image' && (
-          <a 
-            href={ad.targetUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href={ad.targetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={handleClick}
             className="block w-full h-full relative"
           >
-            <Image 
-              src={ad.imageUrl || ''} 
-              alt={ad.title} 
-              width={800} // High enough default
-              height={400} 
+            <Image
+              src={ad.imageUrl || ''}
+              alt={ad.title}
+              width={800}
+              height={400}
               priority={priority}
               className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105"
               style={{ width: '100%', height: 'auto' }}
             />
-            
+
             {/* Glossy Overlay */}
             <div className="absolute inset-0 bg-linear-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity" />
           </a>
         )}
 
         {ad.type === 'html' && (
-          <div 
-            dangerouslySetInnerHTML={{ __html: ad.htmlContent || '' }} 
+          <div
+            dangerouslySetInnerHTML={{ __html: ad.htmlContent || '' }}
             className="w-full h-full"
           />
         )}
