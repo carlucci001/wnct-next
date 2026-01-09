@@ -159,39 +159,39 @@ export function AdminHeader({
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 md:w-3 md:h-3 bg-green-500 border-2 border-background rounded-full" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-gray-900">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{currentUser?.displayName || 'Admin'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{currentUser?.email}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{currentUser?.displayName || 'Admin'}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUser?.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onAccountClick}>
-                <Settings className="mr-2 h-4 w-4" />
+              <DropdownMenuItem onClick={onAccountClick} className="text-gray-900 dark:text-gray-100 cursor-pointer">
+                <Settings className="mr-2 h-4 w-4 text-blue-600" />
                 My Account
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={toggleColorMode}>
+              <DropdownMenuItem onClick={toggleColorMode} className="text-gray-900 dark:text-gray-100 cursor-pointer">
                 {colorMode === 'light' ? (
-                  <Moon className="mr-2 h-4 w-4" />
+                  <Moon className="mr-2 h-4 w-4 text-indigo-600" />
                 ) : (
-                  <Sun className="mr-2 h-4 w-4" />
+                  <Sun className="mr-2 h-4 w-4 text-yellow-500" />
                 )}
                 {colorMode === 'light' ? 'Dark Mode' : 'Light Mode'}
               </DropdownMenuItem>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Palette className="mr-2 h-4 w-4" />
+                <DropdownMenuSubTrigger className="text-gray-900 dark:text-gray-100">
+                  <Palette className="mr-2 h-4 w-4 text-purple-600" />
                   Color Theme
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-48">
+                  <DropdownMenuSubContent className="w-48 bg-white dark:bg-gray-900">
                     {availableThemes.map((t) => (
                       <DropdownMenuItem
                         key={t.name}
                         onClick={() => setTheme(t.name)}
-                        className="flex items-center justify-between"
+                        className="flex items-center justify-between text-gray-900 dark:text-gray-100 cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
                           <span
@@ -200,14 +200,14 @@ export function AdminHeader({
                           />
                           {t.label}
                         </span>
-                        {theme === t.name && <Check className="h-4 w-4" />}
+                        {theme === t.name && <Check className="h-4 w-4 text-green-600" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onClick={onSignOut} className="text-red-600 dark:text-red-400 cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
               </DropdownMenuItem>
