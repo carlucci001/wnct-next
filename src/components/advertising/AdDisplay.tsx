@@ -102,11 +102,11 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
             <p className="text-sm font-black uppercase tracking-widest text-foreground/60">Advertise Here</p>
             <p className="text-[10px] text-muted-foreground font-medium mt-1">Reach 50k+ local WNC readers monthly</p>
           </div>
-          <a 
-            href="/advertise" 
+          <a
+            href="/contact"
             className="mt-2 px-6 py-2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0"
           >
-            Get Started
+            Contact Us
           </a>
         </div>
       </div>
