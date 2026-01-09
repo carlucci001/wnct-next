@@ -5,6 +5,9 @@ import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX, RotateCc
 import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Persona } from '@/types/persona';
+import { getChatAvailablePersonas } from '@/lib/personas';
+import PersonaSelector from '@/components/chat/PersonaSelector';
 
 interface Message {
   id: string;
@@ -63,7 +66,12 @@ const ChatAssistant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your WNC Times assistant. Ask me about local news, find articles, or get help navigating the site.");
+  const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your assistant. Ask me about local news, find articles, or get help navigating the site.");
+
+  // Persona state
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
 
   // Voice input state
   const [isListening, setIsListening] = useState(false);
@@ -111,6 +119,7 @@ const ChatAssistant: React.FC = () => {
     };
 
     loadSettings();
+    loadPersonas();
 
     const savedVoiceEnabled = localStorage.getItem('wnc_voice_enabled') === 'true';
     setIsVoiceEnabled(savedVoiceEnabled);
@@ -127,6 +136,48 @@ const ChatAssistant: React.FC = () => {
       stopListening();
     };
   }, []);
+
+  // Load chat-available personas
+  const loadPersonas = async () => {
+    try {
+      const availablePersonas = await getChatAvailablePersonas();
+      setPersonas(availablePersonas);
+
+      // Set default persona (first one or saved preference)
+      const savedPersonaId = localStorage.getItem('wnc_chat_persona_id');
+      if (availablePersonas.length > 0) {
+        const defaultPersona = savedPersonaId
+          ? availablePersonas.find(p => p.id === savedPersonaId) || availablePersonas[0]
+          : availablePersonas[0];
+        setSelectedPersonaId(defaultPersona.id);
+        setCurrentPersona(defaultPersona);
+      }
+    } catch (error) {
+      console.error('[ChatAssistant] Failed to load personas:', error);
+    }
+  };
+
+  // Handle persona selection
+  const handlePersonaSelect = (personaId: string) => {
+    const persona = personas.find(p => p.id === personaId);
+    if (persona) {
+      setSelectedPersonaId(personaId);
+      setCurrentPersona(persona);
+      localStorage.setItem('wnc_chat_persona_id', personaId);
+
+      // Update welcome message and reset chat with new greeting
+      const greeting = persona.promptConfig.chatGreeting || `Hi! I'm ${persona.name}. How can I help you?`;
+      setWelcomeMessage(greeting);
+      setMessages([{ id: 'init', role: 'model', text: greeting }]);
+    }
+  };
+
+  // Update welcome message when persona changes
+  useEffect(() => {
+    if (currentPersona && currentPersona.promptConfig.chatGreeting) {
+      setWelcomeMessage(currentPersona.promptConfig.chatGreeting);
+    }
+  }, [currentPersona]);
 
   // Set initial welcome message when it's loaded
   useEffect(() => {
@@ -313,11 +364,14 @@ const ChatAssistant: React.FC = () => {
     ttsAbortControllerRef.current = abortController;
 
     try {
-      // Try Google Cloud TTS first
+      // Try Google Cloud TTS first, passing persona voice config if available
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          voiceConfig: currentPersona?.voiceConfig,
+        }),
         signal: abortController.signal,
       });
 
@@ -486,6 +540,7 @@ const ChatAssistant: React.FC = () => {
         body: JSON.stringify({
           message: messageText,
           history: conversationHistory.slice(0, -1),
+          personaId: selectedPersonaId,
         }),
       });
 
@@ -549,6 +604,7 @@ const ChatAssistant: React.FC = () => {
         body: JSON.stringify({
           message: input,
           history: conversationHistory.slice(0, -1),
+          personaId: selectedPersonaId,
         }),
       });
 
@@ -592,8 +648,12 @@ const ChatAssistant: React.FC = () => {
             <div className="flex items-center gap-2">
               <Sparkles size={16} className="text-white/80" />
               <div className="flex flex-col">
-                <h3 className="font-bold text-sm tracking-wide leading-none">WNC Assistant</h3>
-                <span className="text-[10px] opacity-80 font-normal">Reader Support</span>
+                <h3 className="font-bold text-sm tracking-wide leading-none">
+                  {currentPersona?.name || 'Assistant'}
+                </h3>
+                <span className="text-[10px] opacity-80 font-normal">
+                  {currentPersona?.title || 'Reader Support'}
+                </span>
               </div>
               {isSpeaking && (
                 <div className="flex space-x-0.5 items-center h-3 ml-2" title="Speaking...">
@@ -610,6 +670,14 @@ const ChatAssistant: React.FC = () => {
               )}
             </div>
             <div className="flex items-center gap-1">
+              {/* Persona Selector */}
+              {personas.length > 1 && (
+                <PersonaSelector
+                  personas={personas}
+                  selectedPersonaId={selectedPersonaId}
+                  onSelectPersona={handlePersonaSelect}
+                />
+              )}
               <button
                 onClick={resetChat}
                 className="hover:bg-white/20 p-1.5 rounded transition text-white/70 hover:text-white"

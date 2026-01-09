@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Comment } from '@/types/comment';
+import { Timestamp } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ThumbsUp, MoreVertical, Flag, Trash2, ShieldCheck } from 'lucide-react';
@@ -66,13 +67,23 @@ export function CommentItem({ comment, onRefresh, isAdmin = false }: CommentItem
       toast.success('Comment reported');
       onRefresh();
     } catch (error) {
+      console.error('Error reporting comment:', error);
       toast.error('Failed to report comment');
     }
   };
 
-  const formatDate = (date: any) => { // Keep any for now as Firebase Timestamp is complex, or cast to unknown
+  const formatDate = (date: Comment['createdAt']) => {
     if (!date) return '';
-    const d = typeof date.toDate === 'function' ? date.toDate() : new Date(date);
+    
+    let d: Date;
+    if (date instanceof Timestamp) {
+      d = date.toDate();
+    } else if (typeof date === 'object' && date !== null && 'toDate' in date && typeof (date as any).toDate === 'function') {
+      d = (date as any).toDate();
+    } else {
+      d = new Date(date as string);
+    }
+    
     return formatDistanceToNow(d, { addSuffix: true });
   };
 

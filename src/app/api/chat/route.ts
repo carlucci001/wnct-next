@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { getPersona, buildPersonaChatPrompt } from '@/lib/personas';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,7 @@ interface ChatMessage {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history } = await request.json();
+    const { message, history, personaId } = await request.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -33,7 +34,25 @@ export async function POST(request: NextRequest) {
     }
 
     const model = 'gemini-2.0-flash';
-    const systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+
+    // Build system prompt - use persona if provided, otherwise fall back to settings or default
+    let systemPrompt: string;
+    if (personaId) {
+      try {
+        const persona = await getPersona(personaId);
+        if (persona && persona.isActive && persona.isAvailableForChat) {
+          systemPrompt = buildPersonaChatPrompt(persona);
+        } else {
+          // Persona not found or not available for chat, use default
+          systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+        }
+      } catch (error) {
+        console.error('Error loading persona:', error);
+        systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+      }
+    } else {
+      systemPrompt = settings?.chatSystemPrompt || getDefaultSystemPrompt();
+    }
 
     // Build conversation contents for Gemini API
     const conversationContents = buildConversationContents(

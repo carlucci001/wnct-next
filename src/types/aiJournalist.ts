@@ -51,6 +51,9 @@ export interface AIJournalist {
   updatedAt: string;         // ISO timestamp
   createdBy: string;         // Admin UID who created this profile
 
+  // Persona link (optional - for backwards compatibility)
+  personaId?: string;        // References a document in the 'personas' collection
+
   // Scheduling fields
   agentRole: AgentRole;      // Type of agent
   schedule?: AgentSchedule;  // Autopilot schedule configuration

@@ -44,6 +44,16 @@ const AIJournalistManager = dynamic(() => import('@/components/admin/AIJournalis
   ),
 });
 
+// Dynamically import PersonaManager to avoid SSR issues
+const PersonaManager = dynamic(() => import('@/components/admin/PersonaManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import CategoryManager to avoid SSR issues
 const CategoryManager = dynamic(() => import('@/components/admin/CategoryManager'), {
   ssr: false,
@@ -180,6 +190,16 @@ const PaperPartnerAdmin = dynamic(() => import('@/components/admin/PaperPartnerA
   ),
 });
 
+// Dynamically import CommentAdmin
+const CommentAdmin = dynamic(() => import('@/components/admin/CommentAdmin'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import AgentPromptEditor
 const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
   ssr: false,
@@ -220,7 +240,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'media' | 'users' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface DashboardStats {
   totalArticles: number;
@@ -329,7 +349,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'articles', 'categories', 'comments', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
@@ -6232,6 +6252,7 @@ Example structure:
             {activeTab === 'infrastructure' && renderInfrastructure()}
             {activeTab === 'tools' && renderTools()}
             {activeTab === 'categories' && renderCategories()}
+            {activeTab === 'comments' && <CommentAdmin />}
             {activeTab === 'media' && <MediaManager />}
             {activeTab === 'api-config' && renderApiConfig()}
             {activeTab === 'roles' && renderRolesAndPermissions()}
@@ -6243,6 +6264,11 @@ Example structure:
                 categories={categories}
                 currentUserId={currentUser.uid}
               />
+            )}
+
+            {/* Persona Management */}
+            {activeTab === 'personas' && currentUser && (
+              <PersonaManager currentUserId={currentUser.uid} />
             )}
 
             {/* Components Section */}
