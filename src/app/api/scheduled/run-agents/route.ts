@@ -27,8 +27,8 @@ async function generateAIImage(
   }
 
   try {
-    // Build AP-style news photo prompt with NO TEXT instruction
-    const imagePrompt = `${title}. Professional AP-style news photography, high resolution, photorealistic, editorial quality. ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO WATERMARKS, NO CAPTIONS anywhere in the image.`;
+    // Build AP-style news photo prompt with NO TEXT instruction at the START for emphasis
+    const imagePrompt = `IMPORTANT: Generate an image with ZERO text, ZERO words, ZERO letters, ZERO watermarks, ZERO captions, ZERO logos, ZERO signs with writing. The image must be completely text-free. Subject: ${title}. Style: Professional AP-style news photography, high resolution, photorealistic, editorial documentary style.`;
 
     console.log('[Agent] Generating AI image for:', title.substring(0, 50));
 
