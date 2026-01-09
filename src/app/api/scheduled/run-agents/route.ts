@@ -13,27 +13,57 @@ export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
- * Persist an external image URL to Firebase Storage
- * Returns the Firebase Storage URL, or empty string if persistence fails
+ * Generate an AI image using DALL-E for the article
+ * This ensures we only use legally owned images, never copyrighted news photos
  */
-async function persistImageToStorage(imageUrl: string): Promise<string> {
-  if (!imageUrl) return '';
-
-  // Skip if already a Firebase Storage URL
-  if (imageUrl.includes('firebasestorage.googleapis.com')) {
-    return imageUrl;
+async function generateAIImage(
+  openaiApiKey: string,
+  title: string,
+  settings: Record<string, unknown> | undefined
+): Promise<string> {
+  if (!openaiApiKey) {
+    console.log('[Agent] No OpenAI API key - skipping image generation');
+    return '';
   }
 
   try {
-    // Dynamic import to avoid server-side issues
+    // Build AP-style news photo prompt with NO TEXT instruction
+    const imagePrompt = `${title}. Professional AP-style news photography, high resolution, photorealistic, editorial quality. ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO WATERMARKS, NO CAPTIONS anywhere in the image.`;
+
+    console.log('[Agent] Generating AI image for:', title.substring(0, 50));
+
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: imagePrompt.substring(0, 1000),
+        n: 1,
+        size: (settings?.dalleSize as string) || '1792x1024',
+        quality: (settings?.dalleQuality as string) || 'hd',
+        style: (settings?.dalleStyle as string) || 'natural'
+      })
+    });
+
+    const data = await response.json();
+    const tempImageUrl = data.data?.[0]?.url;
+
+    if (!tempImageUrl) {
+      console.error('[Agent] DALL-E returned no image:', data.error?.message);
+      return '';
+    }
+
+    // Persist the temporary DALL-E URL to Firebase Storage
     const { storageService } = await import('@/lib/storage');
-    const persistedUrl = await storageService.uploadAssetFromUrl(imageUrl);
-    console.log('[Agent] Image persisted:', imageUrl.substring(0, 50), '->', persistedUrl.substring(0, 50));
+    const persistedUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
+    console.log('[Agent] AI image generated and persisted:', persistedUrl.substring(0, 60));
     return persistedUrl;
   } catch (error) {
-    console.error('[Agent] Failed to persist image:', error);
-    // Return original URL as fallback (better than nothing)
-    return imageUrl;
+    console.error('[Agent] Failed to generate AI image:', error);
+    return '';
   }
 }
 
@@ -144,8 +174,9 @@ export async function POST(request: NextRequest) {
           selectedItem
         );
 
-        // Persist image to Firebase Storage before saving article
-        const persistedImageUrl = await persistImageToStorage(selectedItem.imageUrl || '');
+        // Generate AI image using DALL-E (never use copyrighted RSS feed images)
+        const openaiApiKey = settings?.openaiApiKey as string;
+        const persistedImageUrl = await generateAIImage(openaiApiKey, article.title, settings);
 
         // Save article to Firestore
         const articleData = {
@@ -481,8 +512,9 @@ export async function GET(request: NextRequest) {
           const selectedItem = contentItems[0];
           const article = await generateArticleCron(geminiApiKey, agent, category, selectedItem);
 
-          // Persist image to Firebase Storage before saving article
-          const persistedImageUrl = await persistImageToStorage(selectedItem.imageUrl || '');
+          // Generate AI image using DALL-E (never use copyrighted RSS feed images)
+          const openaiApiKey = settings?.openaiApiKey as string;
+          const persistedImageUrl = await generateAIImage(openaiApiKey, article.title, settings);
 
           const articleData = {
             title: article.title,

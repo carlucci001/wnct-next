@@ -1488,7 +1488,7 @@ Return ONLY valid JSON array with no markdown:
         return;
       }
 
-      const promptText = `${agentArticle.title}. ${agentArticle.excerpt || ''}. Professional news photo style, photorealistic.`;
+      const promptText = `${agentArticle.title}. ${agentArticle.excerpt || ''}. Professional AP-style news photography, high resolution, photorealistic, editorial quality. ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO WATERMARKS, NO CAPTIONS anywhere in the image.`;
 
       const response = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
@@ -1781,7 +1781,7 @@ Example structure:
       let imageUrl = '';
       if (settings?.openaiApiKey) {
         try {
-          const imagePrompt = `${suggestion.title}. Professional news photo style, photorealistic, high quality journalism.`;
+          const imagePrompt = `${suggestion.title}. Professional AP-style news photography, high resolution, photorealistic, editorial quality. ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO WATERMARKS, NO CAPTIONS anywhere in the image.`;
           const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
             headers: {
