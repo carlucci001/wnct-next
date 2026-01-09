@@ -13,6 +13,31 @@ export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
+ * Persist an external image URL to Firebase Storage
+ * Returns the Firebase Storage URL, or empty string if persistence fails
+ */
+async function persistImageToStorage(imageUrl: string): Promise<string> {
+  if (!imageUrl) return '';
+
+  // Skip if already a Firebase Storage URL
+  if (imageUrl.includes('firebasestorage.googleapis.com')) {
+    return imageUrl;
+  }
+
+  try {
+    // Dynamic import to avoid server-side issues
+    const { storageService } = await import('@/lib/storage');
+    const persistedUrl = await storageService.uploadAssetFromUrl(imageUrl);
+    console.log('[Agent] Image persisted:', imageUrl.substring(0, 50), '->', persistedUrl.substring(0, 50));
+    return persistedUrl;
+  } catch (error) {
+    console.error('[Agent] Failed to persist image:', error);
+    // Return original URL as fallback (better than nothing)
+    return imageUrl;
+  }
+}
+
+/**
  * POST /api/scheduled/run-agents
  * Checks for agents due to run and generates articles
  * Should be called by cron job or Cloud Scheduler
@@ -119,6 +144,9 @@ export async function POST(request: NextRequest) {
           selectedItem
         );
 
+        // Persist image to Firebase Storage before saving article
+        const persistedImageUrl = await persistImageToStorage(selectedItem.imageUrl || '');
+
         // Save article to Firestore
         const articleData = {
           title: article.title,
@@ -135,8 +163,8 @@ export async function POST(request: NextRequest) {
           publishedAt: agent.taskConfig?.autoPublish ? new Date().toISOString() : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          featuredImage: selectedItem.imageUrl || '',
-          imageUrl: selectedItem.imageUrl || '',
+          featuredImage: persistedImageUrl,
+          imageUrl: persistedImageUrl,
           isFeatured: agent.taskConfig?.isFeatured ?? false,
           isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
           breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
@@ -453,6 +481,9 @@ export async function GET(request: NextRequest) {
           const selectedItem = contentItems[0];
           const article = await generateArticleCron(geminiApiKey, agent, category, selectedItem);
 
+          // Persist image to Firebase Storage before saving article
+          const persistedImageUrl = await persistImageToStorage(selectedItem.imageUrl || '');
+
           const articleData = {
             title: article.title,
             content: formatArticleContent(article.content),
@@ -468,8 +499,8 @@ export async function GET(request: NextRequest) {
             publishedAt: agent.taskConfig?.autoPublish ? new Date().toISOString() : null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            featuredImage: selectedItem.imageUrl || '',
-            imageUrl: selectedItem.imageUrl || '',
+            featuredImage: persistedImageUrl,
+            imageUrl: persistedImageUrl,
             isFeatured: agent.taskConfig?.isFeatured ?? false,
             isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
             breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
