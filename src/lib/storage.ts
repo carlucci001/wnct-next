@@ -1,8 +1,8 @@
 // Storage service for handling file uploads
 // Supports local preview fallback and Firebase Storage when configured
 
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
-import app from './firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
+import { getStorageInstance } from './firebase';
 import { MediaFolder, MediaFileType, getMediaTypeFromMime } from '@/types/media';
 
 interface StorageSettings {
@@ -42,7 +42,7 @@ export const storageService = {
   // Upload a logo file to the logos folder
   uploadLogo: async (file: File): Promise<string> => {
     try {
-      const storage = getStorage(app);
+      const storage = getStorageInstance();
       const fileName = `logos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`;
       const storageRef = ref(storage, fileName);
 
@@ -66,7 +66,7 @@ export const storageService = {
   uploadFile: async (file: File): Promise<string> => {
     // Try Firebase Storage first
     try {
-      const storage = getStorage(app);
+      const storage = getStorageInstance();
       const fileName = `uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`;
       const storageRef = ref(storage, fileName);
 
@@ -173,7 +173,7 @@ export const storageService = {
 
       // Try Firebase Storage first
       try {
-        const storage = getStorage(app);
+        const storage = getStorageInstance();
         const storageRef = ref(storage, fileName);
 
         console.log('[Storage] Uploading to Firebase Storage:', fileName);
@@ -341,7 +341,7 @@ export async function uploadMediaFile(
   file: File,
   options: MediaUploadOptions
 ): Promise<MediaUploadResult> {
-  const storage = getStorage(app);
+  const storage = getStorageInstance();
   const sanitizedName = sanitizeFilename(file.name);
   const fileName = `${options.folder}/${Date.now()}-${sanitizedName}`;
   const storageRef = ref(storage, fileName);
@@ -454,7 +454,7 @@ export async function deleteStorageFile(url: string): Promise<void> {
       return;
     }
 
-    const storage = getStorage(app);
+    const storage = getStorageInstance();
 
     // Extract the path from the Firebase Storage URL
     // URLs look like: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?token=xxx
