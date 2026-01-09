@@ -1488,50 +1488,67 @@ Return ONLY valid JSON array with no markdown:
         return;
       }
 
-      const promptText = `A photorealistic news photograph depicting: ${agentArticle.title}. ${agentArticle.excerpt || ''}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+      // Try with specific title first, fallback to generic category image if safety-rejected
+      const specificPrompt = `A photorealistic news photograph depicting: ${agentArticle.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
 
-      console.log('[Image Gen] Starting DALL-E request...');
-      console.log('[Image Gen] API Key present:', !!apiKey, 'Key prefix:', apiKey?.substring(0, 10));
-      console.log('[Image Gen] Prompt length:', promptText.length);
+      // Generic fallback prompts by category
+      const categoryFallbacks: Record<string, string> = {
+        'News': 'A photorealistic image of a newspaper office with journalists working, professional lighting',
+        'Politics': 'A photorealistic image of a government building exterior with American flag, golden hour lighting',
+        'Sports': 'A photorealistic image of an empty sports stadium at sunset, dramatic lighting',
+        'Business': 'A photorealistic image of a modern office building exterior, professional photography',
+        'Entertainment': 'A photorealistic image of a theater marquee at night, cinematic lighting',
+        'Lifestyle': 'A photorealistic image of a cozy coffee shop interior, warm natural lighting',
+        'Outdoors': 'A photorealistic landscape of Blue Ridge Mountains at sunrise, dramatic lighting',
+        'default': 'A photorealistic image of Western North Carolina mountain scenery, professional photography'
+      };
 
-      const response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'dall-e-3',
-          prompt: promptText.substring(0, 1000),
-          n: 1,
-          size: settings?.dalleSize || '1792x1024',
-          quality: settings?.dalleQuality || 'standard',
-          style: settings?.dalleStyle || 'natural'
-        })
-      });
+      const generateWithPrompt = async (prompt: string): Promise<{success: boolean; url?: string; error?: string}> => {
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt: prompt.substring(0, 1000),
+            n: 1,
+            size: settings?.dalleSize || '1792x1024',
+            quality: settings?.dalleQuality || 'standard',
+            style: settings?.dalleStyle || 'natural'
+          })
+        });
+        const data = await response.json();
+        if (data.data?.[0]?.url) {
+          return { success: true, url: data.data[0].url };
+        }
+        return { success: false, error: data.error?.message || 'Unknown error' };
+      };
 
-      const data = await response.json();
-      console.log('[Image Gen] OpenAI response:', JSON.stringify(data).substring(0, 500));
+      console.log('[Image Gen] Trying specific prompt...');
+      let result = await generateWithPrompt(specificPrompt);
 
-      if (data.data?.[0]?.url) {
-        const tempUrl = data.data[0].url;
+      // If safety-rejected, try generic fallback
+      if (!result.success && result.error?.toLowerCase().includes('safety')) {
+        const category = agentArticle.category || 'default';
+        const fallbackPrompt = categoryFallbacks[category] || categoryFallbacks['default'];
+        console.log('[Image Gen] Safety rejected, trying fallback for category:', category);
+        setChatHistory(prev => [...prev, { role: 'model', text: `⚠️ Content filter triggered. Generating category-appropriate image instead...` }]);
+        result = await generateWithPrompt(fallbackPrompt);
+      }
+
+      if (result.success && result.url) {
         setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ **Image Generated!** Saving to permanent storage...` }]);
-
-        // Persist the image to Firebase Storage before it expires
-        const permanentUrl = await storageService.uploadAssetFromUrl(tempUrl);
-
+        const permanentUrl = await storageService.uploadAssetFromUrl(result.url);
         setAgentArticle({ ...agentArticle, imageUrl: permanentUrl, featuredImage: permanentUrl });
         setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Image Saved!** Your featured image has been permanently stored.` }]);
       } else {
-        const errorMsg = data.error?.message || data.error?.code || JSON.stringify(data.error) || 'Unknown error from OpenAI';
-        console.error('[Image Gen] OpenAI error:', errorMsg);
-        throw new Error(errorMsg);
+        throw new Error(result.error || 'Failed to generate image');
       }
     } catch (err) {
       const errorMessage = (err as Error).message;
       console.error('[Image Gen] Failed:', errorMessage);
-      // Show error in multiple places to make sure user sees it
-      alert(`Image Generation Error:\n\n${errorMessage}`);
       setChatHistory(prev => [...prev, { role: 'model', text: `❌ Image generation failed: ${errorMessage}` }]);
       showMessage('error', `Failed: ${errorMessage.substring(0, 100)}`);
     } finally {
