@@ -254,7 +254,7 @@ export default function MediaPickerModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-[95vw] w-[1400px] h-[85vh] flex flex-col">
+      <DialogContent className="w-[95vw] max-w-[1400px] min-w-[320px] sm:min-w-[600px] h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
