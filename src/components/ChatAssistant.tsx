@@ -288,8 +288,9 @@ const ChatAssistant: React.FC = () => {
     };
 
     recognition.onerror = (event: Event & { error: string }) => {
-      console.error('Speech recognition error:', event.error);
+      // Only log actual errors, not intentional aborts
       if (event.error !== 'aborted') {
+        console.error('Speech recognition error:', event.error);
         setIsListening(false);
         setInterimTranscript('');
       }

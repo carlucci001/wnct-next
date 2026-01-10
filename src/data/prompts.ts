@@ -25,6 +25,11 @@ export const AGENT_PROMPTS = {
     scope: "TENANT",
     instruction: "You generate social posts. You repurpose articles into engaging tweets, Facebook posts, and Instagram captions. You use hashtags effectively and tailor the tone to the specific social platform."
   },
+  GEO: {
+    label: "GEO Agent",
+    scope: "TENANT",
+    instruction: "You are a Generative Engine Optimization (GEO) specialist. You optimize content for AI-powered search engines like Google SGE, Bing Chat, and Perplexity. You generate Schema.org structured data (JSON-LD), optimize content for AI citations, ensure proper entity recognition, enhance E-E-A-T signals (Experience, Expertise, Authority, Trust), and help content appear in AI-generated answers. You understand how LLMs extract and cite information, and you structure content to maximize citation probability."
+  },
   AUTOMATION: {
     label: "Automation Agent",
     scope: "TENANT",

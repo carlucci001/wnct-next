@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(gh pr merge:*)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "Bash(npm run build:*)",
+      "Bash(cat:*)",
+      "Bash(taskkill:*)",
+      "Bash(pkill:*)",
+      "Bash(netstat:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }
