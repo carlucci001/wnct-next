@@ -142,14 +142,6 @@ export function AdminSidebar({
                 Editor-in-Chief
               </NavItem>
               <NavItem
-                active={activeTab === 'JOURNALIST'}
-                onClick={() => { setActiveTab('JOURNALIST'); onClearChat(); }}
-                icon={PenTool}
-                iconColor="text-blue-600"
-              >
-                Journalist
-              </NavItem>
-              <NavItem
                 active={activeTab === 'EDITOR'}
                 onClick={() => { setActiveTab('EDITOR'); onClearChat(); }}
                 icon={CheckCircle}
@@ -158,12 +150,20 @@ export function AdminSidebar({
                 Editor
               </NavItem>
               <NavItem
+                active={activeTab === 'JOURNALIST'}
+                onClick={() => { setActiveTab('JOURNALIST'); onClearChat(); }}
+                icon={PenTool}
+                iconColor="text-blue-600"
+              >
+                Journalist
+              </NavItem>
+              <NavItem
                 active={activeTab === 'SEO'}
                 onClick={() => { setActiveTab('SEO'); onClearChat(); }}
                 icon={Search}
                 iconColor="text-purple-600"
               >
-                SEO Specialist
+                SEO Manager
               </NavItem>
               <NavItem
                 active={activeTab === 'SOCIAL'}
@@ -171,15 +171,7 @@ export function AdminSidebar({
                 icon={Share2}
                 iconColor="text-pink-600"
               >
-                Social Media
-              </NavItem>
-              <NavItem
-                active={activeTab === 'ai-journalists'}
-                onClick={() => setActiveTab('ai-journalists')}
-                icon={Bot}
-                iconColor="text-cyan-600"
-              >
-                AI Journalists
+                Social Manager
               </NavItem>
             </CollapsibleContent>
           </Collapsible>
@@ -374,7 +366,7 @@ export function AdminSidebar({
                 onClick={() => setActiveTab('users')}
                 icon={Users}
               >
-                User Management
+                User Manager
               </NavItem>
               <NavItem
                 active={activeTab === 'personas'}
@@ -382,7 +374,15 @@ export function AdminSidebar({
                 icon={UserCircle2}
                 iconColor="text-violet-600"
               >
-                Persona Management
+                Persona Manager
+              </NavItem>
+              <NavItem
+                active={activeTab === 'ai-journalists'}
+                onClick={() => setActiveTab('ai-journalists')}
+                icon={Bot}
+                iconColor="text-cyan-600"
+              >
+                Agent Manager
               </NavItem>
               <NavItem
                 active={activeTab === 'roles'}
