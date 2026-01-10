@@ -9,6 +9,13 @@ import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
 import Youtube from '@tiptap/extension-youtube';
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import MediaPickerModal
+const MediaPickerModal = dynamic(() => import('@/components/admin/MediaPickerModal'), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   Bold,
   Italic,
@@ -43,8 +50,7 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ content, onChange, placeholder = 'Start writing your article...' }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkModal, setShowLinkModal] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
-  const [showImageModal, setShowImageModal] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
 
@@ -111,14 +117,6 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
       editor.chain().focus().unsetLink().run();
     }
   }, [editor]);
-
-  const addImage = useCallback(() => {
-    if (imageUrl && editor) {
-      editor.chain().focus().setImage({ src: imageUrl }).run();
-      setImageUrl('');
-      setShowImageModal(false);
-    }
-  }, [editor, imageUrl]);
 
   const addYoutube = useCallback(() => {
     if (youtubeUrl && editor) {
@@ -330,7 +328,7 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
           <LinkIcon size={18} />
         </ToolbarButton>
         <ToolbarButton
-          onClick={() => setShowImageModal(true)}
+          onClick={() => setShowMediaPicker(true)}
           title="Insert Image"
         >
           <ImageIcon size={18} />
@@ -382,44 +380,21 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
         </div>
       )}
 
-      {/* Image Modal */}
-      {showImageModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Insert Image</h3>
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              autoFocus
-            />
-            <p className="text-sm text-gray-500 mb-4">
-              Paste an image URL. For best results, use images hosted on Firebase Storage or a CDN.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setImageUrl('');
-                  setShowImageModal(false);
-                }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={addImage}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Insert
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Media Picker Modal */}
+      <MediaPickerModal
+        open={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={(media) => {
+          const m = Array.isArray(media) ? media[0] : media;
+          if (m && editor) {
+            editor.chain().focus().setImage({ src: m.url }).run();
+          }
+          setShowMediaPicker(false);
+        }}
+        allowedTypes={['image']}
+        defaultFolder="articles"
+        title="Insert Image"
+      />
 
       {/* YouTube Modal */}
       {showYoutubeModal && (

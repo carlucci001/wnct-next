@@ -4363,7 +4363,7 @@ Example structure:
           </Card>
 
           {/* Main Content: Chat + Tool Panels */}
-          <div className="flex-grow flex gap-6 p-6 overflow-hidden">
+          <div className="flex-grow flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 overflow-hidden">
             {/* Chat Panel */}
             <Card className="flex-grow flex flex-col overflow-hidden">
               <ScrollArea className="flex-grow p-6">
@@ -4407,7 +4407,7 @@ Example structure:
             </Card>
 
             {/* Right Sidebar: Agent-Specific Tools */}
-            <div className="w-[420px] flex flex-col gap-4 overflow-y-auto pr-2">
+            <div className="w-full lg:w-[420px] flex flex-col gap-4 overflow-y-auto pr-2 shrink-0">
               {/* MASTER Agent Tools */}
               {activeTab === 'MASTER' && (
                 <>
@@ -4596,9 +4596,9 @@ Example structure:
                             className="w-full"
                           >
                             {workflowAction === 'grammar' ? (
-                              <><RefreshCw size={14} className="animate-spin mr-2" /> Reviewing...</>
+                              <><RefreshCw size={14} className="animate-spin mr-2" /> <span className="hidden sm:inline">Reviewing...</span><span className="sm:hidden">...</span></>
                             ) : (
-                              <><CheckCircle size={14} className="mr-2" /> Run Editorial Review</>
+                              <><CheckCircle size={14} className="mr-2" /> <span className="hidden sm:inline">Run Editorial Review</span><span className="sm:hidden">Review</span></>
                             )}
                           </Button>
                           <Button
@@ -4606,7 +4606,7 @@ Example structure:
                             disabled={!selectedArticleForAction}
                             className="w-full bg-primary hover:bg-primary/90"
                           >
-                            <ArrowRight size={14} className="mr-2" /> Approve & Publish
+                            <ArrowRight size={14} className="mr-2" /> <span className="hidden sm:inline">Approve & Publish</span><span className="sm:hidden">Publish</span>
                           </Button>
                         </>
                       )}
@@ -4842,7 +4842,7 @@ Example structure:
                                 alt={agentArticle.author || 'Author'}
                                 width={24}
                                 height={24}
-                                className="rounded-full object-cover"
+                                className="rounded-full object-cover aspect-square"
                               />
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
@@ -4885,8 +4885,7 @@ Example structure:
                                           alt={author.displayName}
                                           width={28}
                                           height={28}
-                                          className="rounded-full object-cover"
-                                          style={{ width: 28, height: 28 }}
+                                          className="rounded-full object-cover aspect-square"
                                         />
                                       ) : (
                                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
@@ -4936,8 +4935,7 @@ Example structure:
                                             alt={journalist.name}
                                             width={28}
                                             height={28}
-                                            className="rounded-full object-cover"
-                                            style={{ width: 28, height: 28 }}
+                                            className="rounded-full object-cover aspect-square"
                                           />
                                         ) : (
                                           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
