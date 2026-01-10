@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Calendar as CalendarIcon, Plus, Trash2, Edit, Search,
   CheckCircle, XCircle, Star, ExternalLink, MoreHorizontal,
-  ChevronLeft, ChevronRight, Database, MapPin, Clock, Users,
+  Database, MapPin, Clock, Users,
   Ticket, AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,9 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -33,6 +30,7 @@ import {
   deleteEvents, updateEventsStatus, generateSlug
 } from '@/lib/events';
 import { Timestamp } from 'firebase/firestore';
+import { DataTable, ColumnDef, BatchAction } from '@/components/ui/data-table';
 
 export default function EventsAdmin() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -40,9 +38,6 @@ export default function EventsAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Event['status']>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -101,13 +96,6 @@ export default function EventsAdmin() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredEvents.length / pageSize);
-  const paginatedEvents = filteredEvents.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
   // Reset form
   function resetForm() {
     setFormData({
@@ -131,25 +119,6 @@ export default function EventsAdmin() {
       status: 'published',
       featuredImage: '',
     });
-  }
-
-  // Selection
-  function toggleSelect(id: string) {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === paginatedEvents.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedEvents.map((e) => e.id)));
-    }
   }
 
   // Add event
@@ -287,7 +256,6 @@ export default function EventsAdmin() {
       toast.success(`Deleted ${deletingIds.length} event(s)`);
       setShowDeleteModal(false);
       setDeletingIds([]);
-      setSelectedIds(new Set());
       loadEvents();
     } catch (error) {
       console.error('Error deleting:', error);
@@ -295,11 +263,10 @@ export default function EventsAdmin() {
     }
   }
 
-  async function handleBulkStatusChange(status: Event['status']) {
+  async function handleBulkStatusChange(status: Event['status'], ids: string[]) {
     try {
-      await updateEventsStatus(Array.from(selectedIds), status);
-      toast.success(`Updated ${selectedIds.size} event(s) to ${status}`);
-      setSelectedIds(new Set());
+      await updateEventsStatus(ids, status);
+      toast.success(`Updated ${ids.length} event(s) to ${status}`);
       loadEvents();
     } catch (error) {
       console.error('Error updating status:', error);
@@ -336,8 +303,112 @@ export default function EventsAdmin() {
         return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Approved</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Cancelled</Badge>;
+      default:
+        return <Badge className="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300">Draft</Badge>;
     }
   };
+
+  const columns: ColumnDef<Event>[] = [
+    {
+      header: 'Event',
+      accessorKey: 'title',
+      sortable: true,
+      cell: (event) => (
+        <div>
+          <div className="font-medium flex items-center gap-2">
+            {event.title}
+            {event.featured && (
+              <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <MapPin size={10} /> {event.location.name}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Date',
+      accessorKey: 'startDate',
+      sortable: true,
+      cell: (event) => (
+        <div>
+          <div className="text-sm font-medium">
+            {event.startDate.toDate().toLocaleDateString()}
+          </div>
+          {!event.allDay && (
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock size={10} /> {event.startDate.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Category',
+      accessorKey: 'category',
+      sortable: true,
+      cell: (event) => (
+        <Badge variant="outline">{event.category}</Badge>
+      ),
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      sortable: true,
+      cell: (event) => statusBadge(event.status),
+    },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (event) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openEditModal(event)}>
+              <Edit className="h-4 w-4 mr-2" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open(`/events/${event.slug}`, '_blank')}>
+              <ExternalLink className="h-4 w-4 mr-2" /> View
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => openDeleteModal([event.id])}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const batchActions: BatchAction<Event>[] = [
+    {
+      label: 'Publish Selected',
+      value: 'published',
+      icon: <CheckCircle size={14} className="text-green-600" />,
+      onClick: (items) => handleBulkStatusChange('published', items.map(i => i.id))
+    },
+    {
+      label: 'Cancel Selected',
+      value: 'cancelled',
+      icon: <XCircle size={14} className="text-red-600" />,
+      onClick: (items) => handleBulkStatusChange('cancelled', items.map(i => i.id))
+    },
+    {
+      label: 'Delete Selected',
+      value: 'delete',
+      variant: 'destructive',
+      icon: <Trash2 size={14} />,
+      onClick: (items) => openDeleteModal(items.map(i => i.id))
+    }
+  ];
 
   return (
     <Card>
@@ -398,136 +469,15 @@ export default function EventsAdmin() {
           </Select>
         </div>
 
-        {/* Bulk Actions */}
-        {selectedIds.size > 0 && (
-          <div className="bg-muted p-3 rounded-lg mb-4 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button variant="outline" size="sm" onClick={() => handleBulkStatusChange('published')}>
-              <CheckCircle className="h-4 w-4 mr-1" /> Publish
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleBulkStatusChange('cancelled')}>
-              <XCircle className="h-4 w-4 mr-1" /> Cancel
-            </Button>
-            <Button variant="outline" size="sm" className="text-destructive" onClick={() => openDeleteModal(Array.from(selectedIds))}>
-              <Trash2 className="h-4 w-4 mr-1" /> Delete
-            </Button>
-          </div>
-        )}
-
-        {/* Table */}
-        {loading ? (
-          <div className="py-12 text-center text-muted-foreground">Loading...</div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground border rounded-lg border-dashed">
-            <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p>No events found</p>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.size === paginatedEvents.length && paginatedEvents.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded"
-                      />
-                    </TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedEvents.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(event.id)}
-                          onChange={() => toggleSelect(event.id)}
-                          className="rounded"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium flex items-center gap-2">
-                            {event.title}
-                            {event.featured && (
-                              <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <MapPin size={10} /> {event.location.name}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm font-medium">
-                          {event.startDate.toDate().toLocaleDateString()}
-                        </div>
-                        {!event.allDay && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock size={10} /> {event.startDate.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{event.category}</Badge>
-                      </TableCell>
-                      <TableCell>{statusBadge(event.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditModal(event)}>
-                              <Edit className="h-4 w-4 mr-2" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.open(`/events/${event.slug}`, '_blank')}>
-                              <ExternalLink className="h-4 w-4 mr-2" /> View
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => openDeleteModal([event.id])}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredEvents.length)} of {filteredEvents.length}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-sm">Page {currentPage} of {totalPages || 1}</span>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0}>
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Main DataTable */}
+        <DataTable
+          data={filteredEvents}
+          columns={columns}
+          searchKey="title"
+          searchPlaceholder="Search events..."
+          batchActions={batchActions}
+          isLoading={loading}
+        />
       </CardContent>
 
       {/* Add/Edit Modal */}

@@ -3,19 +3,15 @@
 import { useState, useEffect } from 'react';
 import {
   BookOpen, Plus, Trash2, Edit, Search,
-  CheckCircle, XCircle, Star, ExternalLink, MoreHorizontal,
-  ChevronLeft, ChevronRight, Database, User,
-  Eye, MessageSquare, AlertCircle, Bookmark, Tag as TagIcon,
-  Image as ImageIcon
+  CheckCircle, Star, ExternalLink, MoreHorizontal,
+  Database, User, Eye, AlertCircle, Tag as TagIcon,
+  Image as ImageIcon, Clock, Archive
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -35,6 +31,7 @@ import {
 } from '@/lib/blog';
 import { useAuth } from '@/contexts/AuthContext';
 import dynamic from 'next/dynamic';
+import { DataTable, ColumnDef, BatchAction } from '@/components/ui/data-table';
 
 const MediaPickerModal = dynamic(() => import('@/components/admin/MediaPickerModal'), {
   ssr: false,
@@ -47,9 +44,7 @@ export default function BlogAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | BlogPost['status']>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -98,13 +93,6 @@ export default function BlogAdmin() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredPosts.length / pageSize);
-  const paginatedPosts = filteredPosts.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
   function resetForm() {
     setFormData({
       title: '',
@@ -116,25 +104,6 @@ export default function BlogAdmin() {
       featuredImage: '',
       allowComments: true,
     });
-  }
-
-  // Selection
-  function toggleSelect(id: string) {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === paginatedPosts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedPosts.map((p) => p.id)));
-    }
   }
 
   // CRUD handlers
@@ -228,7 +197,6 @@ export default function BlogAdmin() {
       toast.success(`Deleted ${deletingIds.length} post(s)`);
       setShowDeleteModal(false);
       setDeletingIds([]);
-      setSelectedIds(new Set());
       loadPosts();
     } catch (error) {
       console.error('Error deleting:', error);
@@ -262,8 +230,104 @@ export default function BlogAdmin() {
         return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Draft</Badge>;
       case 'archived':
         return <Badge className="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300">Archived</Badge>;
+      default:
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Draft</Badge>;
     }
   };
+
+  async function handleBulkStatusChange(status: BlogPost['status'], ids: string[]) {
+    try {
+      await Promise.all(ids.map(id => updateBlogPost(id, { status })));
+      toast.success(`Updated ${ids.length} post(s) to ${status}`);
+      loadPosts();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update status');
+    }
+  }
+
+  const columns: ColumnDef<BlogPost>[] = [
+    {
+      header: 'Title & Author',
+      accessorKey: 'title',
+      sortable: true,
+      cell: (post) => (
+        <div>
+          <div className="font-medium text-slate-950 dark:text-slate-50 line-clamp-1">{post.title}</div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+            <User size={10} /> {post.authorName} • {post.createdAt.toDate().toLocaleDateString()}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Category',
+      accessorKey: 'category',
+      sortable: true,
+      cell: (post) => (
+        <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">{post.category}</Badge>
+      ),
+    },
+    {
+      header: 'Views',
+      accessorKey: 'viewCount',
+      sortable: true,
+      cell: (post) => (
+        <div className="flex items-center gap-1.5 text-sm font-medium">
+          <Eye size={14} className="text-primary" />
+          {post.viewCount || 0}
+        </div>
+      ),
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      sortable: true,
+      cell: (post) => statusBadge(post.status),
+    },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (post) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="icon" onClick={() => openEditModal(post)}>
+            <Edit size={16} />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => openDeleteModal([post.id])}>
+            <Trash2 size={16} />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const batchActions: BatchAction<BlogPost>[] = [
+    {
+      label: 'Publish Selected',
+      value: 'publish',
+      icon: <CheckCircle size={14} className="text-green-600" />,
+      onClick: (items) => handleBulkStatusChange('published', items.map(i => i.id))
+    },
+    {
+      label: 'Move to Draft',
+      value: 'draft',
+      icon: <Clock size={14} className="text-yellow-600" />,
+      onClick: (items) => handleBulkStatusChange('draft', items.map(i => i.id))
+    },
+    {
+      label: 'Archive Selected',
+      value: 'archive',
+      icon: <Archive size={14} className="text-gray-600" />,
+      onClick: (items) => handleBulkStatusChange('archived', items.map(i => i.id))
+    },
+    {
+      label: 'Delete Selected',
+      value: 'delete',
+      variant: 'destructive',
+      icon: <Trash2 size={14} />,
+      onClick: (items) => openDeleteModal(items.map(i => i.id))
+    }
+  ];
 
   return (
     <Card>
@@ -323,75 +387,15 @@ export default function BlogAdmin() {
           </Select>
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="py-12 text-center text-muted-foreground">Loading blog posts...</div>
-        ) : filteredPosts.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground border rounded-lg border-dashed">
-             <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-20" />
-             <p>No blog posts found</p>
-          </div>
-        ) : (
-          <div className="rounded-md border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === paginatedPosts.length && paginatedPosts.length > 0}
-                      onChange={toggleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead>Title & Author</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Views</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedPosts.map((post) => (
-                  <TableRow key={post.id}>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(post.id)}
-                        onChange={() => toggleSelect(post.id)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-slate-950 dark:text-slate-50 line-clamp-1">{post.title}</div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        <User size={10} /> {post.authorName} • {post.createdAt.toDate().toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">{post.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-sm font-medium">
-                        <Eye size={14} className="text-primary" />
-                        {post.viewCount || 0}
-                      </div>
-                    </TableCell>
-                    <TableCell>{statusBadge(post.status)}</TableCell>
-                    <TableCell className="text-right">
-                       <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEditModal(post)}>
-                            <Edit size={16} />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => openDeleteModal([post.id])}>
-                            <Trash2 size={16} />
-                          </Button>
-                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        {/* Main DataTable */}
+        <DataTable
+          data={filteredPosts}
+          columns={columns}
+          searchKey="title"
+          searchPlaceholder="Search posts..."
+          batchActions={batchActions}
+          isLoading={loading}
+        />
       </CardContent>
 
       {/* Add/Edit Modal */}

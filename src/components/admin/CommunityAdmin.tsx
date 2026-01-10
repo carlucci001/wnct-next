@@ -15,9 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -44,6 +41,7 @@ import {
   getCommunityStats,
 } from '@/lib/communityPosts';
 import { Timestamp } from 'firebase/firestore';
+import { DataTable, ColumnDef, BatchAction } from '@/components/ui/data-table';
 
 // Post type configurations
 const POST_TYPES = {
@@ -67,9 +65,6 @@ export default function CommunityAdmin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
 
   // Settings state
   const [settings, setSettings] = useState<CommunitySettings>({
@@ -154,32 +149,6 @@ export default function CommunityAdmin() {
     return matchesSearch && matchesTopic && matchesStatus;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredPosts.length / pageSize);
-  const paginatedPosts = filteredPosts.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  // Selection
-  function toggleSelect(id: string) {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === paginatedPosts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedPosts.map((p) => p.id)));
-    }
-  }
-
   // Reset form
   function resetForm() {
     setFormData({
@@ -248,7 +217,6 @@ export default function CommunityAdmin() {
       toast.success(`${deletingIds.length} post(s) deleted successfully`);
       setShowDeleteModal(false);
       setDeletingIds([]);
-      setSelectedIds(new Set());
       loadPosts();
       loadStats();
     } catch (error) {
@@ -275,6 +243,16 @@ export default function CommunityAdmin() {
       loadPosts();
     } catch (error) {
       toast.error('Failed to update visibility');
+    }
+  }
+
+  async function handleBatchVisibility(ids: string[], hide: boolean) {
+    try {
+      await Promise.all(ids.map(id => setPostVisibility(id, hide)));
+      toast.success(`${ids.length} post(s) ${hide ? 'hidden' : 'visible'}`);
+      loadPosts();
+    } catch (error) {
+      toast.error('Failed to update visibility for selected posts');
     }
   }
 
@@ -388,6 +366,154 @@ export default function CommunityAdmin() {
       </div>
     );
   }
+
+  const columns: ColumnDef<CommunityPostData>[] = [
+    {
+      header: 'Author',
+      accessorKey: 'authorName',
+      sortable: true,
+      cell: (post) => (
+        <div className="flex items-center gap-2">
+          {getAvatarDisplay(post)}
+          <span className="font-medium truncate max-w-[120px]">
+            {post.authorName}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Content',
+      accessorKey: 'content',
+      sortable: true,
+      cell: (post) => (
+        <div className="flex items-center gap-2">
+          {post.pinned && <Pin size={14} className="text-blue-500" />}
+          <span className="truncate max-w-[200px]">{post.content}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Type',
+      accessorKey: 'topic',
+      sortable: true,
+      cell: (post) => getTypeBadge(post.topic),
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      sortable: true,
+      cell: (post) => getStatusBadge(post.status),
+    },
+    {
+      header: 'Engagement',
+      accessorKey: 'likes',
+      sortable: true,
+      cell: (post) => (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span>❤️ {post.likes}</span>
+          <span>💬 {post.commentsCount}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Date',
+      accessorKey: 'createdAt',
+      sortable: true,
+      cell: (post) => formatDate(post.createdAt),
+    },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (post) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal size={16} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openViewModal(post)}>
+              <Eye size={14} className="mr-2" />
+              View
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openEditModal(post)}>
+              <Edit size={14} className="mr-2" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleTogglePin(post)}>
+              {post.pinned ? (
+                <>
+                  <PinOff size={14} className="mr-2" />
+                  Unpin
+                </>
+              ) : (
+                <>
+                  <Pin size={14} className="mr-2" />
+                  Pin
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleToggleVisibility(post)}>
+              {post.status === 'hidden' ? (
+                <>
+                  <Eye size={14} className="mr-2" />
+                  Show
+                </>
+              ) : (
+                <>
+                  <EyeOff size={14} className="mr-2" />
+                  Hide
+                </>
+              )}
+            </DropdownMenuItem>
+            {post.status !== 'flagged' && (
+              <DropdownMenuItem onClick={() => handleFlag(post)}>
+                <Flag size={14} className="mr-2" />
+                Flag
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600"
+              onClick={() => {
+                setDeletingIds([post.id]);
+                setShowDeleteModal(true);
+              }}
+            >
+              <Trash2 size={14} className="mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const batchActions: BatchAction<CommunityPostData>[] = [
+    {
+      label: 'Hide Selected',
+      value: 'hide',
+      icon: <EyeOff size={14} className="text-gray-600" />,
+      onClick: (items) => handleBatchVisibility(items.map(i => i.id), true)
+    },
+    {
+      label: 'Show Selected',
+      value: 'show',
+      icon: <Eye size={14} className="text-green-600" />,
+      onClick: (items) => handleBatchVisibility(items.map(i => i.id), false)
+    },
+    {
+      label: 'Delete Selected',
+      value: 'delete',
+      variant: 'destructive',
+      icon: <Trash2 size={14} />,
+      onClick: (items) => {
+        setDeletingIds(items.map(i => i.id));
+        setShowDeleteModal(true);
+      }
+    }
+  ];
 
   // Flagged posts count
   const flaggedCount = posts.filter((p) => p.status === 'flagged').length;
@@ -516,193 +642,17 @@ export default function CommunityAdmin() {
                 ))}
               </SelectContent>
             </Select>
-            {selectedIds.size > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setDeletingIds(Array.from(selectedIds));
-                  setShowDeleteModal(true);
-                }}
-              >
-                <Trash2 size={14} className="mr-1" />
-                Delete ({selectedIds.size})
-              </Button>
-            )}
           </div>
 
           {/* Posts Table */}
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === paginatedPosts.length && paginatedPosts.length > 0}
-                      onChange={toggleSelectAll}
-                      className="rounded border-gray-300"
-                    />
-                  </TableHead>
-                  <TableHead>Author</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Engagement</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center">
-                      <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
-                      Loading posts...
-                    </TableCell>
-                  </TableRow>
-                ) : paginatedPosts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                      No posts found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedPosts.map((post) => (
-                    <TableRow key={post.id} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(post.id)}
-                          onChange={() => toggleSelect(post.id)}
-                          className="rounded border-gray-300"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getAvatarDisplay(post)}
-                          <span className="font-medium truncate max-w-[120px]">
-                            {post.authorName}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {post.pinned && <Pin size={14} className="text-blue-500" />}
-                          <span className="truncate max-w-[200px]">{post.content}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getTypeBadge(post.topic)}</TableCell>
-                      <TableCell>{getStatusBadge(post.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span>❤️ {post.likes}</span>
-                          <span>💬 {post.commentsCount}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(post.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal size={16} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openViewModal(post)}>
-                              <Eye size={14} className="mr-2" />
-                              View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditModal(post)}>
-                              <Edit size={14} className="mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleTogglePin(post)}>
-                              {post.pinned ? (
-                                <>
-                                  <PinOff size={14} className="mr-2" />
-                                  Unpin
-                                </>
-                              ) : (
-                                <>
-                                  <Pin size={14} className="mr-2" />
-                                  Pin
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleVisibility(post)}>
-                              {post.status === 'hidden' ? (
-                                <>
-                                  <Eye size={14} className="mr-2" />
-                                  Show
-                                </>
-                              ) : (
-                                <>
-                                  <EyeOff size={14} className="mr-2" />
-                                  Hide
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            {post.status !== 'flagged' && (
-                              <DropdownMenuItem onClick={() => handleFlag(post)}>
-                                <Flag size={14} className="mr-2" />
-                                Flag
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => {
-                                setDeletingIds([post.id]);
-                                setShowDeleteModal(true);
-                              }}
-                            >
-                              <Trash2 size={14} className="mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1} to{' '}
-                {Math.min(currentPage * pageSize, filteredPosts.length)} of {filteredPosts.length} posts
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft size={16} />
-                </Button>
-                <span className="text-sm">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight size={16} />
-                </Button>
-              </div>
-            </div>
-          )}
+          <DataTable
+            data={filteredPosts}
+            columns={columns}
+            searchKey="content"
+            searchPlaceholder="Search posts..."
+            batchActions={batchActions}
+            isLoading={loading}
+          />
         </TabsContent>
 
         {/* Moderation Tab */}
@@ -1023,7 +973,10 @@ export default function CommunityAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowEditModal(false);
+              setEditingPost(null);
+            }}>
               Cancel
             </Button>
             <Button onClick={handleUpdate}>Save Changes</Button>
