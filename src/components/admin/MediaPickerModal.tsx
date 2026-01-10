@@ -40,7 +40,7 @@ export default function MediaPickerModal({
   defaultFolder = 'articles',
   title = 'Select Media',
 }: MediaPickerModalProps) {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'library' | 'upload'>('library');
   const [selectedMedia, setSelectedMedia] = useState<MediaFile[]>([]);
 
@@ -176,8 +176,8 @@ export default function MediaPickerModal({
           duration: result.duration,
           url: result.url,
           folder: uploadFolder,
-          uploadedBy: user?.uid || 'unknown',
-          uploadedByName: user?.displayName || user?.email || 'Unknown',
+          uploadedBy: currentUser?.uid || 'unknown',
+          uploadedByName: currentUser?.displayName || currentUser?.email || 'Unknown',
         });
 
         const newMedia: MediaFile = {
@@ -193,8 +193,8 @@ export default function MediaPickerModal({
           url: result.url,
           folder: uploadFolder,
           uploadedAt: new Date().toISOString(),
-          uploadedBy: user?.uid || '',
-          uploadedByName: user?.displayName || user?.email || 'Unknown',
+          uploadedBy: currentUser?.uid || '',
+          uploadedByName: currentUser?.displayName || currentUser?.email || 'Unknown',
         };
 
         uploadedMedia.push(newMedia);
@@ -254,7 +254,7 @@ export default function MediaPickerModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-[95vw] w-[1400px] h-[85vh] flex flex-col">
+      <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
