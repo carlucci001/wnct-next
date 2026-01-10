@@ -142,20 +142,20 @@ export function AdminSidebar({
                 Editor-in-Chief
               </NavItem>
               <NavItem
-                active={activeTab === 'JOURNALIST'}
-                onClick={() => { setActiveTab('JOURNALIST'); onClearChat(); }}
-                icon={PenTool}
-                iconColor="text-blue-600"
-              >
-                Journalist
-              </NavItem>
-              <NavItem
                 active={activeTab === 'EDITOR'}
                 onClick={() => { setActiveTab('EDITOR'); onClearChat(); }}
                 icon={CheckCircle}
                 iconColor="text-green-600"
               >
                 Editor
+              </NavItem>
+              <NavItem
+                active={activeTab === 'JOURNALIST'}
+                onClick={() => { setActiveTab('JOURNALIST'); onClearChat(); }}
+                icon={PenTool}
+                iconColor="text-blue-600"
+              >
+                Journalist
               </NavItem>
               <NavItem
                 active={activeTab === 'SEO'}
@@ -172,14 +172,6 @@ export function AdminSidebar({
                 iconColor="text-pink-600"
               >
                 Social Media
-              </NavItem>
-              <NavItem
-                active={activeTab === 'ai-journalists'}
-                onClick={() => setActiveTab('ai-journalists')}
-                icon={Bot}
-                iconColor="text-cyan-600"
-              >
-                AI Journalists
               </NavItem>
             </CollapsibleContent>
           </Collapsible>
@@ -390,6 +382,14 @@ export function AdminSidebar({
                 icon={Shield}
               >
                 Roles & Permissions
+              </NavItem>
+              <NavItem
+                active={activeTab === 'ai-journalists'}
+                onClick={() => setActiveTab('ai-journalists')}
+                icon={Bot}
+                iconColor="text-cyan-600"
+              >
+                Agent Manager
               </NavItem>
             </CollapsibleContent>
           </Collapsible>

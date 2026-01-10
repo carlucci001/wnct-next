@@ -4767,12 +4767,15 @@ Example structure:
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full h-64 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center">
+                    <button
+                      onClick={() => setShowMediaPicker(true)}
+                      className="w-full h-64 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center hover:bg-slate-200 hover:border-blue-400 transition-all duration-200 cursor-pointer group"
+                    >
                       <div className="text-center">
-                        <ImageIcon size={48} className="mx-auto text-slate-400 mb-2" />
-                        <p className="text-sm text-slate-500">No image yet - use Media tab to add</p>
+                        <ImageIcon size={48} className="mx-auto text-slate-400 mb-2 group-hover:text-blue-500 transition-colors" />
+                        <p className="text-sm text-slate-500 group-hover:text-blue-600 transition-colors">Click to select from Media Library</p>
                       </div>
-                    </div>
+                    </button>
                   )}
                 </div>
 
