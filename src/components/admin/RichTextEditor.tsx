@@ -1,6 +1,7 @@
 'use client';
 
 import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -39,6 +40,7 @@ import {
   Code,
   Minus,
   Pilcrow,
+  Trash2,
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -66,6 +68,12 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
       Image.configure({
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-lg my-4',
+        },
+        resize: {
+          enabled: true,
+          directions: ['right', 'bottom', 'bottom-right'],
+          minWidth: 100,
+          alwaysPreserveAspectRatio: true,
         },
       }),
       Link.configure({
@@ -165,14 +173,14 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
-          title="Undo"
+          title="Undo (Ctrl+Z)"
         >
           <Undo size={18} />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
-          title="Redo"
+          title="Redo (Ctrl+Y)"
         >
           <Redo size={18} />
         </ToolbarButton>
@@ -343,6 +351,25 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Start
 
       {/* Editor Content */}
       <EditorContent editor={editor} />
+
+      {/* Image Context Menu - appears when image is selected */}
+      {editor && (
+        <BubbleMenu
+          editor={editor}
+          shouldShow={({ editor }) => editor.isActive('image')}
+        >
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 p-1">
+            <button
+              type="button"
+              onClick={() => editor.chain().focus().deleteNode('image').run()}
+              className="p-2 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 transition-colors"
+              title="Delete Image"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </BubbleMenu>
+      )}
 
       {/* Link Modal */}
       {showLinkModal && (

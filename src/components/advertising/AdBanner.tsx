@@ -128,7 +128,7 @@ export function AdBanner({
             {sizeValue}
           </p>
           <Link
-            href="/advertise"
+            href="/contact"
             className="mt-3 inline-block text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
             Learn More

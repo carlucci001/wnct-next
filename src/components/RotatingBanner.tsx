@@ -61,12 +61,13 @@ const RotatingBanner: React.FC<RotatingBannerProps> = ({
   // Empty state
   if (totalItems === 0) {
     return (
-      <div
-        className={`bg-gradient-to-r from-gray-100 to-gray-50 border border-gray-200 rounded flex items-center justify-center text-gray-400 text-sm ${className}`}
+      <a
+        href="/contact"
+        className={`bg-gradient-to-r from-gray-100 to-gray-50 border border-gray-200 rounded flex items-center justify-center text-gray-400 text-sm hover:text-gray-600 hover:border-gray-300 transition-colors ${className}`}
         style={{ width, height }}
       >
         Advertisement ({width}x{height})
-      </div>
+      </a>
     );
   }
 
