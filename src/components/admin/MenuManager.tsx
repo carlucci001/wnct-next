@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Menu, Plus, Trash2, Edit, List, LayoutGrid, MoreHorizontal,
   ArrowLeft, ArrowUp, ArrowDown, Eye, EyeOff, GripVertical,
-  Save, X, RefreshCw, CheckCircle, XCircle
+  Save, X, RefreshCw, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,12 +26,16 @@ import { SiteMenu, MenuItem } from '@/types/menu';
 const CORE_MENUS = ['top-nav', 'main-nav', 'footer-quick-links', 'footer-categories'];
 
 export default function MenuManager() {
+  // Auth
+  const { currentUser, userProfile } = useAuth();
+
   // State
   const [menus, setMenus] = useState<SiteMenu[]>([]);
   const [selectedMenu, setSelectedMenu] = useState<SiteMenu | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -50,20 +55,33 @@ export default function MenuManager() {
 
   async function loadMenus() {
     setLoading(true);
+    setError(null); // Clear previous errors
     try {
       const response = await fetch('/api/admin/menus');
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
+
       if (data.success && data.menus) {
         setMenus(data.menus);
+        console.log('[MenuManager] Loaded menus:', data.menus?.length || 0);
         // If we have a selected menu, update it with fresh data
         if (selectedMenu) {
           const updated = data.menus.find((m: SiteMenu) => m.id === selectedMenu.id);
           if (updated) setSelectedMenu(updated);
         }
+      } else {
+        throw new Error(data.error || 'Invalid response from server');
       }
     } catch (error) {
-      console.error('Error loading menus:', error);
-      toast.error('Failed to load menus');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load menus';
+      console.error('[MenuManager] Error loading menus:', error);
+      setError(errorMessage);
+      toast.error(`Menu Load Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -240,10 +258,46 @@ export default function MenuManager() {
   }
 
   // Render loading state
-  if (loading && menus.length === 0) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading menus...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state - ensures we never show blank screen
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+              <AlertCircle className="h-5 w-5" />
+              Failed to Load Menus
+            </CardTitle>
+            <CardDescription className="text-red-600 dark:text-red-300">
+              {error}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Possible causes:</p>
+              <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                <li>Firebase Admin SDK configuration issue</li>
+                <li>Missing environment variables (FIREBASE_SERVICE_ACCOUNT)</li>
+                <li>Database connection problem</li>
+              </ul>
+              <Button onClick={loadMenus} variant="default">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -57,10 +57,11 @@ import dynamic from 'next/dynamic';
 
 const MediaPickerModal = dynamic(() => import('./MediaPickerModal'), { ssr: false });
 
+import { DataTable, ColumnDef, BatchAction } from '@/components/ui/data-table';
+
 export default function AdvertisingAdmin() {
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<Partial<AdCampaign> | null>(null);
@@ -114,10 +115,150 @@ export default function AdvertisingAdmin() {
     }
   };
 
-  const filtered = campaigns.filter(c => 
-    c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.clientName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const columns: ColumnDef<AdCampaign>[] = [
+    {
+      header: 'Campaign / Client',
+      accessorKey: 'title',
+      sortable: true,
+      cell: (ad) => (
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-muted border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
+            {ad.imageUrl ? (
+              <NextImage 
+                src={ad.imageUrl} 
+                alt={ad.title}
+                width={48}
+                height={48}
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <Layers size={20} className="text-muted-foreground/30" />
+            )}
+          </div>
+          <div>
+            <p className="font-serif font-black leading-none mb-1">{ad.title}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Users size={12} /> {ad.clientName}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Position',
+      accessorKey: 'position',
+      sortable: true,
+      cell: (ad) => (
+        <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase tracking-widest bg-primary/5 border-primary/10 text-primary">
+          {ad.position.replace('_', ' ')}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      sortable: true,
+      cell: (ad) => (
+        <div className="flex items-center gap-2">
+          {ad.status === 'active' && <CheckCircle2 className="text-emerald-500" size={14} />}
+          {ad.status === 'paused' && <Clock className="text-amber-500" size={14} />}
+          {ad.status === 'expired' && <AlertCircle className="text-red-500" size={14} />}
+          <span className="text-xs font-bold capitalize">{ad.status}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Stats',
+      accessorKey: 'impressions',
+      sortable: true,
+      className: 'text-center',
+      cell: (ad) => (
+        <div className="flex items-center justify-center gap-6">
+          <div className="text-center">
+            <p className="text-[9px] font-black uppercase text-muted-foreground">{ad.impressions.toLocaleString()}</p>
+            <p className="text-[9px] font-black uppercase opacity-40">Views</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[9px] font-black uppercase text-primary">{ad.clicks.toLocaleString()}</p>
+            <p className="text-[9px] font-black uppercase opacity-40">Clicks</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (ad) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <MoreHorizontal size={18} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl">
+            <DropdownMenuItem onClick={() => { setEditingAd(ad); setIsModalOpen(true); }} className="gap-2">
+              <Edit size={14} /> Edit Campaign
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open(ad.targetUrl, '_blank')} className="gap-2">
+              <ExternalLink size={14} /> View Target
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleDelete(ad.id)} className="gap-2 text-red-600 focus:text-red-600">
+              <Trash2 size={14} /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
+
+  const batchActions: BatchAction<AdCampaign>[] = [
+    {
+      label: 'Activate Selected',
+      value: 'activate',
+      icon: <CheckCircle2 size={14} className="text-emerald-500" />,
+      onClick: async (items) => {
+        try {
+          await Promise.all(items.map(item => updateAdCampaign(item.id, { status: 'active' })));
+          toast.success(`Activated ${items.length} campaigns`);
+          loadCampaigns();
+        } catch (error) {
+          toast.error('Failed to activate campaigns');
+        }
+      }
+    },
+    {
+      label: 'Pause Selected',
+      value: 'pause',
+      icon: <Clock size={14} className="text-amber-500" />,
+      onClick: async (items) => {
+        try {
+          await Promise.all(items.map(item => updateAdCampaign(item.id, { status: 'paused' })));
+          toast.success(`Paused ${items.length} campaigns`);
+          loadCampaigns();
+        } catch (error) {
+          toast.error('Failed to pause campaigns');
+        }
+      }
+    },
+    {
+      label: 'Delete Selected',
+      value: 'delete',
+      variant: 'destructive',
+      icon: <Trash2 size={14} />,
+      onClick: async (items) => {
+        if (confirm(`Are you sure you want to delete ${items.length} campaigns?`)) {
+          try {
+            await Promise.all(items.map(item => deleteAdCampaign(item.id)));
+            toast.success(`Deleted ${items.length} campaigns`);
+            loadCampaigns();
+          } catch (error) {
+            toast.error('Failed to delete campaigns');
+          }
+        }
+      }
+    }
+  ];
 
   return (
     <div className="space-y-6">
@@ -131,122 +272,14 @@ export default function AdvertisingAdmin() {
         </Button>
       </div>
 
-      <div className="bg-card rounded-3xl border border-border/50 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-border/50 flex gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input 
-              placeholder="Search campaigns or clients..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-muted/30 border-none rounded-xl"
-            />
-          </div>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent border-border/50">
-              <TableHead className="w-[300px] text-[10px] font-black uppercase tracking-widest">Campaign / Client</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest">Position</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Stats</TableHead>
-              <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell><div className="h-10 bg-muted/50 rounded-xl animate-pulse" /></TableCell>
-                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
-                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
-                  <TableCell><div className="h-6 bg-muted/50 rounded-lg animate-pulse" /></TableCell>
-                  <TableCell><div className="h-10 bg-muted/50 rounded-xl animate-pulse w-24 ml-auto" /></TableCell>
-                </TableRow>
-              ))
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
-                  No campaigns found.
-                </TableCell>
-              </TableRow>
-            ) : filtered.map((ad) => (
-              <TableRow key={ad.id} className="group hover:bg-muted/30 transition-colors border-border/50">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-muted border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
-                      {ad.imageUrl ? (
-                        <NextImage 
-                          src={ad.imageUrl} 
-                          alt={ad.title}
-                          width={48}
-                          height={48}
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <Layers size={20} className="text-muted-foreground/30" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-serif font-black leading-none mb-1">{ad.title}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Users size={12} /> {ad.clientName}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase tracking-widest bg-primary/5 border-primary/10 text-primary">
-                    {ad.position.replace('_', ' ')}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {ad.status === 'active' && <CheckCircle2 className="text-emerald-500" size={14} />}
-                    {ad.status === 'paused' && <Clock className="text-amber-500" size={14} />}
-                    {ad.status === 'expired' && <AlertCircle className="text-red-500" size={14} />}
-                    <span className="text-xs font-bold capitalize">{ad.status}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-center gap-6">
-                    <div className="text-center">
-                      <p className="text-[9px] font-black uppercase text-muted-foreground">{ad.impressions.toLocaleString()}</p>
-                      <p className="text-[9px] font-black uppercase opacity-40">Views</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[9px] font-black uppercase text-primary">{ad.clicks.toLocaleString()}</p>
-                      <p className="text-[9px] font-black uppercase opacity-40">Clicks</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                        <MoreHorizontal size={18} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl">
-                      <DropdownMenuItem onClick={() => { setEditingAd(ad); setIsModalOpen(true); }} className="gap-2">
-                        <Edit size={14} /> Edit Campaign
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => window.open(ad.targetUrl, '_blank')} className="gap-2">
-                        <ExternalLink size={14} /> View Target
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleDelete(ad.id)} className="gap-2 text-red-600 focus:text-red-600">
-                        <Trash2 size={14} /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable 
+        data={campaigns}
+        columns={columns}
+        searchKey="title"
+        searchPlaceholder="Search campaigns or clients..."
+        batchActions={batchActions}
+        isLoading={loading}
+      />
 
       {/* Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
