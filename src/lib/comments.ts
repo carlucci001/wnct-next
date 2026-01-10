@@ -1,15 +1,15 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp, 
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
   increment,
   arrayUnion,
   arrayRemove,
@@ -24,17 +24,33 @@ const SETTINGS_DOC_ID = 'comments';
 // CREATE
 export async function createComment(data: Omit<Comment, 'id' | 'createdAt' | 'updatedAt' | 'likes' | 'likedBy' | 'repliesCount'>): Promise<string> {
   const docRef = doc(collection(getDb(), COLLECTION_NAME));
-  const newComment = {
-    ...data,
+
+  // Build comment object, excluding undefined values (Firestore doesn't accept undefined)
+  const newComment: Record<string, unknown> = {
     id: docRef.id,
+    articleId: data.articleId,
+    userId: data.userId,
+    userName: data.userName,
+    content: data.content,
     likes: 0,
-    likedBy: [],
+    likedBy: [] as string[],
     repliesCount: 0,
-    status: data.status || 'approved', // Default to approved unless settings say otherwise
+    status: data.status || 'approved',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  
+
+  // Only add optional fields if they're defined
+  if (data.userPhotoURL) {
+    newComment.userPhotoURL = data.userPhotoURL;
+  }
+  if (data.articleTitle) {
+    newComment.articleTitle = data.articleTitle;
+  }
+  if (data.parentId !== undefined && data.parentId !== null) {
+    newComment.parentId = data.parentId;
+  }
+
   await setDoc(docRef, newComment);
   return docRef.id;
 }
