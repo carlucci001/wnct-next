@@ -19,7 +19,7 @@ import {
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
   Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2,
-  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight
+  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
@@ -240,7 +240,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
+type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface DashboardStats {
   totalArticles: number;
@@ -349,7 +349,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'comments', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'articles', 'categories', 'comments', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'GEO', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
@@ -461,6 +461,8 @@ export default function AdminDashboard() {
   const [maintenanceProgress, setMaintenanceProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedArticleForAction, setSelectedArticleForAction] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
+  const [aiGeneratedData, setAiGeneratedData] = useState<any>(null);
 
   // Supabase Import states
   const [supabaseConfig, setSupabaseConfig] = useState({
@@ -604,7 +606,7 @@ export default function AdminDashboard() {
 
   // Load agent prompt when switching to an agent tab
   useEffect(() => {
-    const agentTabs: AgentType[] = ['MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL'];
+    const agentTabs: AgentType[] = ['MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'GEO'];
     if (agentTabs.includes(activeTab as AgentType)) {
       getAgentPrompt(activeTab as AgentType).then(setCurrentAgentPrompt).catch(console.error);
     }
@@ -1319,6 +1321,7 @@ export default function AdminDashboard() {
       case 'EDITOR': return <CheckCircle size={16} className="mr-3 text-green-600"/>;
       case 'SEO': return <Search size={16} className="mr-3 text-purple-600"/>;
       case 'SOCIAL': return <Share2 size={16} className="mr-3 text-pink-600"/>;
+      case 'GEO': return <Globe size={16} className="mr-3 text-teal-600"/>;
       default: return <Bot size={16} className="mr-3 text-gray-500"/>;
     }
   };
@@ -1355,6 +1358,70 @@ export default function AdminDashboard() {
 
       const data = await response.json();
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from AI.';
+
+      setChatHistory(prev => [...prev, { role: 'model', text: aiResponse }]);
+    } catch (err) {
+      setChatHistory(prev => [...prev, { role: 'model', text: 'Error connecting to AI. Please check your API key.' }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Send a prompt directly (for tool buttons)
+  const sendPromptToAi = async (prompt: string) => {
+    if (!prompt.trim()) return;
+
+    const userMsg: ChatMessage = { role: 'user', text: prompt };
+    setChatHistory(prev => [...prev, userMsg]);
+    setIsChatLoading(true);
+
+    try {
+      const apiKey = settings?.geminiApiKey || '';
+      if (!apiKey) {
+        showMessage('error', 'Gemini API Key not configured. Go to API Configuration to set it.');
+        setIsChatLoading(false);
+        return;
+      }
+
+      // Get prompt from Firestore
+      const agentType = activeTab as AgentType;
+      const promptData = await getAgentPrompt(agentType);
+
+      // Call Gemini API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: { parts: [{ text: promptData.instruction }] }
+        })
+      });
+
+      const data = await response.json();
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from AI.';
+
+      // Try to parse JSON from the response
+      try {
+        // Extract JSON from markdown code blocks or plain text
+        let jsonText = aiResponse;
+        const jsonMatch = aiResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          jsonText = jsonMatch[1];
+        } else {
+          // Try to find JSON object in the text
+          const objectMatch = aiResponse.match(/\{[\s\S]*\}/);
+          if (objectMatch) {
+            jsonText = objectMatch[0];
+          }
+        }
+
+        const parsedJson = JSON.parse(jsonText);
+        setAiGeneratedData(parsedJson);
+        console.log('Parsed JSON data:', parsedJson);
+      } catch (e) {
+        // No valid JSON in response, that's okay
+        setAiGeneratedData(null);
+      }
 
       setChatHistory(prev => [...prev, { role: 'model', text: aiResponse }]);
     } catch (err) {
@@ -1490,6 +1557,51 @@ Return ONLY valid JSON array with no markdown:
     }
   };
 
+  // Update selected article with AI-generated changes
+  const updateSelectedArticle = async (updates: Partial<Article>) => {
+    if (!selectedArticleForAction) {
+      showMessage('error', 'No article selected');
+      return;
+    }
+
+    const article = articles.find(a => a.id === selectedArticleForAction);
+    if (!article) {
+      showMessage('error', 'Selected article not found');
+      return;
+    }
+
+    try {
+      // Merge updates with existing article
+      const updatedArticle: Article = {
+        ...article,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Save to Firestore
+      const articleRef = doc(getDb(), 'articles', updatedArticle.id);
+      await updateDoc(articleRef, {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Update local state
+      setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a));
+
+      showMessage('success', 'Article updated successfully');
+      setChatHistory(prev => [...prev, {
+        role: 'model',
+        text: `✅ **Updated!** Changes applied to "${updatedArticle.title}"`
+      }]);
+
+      return updatedArticle;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      showMessage('error', `Failed to update article: ${errorMessage}`);
+      console.error('Article update error:', err);
+    }
+  };
+
   // Generate image for article using DALL-E
   const handleGenerateImageForArticle = async () => {
     if (!agentArticle?.title) {
@@ -1601,6 +1713,65 @@ Return ONLY valid JSON array with no markdown:
       showMessage('error', `Failed: ${errorMessage.substring(0, 100)}`);
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  // Generate SEO metadata (meta description, image alt text, hashtags)
+  const handleGenerateMetadata = async (types: ('metaDescription' | 'imageAltText' | 'hashtags')[]) => {
+    if (!agentArticle?.title || !agentArticle?.content) {
+      showMessage('error', 'Please enter article title and content first');
+      return;
+    }
+
+    setIsGeneratingMetadata(true);
+    setChatHistory(prev => [...prev, { role: 'user', text: `🏷️ Generate ${types.join(', ')} for article...` }]);
+
+    try {
+      const response = await fetch('/api/articles/generate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: agentArticle.title,
+          content: agentArticle.content,
+          category: agentArticle.category,
+          imageUrl: agentArticle.imageUrl,
+          generateTypes: types,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate metadata');
+      }
+
+      // Update article with generated metadata
+      const updates: Partial<Article> = {};
+      if (data.metadata.metaDescription) {
+        updates.metaDescription = data.metadata.metaDescription;
+      }
+      if (data.metadata.imageAltText) {
+        updates.imageAltText = data.metadata.imageAltText;
+      }
+      if (data.metadata.hashtags) {
+        updates.hashtags = data.metadata.hashtags;
+      }
+
+      setAgentArticle({ ...agentArticle, ...updates });
+
+      const generatedItems = Object.keys(data.metadata).filter(k => data.metadata[k]);
+      setChatHistory(prev => [...prev, {
+        role: 'model',
+        text: `✅ **Metadata Generated!** Created: ${generatedItems.join(', ')}`
+      }]);
+      showMessage('success', 'Metadata generated successfully');
+    } catch (err) {
+      const errorMessage = (err as Error).message;
+      console.error('[Metadata Gen] Failed:', errorMessage);
+      setChatHistory(prev => [...prev, { role: 'model', text: `❌ Metadata generation failed: ${errorMessage}` }]);
+      showMessage('error', `Failed: ${errorMessage.substring(0, 100)}`);
+    } finally {
+      setIsGeneratingMetadata(false);
     }
   };
 
@@ -4385,9 +4556,152 @@ Example structure:
                       <span>Thinking...</span>
                     </div>
                   )}
+                  {/* Apply to Article button when JSON is detected */}
+                  {aiGeneratedData && selectedArticleForAction && (
+                    <div className="flex flex-col gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm text-green-800">
+                        <CheckCircle size={16} />
+                        <span className="font-semibold">Ready to Apply Changes</span>
+                      </div>
+                      <div className="text-xs text-green-700">
+                        {aiGeneratedData.hashtags && `${aiGeneratedData.hashtags.length} hashtags will be added`}
+                        {aiGeneratedData.optimizedTitle && `SEO metadata (title, description, alt text) will be updated`}
+                        {aiGeneratedData.schemaJsonLd && `Schema.org JSON-LD will be added`}
+                        {aiGeneratedData.localKeywords && `Local keywords and geo tags will be added`}
+                        {aiGeneratedData.people && `Entities (people, orgs, locations) will be saved`}
+                        {aiGeneratedData.authorBio && `E-E-A-T content will be shown in chat`}
+                        {aiGeneratedData.definitiveAnswer && `Citation snippets will be shown in chat`}
+                        {aiGeneratedData.metaDescription && !aiGeneratedData.optimizedTitle && `SEO metadata will be updated`}
+                        {!aiGeneratedData.hashtags && !aiGeneratedData.metaDescription && !aiGeneratedData.optimizedTitle && !aiGeneratedData.schemaJsonLd && !aiGeneratedData.localKeywords && !aiGeneratedData.people && !aiGeneratedData.authorBio && !aiGeneratedData.definitiveAnswer && `All fields will be merged into the article`}
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          const article = articles.find(a => a.id === selectedArticleForAction);
+
+                          // Handle hashtags
+                          if (aiGeneratedData.hashtags) {
+                            await updateSelectedArticle({ hashtags: aiGeneratedData.hashtags });
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied ${aiGeneratedData.hashtags.length} hashtags to "${article?.title}"`
+                            }]);
+                          }
+                          // Handle SEO metadata (from SEO Analyzer)
+                          else if (aiGeneratedData.optimizedTitle) {
+                            const updates: Partial<Article> = {
+                              title: aiGeneratedData.optimizedTitle,
+                              metaDescription: aiGeneratedData.metaDescription,
+                              imageAltText: aiGeneratedData.imageAltText,
+                            };
+                            if (aiGeneratedData.focusKeywords) {
+                              updates.keywords = aiGeneratedData.focusKeywords;
+                            }
+                            await updateSelectedArticle(updates);
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied SEO metadata (title, description, alt text) to "${article?.title}"`
+                            }]);
+                          }
+                          // Handle Schema JSON-LD
+                          else if (aiGeneratedData.schemaJsonLd) {
+                            await updateSelectedArticle({
+                              schema: JSON.stringify(aiGeneratedData.schemaJsonLd)
+                            });
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied Schema.org JSON-LD to "${article?.title}"`
+                            }]);
+                          }
+                          // Handle Local GEO keywords
+                          else if (aiGeneratedData.localKeywords) {
+                            await updateSelectedArticle({
+                              localKeywords: aiGeneratedData.localKeywords,
+                              geoTags: aiGeneratedData.geoTags,
+                            });
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied ${aiGeneratedData.localKeywords.length} local keywords and ${aiGeneratedData.geoTags?.length || 0} geo tags to "${article?.title}"\n\n📍 Local Context to add:\n${aiGeneratedData.localContext}`
+                            }]);
+                          }
+                          // Handle Entity mapping
+                          else if (aiGeneratedData.people || aiGeneratedData.organizations) {
+                            await updateSelectedArticle({
+                              entities: {
+                                people: aiGeneratedData.people,
+                                organizations: aiGeneratedData.organizations,
+                                locations: aiGeneratedData.locations,
+                                topics: aiGeneratedData.topics,
+                              }
+                            });
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Saved entities for "${article?.title}"\n\n👤 People: ${aiGeneratedData.people?.join(', ')}\n🏢 Orgs: ${aiGeneratedData.organizations?.join(', ')}\n📍 Locations: ${aiGeneratedData.locations?.join(', ')}\n🏷️ Topics: ${aiGeneratedData.topics?.join(', ')}`
+                            }]);
+                          }
+                          // Handle E-E-A-T content (display in chat, user can manually add to article)
+                          else if (aiGeneratedData.authorBio) {
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `📝 **E-E-A-T Content Suggestions** for "${article?.title}":\n\n**Author Bio:**\n${aiGeneratedData.authorBio}\n\n**Expert Quote:**\n${aiGeneratedData.expertQuote}\n\n**Source Attribution:**\n${aiGeneratedData.sourceAttribution}\n\n**Trust Signal:**\n${aiGeneratedData.trustSignal}\n\n💡 Copy and paste these into your article to strengthen E-E-A-T signals.`
+                            }]);
+                          }
+                          // Handle AI Citation snippets (display in chat)
+                          else if (aiGeneratedData.definitiveAnswer) {
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `🎯 **AI Citation Snippets** for "${article?.title}":\n\n**Definitive Answer:**\n${aiGeneratedData.definitiveAnswer}\n\n**Statistic:**\n${aiGeneratedData.statisticSnippet}\n\n**Expert Quote:**\n${aiGeneratedData.expertQuote}\n\n**Summary:**\n${aiGeneratedData.keySummary}\n\n**Key Points:**\n${aiGeneratedData.bulletPoints?.map((p: string) => `• ${p}`).join('\n')}\n\n💡 Add these snippets to your article to increase AI citation probability.`
+                            }]);
+                          }
+                          // Handle standalone meta description
+                          else if (aiGeneratedData.metaDescription) {
+                            await updateSelectedArticle({
+                              metaDescription: aiGeneratedData.metaDescription,
+                              imageAltText: aiGeneratedData.imageAltText,
+                            });
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied SEO metadata to "${article?.title}"`
+                            }]);
+                          }
+                          // Handle generic updates
+                          else {
+                            await updateSelectedArticle(aiGeneratedData);
+                            setChatHistory(prev => [...prev, {
+                              role: 'model',
+                              text: `✅ Applied all changes to "${article?.title}"`
+                            }]);
+                          }
+                          setAiGeneratedData(null);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 w-full"
+                      >
+                        <CheckCircle size={16} className="mr-2" />
+                        Apply to Article
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
               <div className="p-4 border-t bg-muted/30">
+                <div className="flex gap-2 mb-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setChatHistory([]);
+                      setAiGeneratedData(null);
+                      showMessage('success', 'Chat cleared');
+                    }}
+                    className="flex-1"
+                  >
+                    <X size={14} className="mr-2" /> Clear Chat
+                  </Button>
+                  {aiGeneratedData && (
+                    <Badge variant="secondary" className="px-3 py-1">
+                      ✓ JSON Ready
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-3">
                   <Input
                     value={chatInput}
@@ -4628,6 +4942,772 @@ Example structure:
                           <div className="text-xs text-muted-foreground mt-1">Published</div>
                         </div>
                       </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* SEO Agent Tools */}
+              {activeTab === 'SEO' && (
+                <>
+                  {/* Article Selector */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText size={18} className="text-purple-600" /> Select Article
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs">
+                          Choose article to optimize ({articles.length} total)
+                        </Label>
+                        <select
+                          value={selectedArticleForAction}
+                          onChange={e => setSelectedArticleForAction(e.target.value)}
+                          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Choose article...</option>
+                          {articles.map(article => (
+                            <option key={article.id} value={article.id}>
+                              {article.title || 'Untitled'} - {article.status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedArticleForAction && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            const article = articles.find(a => a.id === selectedArticleForAction);
+                            if (article) setAgentArticle(article);
+                          }}
+                        >
+                          <Edit size={14} className="mr-2" /> Open in Editor
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* SEO Analyzer Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <BarChart size={18} className="text-purple-600" /> SEO Analyzer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to analyze</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Title Length</span>
+                                <Badge variant={selectedArticle?.title && selectedArticle.title.length >= 50 && selectedArticle.title.length <= 60 ? "default" : "secondary"}>
+                                  {selectedArticle?.title?.length || 0}/60
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Meta Description</span>
+                                <Badge variant={selectedArticle?.metaDescription ? "default" : "destructive"}>
+                                  {selectedArticle?.metaDescription ? `${selectedArticle.metaDescription.length}/155` : 'Missing'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Image Alt Text</span>
+                                <Badge variant={selectedArticle?.imageAltText ? "default" : "secondary"}>
+                                  {selectedArticle?.imageAltText ? 'Set' : 'Missing'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Hashtags</span>
+                                <Badge variant={(selectedArticle?.hashtags?.length || 0) > 0 ? "default" : "secondary"}>
+                                  {selectedArticle?.hashtags?.length || 0} tags
+                                </Badge>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Analyze and optimize this article for SEO. Return ONLY a JSON object with optimized values.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Meta Description: ${selectedArticle?.metaDescription || 'Not set'}
+Image Alt Text: ${selectedArticle?.imageAltText || 'Not set'}
+Content: ${selectedArticle?.content?.substring(0, 1500) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "optimizedTitle": "SEO-optimized title (50-60 chars)",
+  "metaDescription": "Compelling meta description (140-155 chars)",
+  "imageAltText": "Descriptive alt text for featured image",
+  "focusKeywords": ["keyword1", "keyword2", "keyword3"]
+}
+
+Requirements:
+- Title: Include primary keyword, 50-60 characters, compelling
+- Meta Description: Include call-to-action, 140-155 characters, include keyword
+- Image Alt Text: Descriptive, include location/context if applicable
+- Focus Keywords: 3-5 most important keywords for this article
+
+Return ONLY the JSON object, no other text.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <Search size={14} className="mr-2" /> Generate SEO Metadata
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* Keyword Research Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Key size={18} className="text-purple-600" /> Keyword Research
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          const prompt = `Based on this article, suggest optimal keywords:\n\nTitle: ${agentArticle?.title || 'Untitled'}\nCategory: ${agentArticle?.category || 'General'}\n\nContent: ${agentArticle?.content?.substring(0, 1000) || 'No content'}\n\nProvide:\n1. Primary keyword (1-2)\n2. Secondary keywords (3-5)\n3. Long-tail keyword variations (3-5)\n4. Local/geographic keywords for Eastern NC\n5. "People Also Ask" style questions`;
+                          sendPromptToAi(prompt);
+                        }}
+                      >
+                        <Target size={14} className="mr-2" /> Generate Keywords
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          const prompt = `Analyze keyword density in this article:\n\nTitle: ${agentArticle?.title || 'Untitled'}\n\nContent: ${agentArticle?.content?.substring(0, 2000) || 'No content'}\n\nIdentify the most frequently used terms and suggest if any keywords are over-used or under-used. Recommend optimal keyword placement.`;
+                          sendPromptToAi(prompt);
+                        }}
+                      >
+                        <BarChart size={14} className="mr-2" /> Check Density
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Headline Optimizer Card */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Heading size={18} className="text-purple-600" /> Headline Optimizer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="p-3 bg-muted/50 rounded-lg">
+                        <p className="text-sm font-medium truncate">{agentArticle?.title || 'No title set'}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{agentArticle?.title?.length || 0} characters</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          const prompt = `Generate 5 headline variations for this article:\n\nCurrent Title: ${agentArticle?.title || 'Untitled'}\nCategory: ${agentArticle?.category || 'General'}\n\nContent Summary: ${agentArticle?.content?.substring(0, 500) || 'No content'}\n\nProvide 5 alternatives in different styles:\n1. News style (factual, objective)\n2. Question format (engaging curiosity)\n3. How-to format (if applicable)\n4. Listicle format (if applicable)\n5. Emotional hook (compelling, human interest)\n\nFor each, note the character count and key power words used.`;
+                          sendPromptToAi(prompt);
+                        }}
+                      >
+                        <Sparkles size={14} className="mr-2" /> Generate Variations
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Stats */}
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">SEO Quick Stats</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold">{agentArticle?.content?.split(/\s+/).filter(w => w.length > 0).length || 0}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Words</div>
+                        </div>
+                        <div className="bg-background rounded-lg p-3 border">
+                          <div className="text-2xl font-bold">{Math.ceil((agentArticle?.content?.split(/\s+/).filter(w => w.length > 0).length || 0) / 200)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">Min Read</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* SOCIAL Agent Tools */}
+              {activeTab === 'SOCIAL' && (
+                <>
+                  {/* Article Selector */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText size={18} className="text-pink-600" /> Select Article
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs">
+                          Choose article to create social posts ({articles.length} total)
+                        </Label>
+                        <select
+                          value={selectedArticleForAction}
+                          onChange={e => setSelectedArticleForAction(e.target.value)}
+                          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Choose article...</option>
+                          {articles.map(article => (
+                            <option key={article.id} value={article.id}>
+                              {article.title || 'Untitled'} - {article.status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedArticleForAction && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            const article = articles.find(a => a.id === selectedArticleForAction);
+                            if (article) setAgentArticle(article);
+                          }}
+                        >
+                          <Edit size={14} className="mr-2" /> Open in Editor
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Platform Post Generator */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Share2 size={18} className="text-pink-600" /> Platform Posts
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to generate posts</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Create a Twitter/X post for this article:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nContent: ${selectedArticle?.content?.substring(0, 500) || 'No content'}\n\nRequirements:\n- Maximum 280 characters\n- Include 2-3 relevant hashtags\n- Make it engaging and shareable\n- Include a call to action`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                <Twitter size={14} className="mr-1" /> Twitter/X
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Create a Facebook post for this article:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nContent: ${selectedArticle?.content?.substring(0, 500) || 'No content'}\n\nRequirements:\n- Optimal length: 100-250 characters for engagement\n- Include 1-2 hashtags\n- Ask a question or include a call to action\n- Make it conversational and community-focused`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                <Facebook size={14} className="mr-1" /> Facebook
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Create an Instagram caption for this article:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nContent: ${selectedArticle?.content?.substring(0, 500) || 'No content'}\n\nRequirements:\n- Engaging opening line (hook)\n- Story-like narrative style\n- Include 15-20 relevant hashtags at the end\n- Add appropriate emojis\n- Include a call to action (link in bio reference)`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                <Instagram size={14} className="mr-1" /> Instagram
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Create a LinkedIn post for this article:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nContent: ${selectedArticle?.content?.substring(0, 500) || 'No content'}\n\nRequirements:\n- Professional tone\n- Optimal length: 150-300 characters\n- Include 3-5 industry hashtags\n- Add insight or commentary\n- End with a thought-provoking question`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                <Linkedin size={14} className="mr-1" /> LinkedIn
+                              </Button>
+                            </div>
+                            <Button
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Create social media posts for ALL platforms for this article:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nContent: ${selectedArticle?.content?.substring(0, 800) || 'No content'}\n\nGenerate optimized posts for:\n1. Twitter/X (280 chars, 2-3 hashtags)\n2. Facebook (100-250 chars, conversational)\n3. Instagram (caption + 15-20 hashtags)\n4. LinkedIn (professional, 150-300 chars)\n\nMake each platform-specific and ready to copy-paste.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <Sparkles size={14} className="mr-2" /> Generate All Posts
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* Hashtag Research */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Hash size={18} className="text-pink-600" /> Hashtag Center
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to generate hashtags</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            {selectedArticle?.hashtags && selectedArticle.hashtags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {selectedArticle.hashtags.map((tag: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Generate hashtags for this article and return them in JSON format.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Category: ${selectedArticle?.category || 'General'}
+Content: ${selectedArticle?.content?.substring(0, 500) || 'No content'}
+
+Return ONLY a JSON object with this exact structure:
+{
+  "hashtags": ["#HashtagHere1", "#HashtagHere2", ...],
+  "twitterHashtags": ["#Tag1", "#Tag2", "#Tag3"],
+  "instagramHashtags": ["#Tag1", "#Tag2", ..., "#Tag15-20"],
+  "linkedinHashtags": ["#Tag1", "#Tag2", "#Tag3"]
+}
+
+Include:
+- General hashtags (10-15 total): Topic-specific, Local/Geographic (#EasternNC, #NCNews), Trending/Timely, and Evergreen (#BreakingNews, #LocalNews)
+- Twitter set: 2-3 most impactful hashtags
+- Instagram set: 15-20 comprehensive hashtags
+- LinkedIn set: 3-5 professional hashtags
+
+Return ONLY the JSON object, no other text.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <Hash size={14} className="mr-2" /> Generate Hashtags
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* Engagement Tips */}
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Best Posting Times (EST)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-2"><Twitter size={12} /> Twitter/X</span>
+                        <span className="font-medium">9am, 12pm, 6pm</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-2"><Facebook size={12} /> Facebook</span>
+                        <span className="font-medium">1-4pm weekdays</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-2"><Instagram size={12} /> Instagram</span>
+                        <span className="font-medium">11am-1pm, 7-9pm</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-2"><Linkedin size={12} /> LinkedIn</span>
+                        <span className="font-medium">Tue-Thu 10am</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cross-Platform Checklist */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Post Checklist</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" className="rounded" />
+                        <Twitter size={14} /> Posted to Twitter/X
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" className="rounded" />
+                        <Facebook size={14} /> Posted to Facebook
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" className="rounded" />
+                        <Instagram size={14} /> Posted to Instagram
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" className="rounded" />
+                        <Linkedin size={14} /> Posted to LinkedIn
+                      </label>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* GEO Agent Tools */}
+              {activeTab === 'GEO' && (
+                <>
+                  {/* Article Selector */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText size={18} className="text-teal-600" /> Select Article
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs">
+                          Choose article to optimize for GEO ({articles.length} total)
+                        </Label>
+                        <select
+                          value={selectedArticleForAction}
+                          onChange={e => setSelectedArticleForAction(e.target.value)}
+                          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Choose article...</option>
+                          {articles.map(article => (
+                            <option key={article.id} value={article.id}>
+                              {article.title || 'Untitled'} - {article.status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedArticleForAction && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            const article = articles.find(a => a.id === selectedArticleForAction);
+                            if (article) setAgentArticle(article);
+                          }}
+                        >
+                          <Edit size={14} className="mr-2" /> Open in Editor
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Structured Data Generator */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Globe size={18} className="text-teal-600" /> Structured Data (JSON-LD)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to generate schema</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            <p className="text-xs text-muted-foreground">Generate Schema.org structured data to maximize AI search visibility.</p>
+                            <Button
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Generate Schema.org JSON-LD for this article. Return ONLY a JSON object.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Author: ${selectedArticle?.author || 'Staff Writer'}
+Category: ${selectedArticle?.category || 'News'}
+Published: ${selectedArticle?.publishedAt || new Date().toISOString()}
+Image URL: ${selectedArticle?.featuredImage || selectedArticle?.imageUrl || ''}
+Content: ${selectedArticle?.content?.substring(0, 800) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "schemaJsonLd": {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "NewsArticle",
+        "headline": "article title here",
+        "description": "article description",
+        "image": "image URL",
+        "author": {
+          "@type": "Person",
+          "name": "author name"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "WNC News",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://wncnews.com/logo.png"
+          }
+        },
+        "datePublished": "ISO date",
+        "dateModified": "ISO date"
+      }
+    ]
+  }
+}
+
+Generate complete NewsArticle schema with all required properties. Return ONLY the JSON object, no other text.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <Sparkles size={14} className="mr-2" /> Generate Schema JSON-LD
+                            </Button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Generate a NewsArticle Schema.org JSON-LD for:\n\nTitle: ${selectedArticle?.title || 'Untitled'}\nAuthor: ${selectedArticle?.author || 'Staff'}\nDate: ${selectedArticle?.publishedAt || new Date().toISOString()}\nCategory: ${selectedArticle?.category || 'News'}\n\nProvide valid JSON-LD format.`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                NewsArticle
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const prompt = `Generate LocalBusiness and Organization Schema.org JSON-LD for WNC News, a local news publication serving Eastern North Carolina. Include proper @context, @type, name, and location properties.`;
+                                  sendPromptToAi(prompt);
+                                }}
+                              >
+                                Organization
+                              </Button>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* AI Citation Optimizer */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Target size={18} className="text-teal-600" /> AI Citation Optimizer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to optimize citations</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            <p className="text-xs text-muted-foreground">Optimize content to be cited by AI engines (Google SGE, Perplexity, ChatGPT).</p>
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Generate AI-citation snippets for this article. Return ONLY a JSON object.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Content: ${selectedArticle?.content?.substring(0, 1500) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "definitiveAnswer": "A clear, quotable answer sentence (for featured snippets)",
+  "statisticSnippet": "A sentence with a key statistic or data point",
+  "expertQuote": "An expert attribution or authoritative quote",
+  "keySummary": "A summary sentence with key facts (self-contained)",
+  "bulletPoints": ["Key point 1", "Key point 2", "Key point 3"]
+}
+
+Each field should be self-contained and optimized to be cited by AI search engines. Return ONLY the JSON object, no other text.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <Copy size={14} className="mr-2" /> Generate Citation Content
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* Entity & Topic Mapper */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Link2 size={18} className="text-teal-600" /> Entity Mapper
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to extract entities</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => {
+                              const prompt = `Extract entities from this article for knowledge graph optimization. Return ONLY a JSON object.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Content: ${selectedArticle?.content?.substring(0, 1500) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "people": ["Person Name (Role)", "Another Person (Title)"],
+  "organizations": ["Organization Name", "Another Org"],
+  "locations": ["City, County", "Landmark Name"],
+  "topics": ["Topic 1", "Topic 2", "Topic 3"],
+  "relatedKeywords": ["related term 1", "related term 2"]
+}
+
+Include:
+- People: Names with their roles/titles in parentheses
+- Organizations: Businesses, government agencies, nonprofits mentioned
+- Locations: Cities, counties, landmarks (format: "Name, Context")
+- Topics: 3-5 main topic categories
+- Related Keywords: 5-8 related terms for topical authority
+
+Return ONLY the JSON object, no other text.`;
+                              sendPromptToAi(prompt);
+                            }}
+                          >
+                            <Search size={14} className="mr-2" /> Extract Entities
+                          </Button>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* EEAT Enhancer */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Shield size={18} className="text-teal-600" /> E-E-A-T Enhancer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above to analyze E-E-A-T</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <>
+                            <p className="text-xs text-muted-foreground">Experience, Expertise, Authority, Trust signals for Google & AI.</p>
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                const prompt = `Enhance this article with E-E-A-T signals. Return ONLY a JSON object.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Author: ${selectedArticle?.author || 'Staff'}
+Content: ${selectedArticle?.content?.substring(0, 1500) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "authorBio": "Brief author credentials/bio to add (1-2 sentences)",
+  "expertQuote": "A sample expert quote attribution to add if not present (e.g., 'According to Dr. Jane Smith, local historian...')",
+  "sourceAttribution": "Sample source citation to strengthen authority (e.g., 'Data from NC Department of Transportation shows...')",
+  "trustSignal": "Transparency statement to add (e.g., 'This story was updated on [date] to include additional information from...')"
+}
+
+Generate realistic, relevant content that strengthens E-E-A-T signals. Return ONLY the JSON object, no other text.`;
+                                sendPromptToAi(prompt);
+                              }}
+                            >
+                              <CheckCircle size={14} className="mr-2" /> Generate E-E-A-T Content
+                            </Button>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  {/* Local News GEO */}
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Local News Optimization</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {!selectedArticleForAction ? (
+                        <div className="bg-muted/50 border rounded-lg p-4 text-center">
+                          <p className="text-sm text-muted-foreground">Select an article above for local optimization</p>
+                        </div>
+                      ) : (() => {
+                        const selectedArticle = articles.find(a => a.id === selectedArticleForAction);
+                        return (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                              const prompt = `Optimize this article for local Eastern NC search visibility. Return ONLY a JSON object.
+
+Article:
+Title: ${selectedArticle?.title || 'Untitled'}
+Content: ${selectedArticle?.content?.substring(0, 1000) || 'No content'}
+
+Return ONLY this JSON structure:
+{
+  "localKeywords": ["Eastern NC", "Wayne County", "Duplin County", "etc"],
+  "geoTags": ["Goldsboro", "Mount Olive", "Kinston", "etc"],
+  "localContext": "Brief paragraph to add that strengthens local relevance (2-3 sentences mentioning specific counties/cities/landmarks)"
+}
+
+Include:
+- 5-8 local keywords (county names, city names, regional terms like "Eastern NC", "Coastal Plain")
+- 3-5 specific geo tags (cities/towns mentioned or relevant to the story)
+- A short paragraph (2-3 sentences) that adds local geographic context
+
+Return ONLY the JSON object, no other text.`;
+                              sendPromptToAi(prompt);
+                            }}
+                          >
+                            <Globe size={14} className="mr-2" /> Generate Local GEO
+                          </Button>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </>
@@ -5033,6 +6113,131 @@ Example structure:
                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Image Credit</label>
                     <input value={(agentArticle as Article & { imageCredit?: string }).imageCredit || ''} onChange={e => setAgentArticle({...agentArticle, imageCredit: e.target.value} as Article)} placeholder="Photo credit or source..." className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all duration-200 bg-white text-sm" />
                   </div>
+
+                  {/* SEO & Social Metadata Section */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-5 space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                          <FileSearch size={16} className="text-blue-600" /> SEO & Social Metadata
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-1">Auto-generate descriptions, alt text, and hashtags for your article</p>
+                      </div>
+                      <button
+                        onClick={() => handleGenerateMetadata(['metaDescription', 'imageAltText', 'hashtags'])}
+                        disabled={isGeneratingMetadata || !agentArticle?.title || !agentArticle?.content}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        {isGeneratingMetadata ? <><RefreshCw size={14} className="animate-spin" /> Generating...</> : <><Sparkles size={14} /> Generate All</>}
+                      </button>
+                    </div>
+
+                    {/* Meta Description */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                          <Type size={12} /> Meta Description
+                        </label>
+                        <span className="text-xs text-slate-500">{(agentArticle.metaDescription || '').length}/155</span>
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          value={agentArticle.metaDescription || ''}
+                          onChange={e => setAgentArticle({...agentArticle, metaDescription: e.target.value.substring(0, 155)})}
+                          placeholder="SEO meta description (max 155 characters)..."
+                          rows={2}
+                          className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm pr-20"
+                        />
+                        <button
+                          onClick={() => handleGenerateMetadata(['metaDescription'])}
+                          disabled={isGeneratingMetadata || !agentArticle?.title || !agentArticle?.content}
+                          className="absolute right-2 top-2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                          title="Generate meta description"
+                        >
+                          <Sparkles size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Image Alt Text */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                          <ImageIcon size={12} /> Image Alt Text
+                        </label>
+                        <span className="text-xs text-slate-500">{(agentArticle.imageAltText || '').length}/125</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          value={agentArticle.imageAltText || ''}
+                          onChange={e => setAgentArticle({...agentArticle, imageAltText: e.target.value.substring(0, 125)})}
+                          placeholder="Descriptive alt text for featured image..."
+                          className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm pr-20"
+                        />
+                        <button
+                          onClick={() => handleGenerateMetadata(['imageAltText'])}
+                          disabled={isGeneratingMetadata || !agentArticle?.title || !agentArticle?.content}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                          title="Generate image alt text"
+                        >
+                          <Sparkles size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Hashtags */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                          <Hash size={12} /> Hashtags
+                        </label>
+                        <span className="text-xs text-slate-500">{(agentArticle.hashtags || []).length} tags</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          value={(agentArticle.hashtags || []).join(' ')}
+                          onChange={e => {
+                            const hashtags = e.target.value
+                              .split(/[\s,]+/)
+                              .filter(tag => tag)
+                              .map(tag => tag.startsWith('#') ? tag : `#${tag}`);
+                            setAgentArticle({...agentArticle, hashtags});
+                          }}
+                          placeholder="#LocalNews #WNC #Breaking..."
+                          className="w-full border border-slate-200 rounded-xl p-3.5 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm pr-20"
+                        />
+                        <button
+                          onClick={() => handleGenerateMetadata(['hashtags'])}
+                          disabled={isGeneratingMetadata || !agentArticle?.title || !agentArticle?.content}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                          title="Generate hashtags"
+                        >
+                          <Sparkles size={14} />
+                        </button>
+                      </div>
+                      {(agentArticle.hashtags || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {agentArticle.hashtags?.map((tag, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                              {tag}
+                              <button
+                                onClick={() => setAgentArticle({...agentArticle, hashtags: agentArticle.hashtags?.filter((_, i) => i !== idx)})}
+                                className="hover:text-blue-900"
+                              >
+                                <X size={10} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {(!agentArticle?.title || !agentArticle?.content) && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertCircle size={12} /> Add article title and content to enable AI generation
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -5152,7 +6357,7 @@ Example structure:
                     <p className="text-sm text-slate-600 mb-6">Customize how this agent behaves and writes</p>
                   </div>
                   <AgentPromptEditor
-                    agentType={activeTab as 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL'}
+                    agentType={activeTab as 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO'}
                     userId={currentUser.uid}
                   />
                 </div>

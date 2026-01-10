@@ -49,6 +49,23 @@ export interface Article {
   sourceTitle?: string;
   sourceSummary?: string;
   sourceItemId?: string;
+
+  // SEO & Social Metadata (auto-generated)
+  metaDescription?: string;    // SEO meta description (max 160 chars)
+  imageAltText?: string;       // Alt text for featured image
+  hashtags?: string[];         // Social media hashtags
+  keywords?: string[];         // Focus keywords for SEO
+  schema?: string;             // Schema.org JSON-LD structured data
+
+  // GEO & AI Optimization
+  localKeywords?: string[];    // Local geographic keywords
+  geoTags?: string[];          // Geographic location tags
+  entities?: {                 // Extracted entities for knowledge graph
+    people?: string[];
+    organizations?: string[];
+    locations?: string[];
+    topics?: string[];
+  };
 }
 
 export interface CategoryData {
