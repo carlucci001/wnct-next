@@ -67,7 +67,7 @@ export default function MediaManager({
   defaultFolder = 'articles',
   onSelect,
 }: MediaManagerProps) {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
 
   // Media state
   const [media, setMedia] = useState<MediaFile[]>([]);
@@ -422,8 +422,8 @@ export default function MediaManager({
           duration: result.duration,
           url: result.url,
           folder: uploadFolder,
-          uploadedBy: user?.uid || 'unknown',
-          uploadedByName: user?.displayName || user?.email || 'Unknown',
+          uploadedBy: currentUser?.uid || 'unknown',
+          uploadedByName: currentUser?.displayName || currentUser?.email || 'Unknown',
         });
 
         // Update status to complete
@@ -432,7 +432,7 @@ export default function MediaManager({
             ...u,
             status: 'complete',
             progress: 100,
-            mediaFile: { id: mediaId, ...result, folder: uploadFolder, uploadedAt: new Date().toISOString(), uploadedBy: user?.uid || '' } as MediaFile
+            mediaFile: { id: mediaId, ...result, folder: uploadFolder, uploadedAt: new Date().toISOString(), uploadedBy: currentUser?.uid || '' } as MediaFile
           } : u)
         );
 
