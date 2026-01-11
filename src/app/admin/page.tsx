@@ -619,13 +619,16 @@ export default function AdminDashboard() {
 
     if (action === 'new-article' && currentUser) {
       // Create new article and open JOURNALIST tab
+      // Default author to the logged-in user (can be changed via dropdown)
       const newArticle: Article = {
         id: `art-${Date.now()}`,
         title: '',
         slug: '',
         excerpt: '',
         category: 'News',
-        author: currentUser?.displayName || 'Staff Writer',
+        author: currentUser?.displayName || userProfile?.displayName || 'Staff Writer',
+        authorId: currentUser?.uid || '',
+        authorPhotoURL: userProfile?.photoURL || '',
         publishedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         imageUrl: '',
