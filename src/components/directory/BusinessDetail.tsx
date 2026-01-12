@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -12,13 +12,16 @@ import {
   BadgeCheck,
   Star,
   ExternalLink,
+  ShieldCheck,
+  TrendingUp,
 } from 'lucide-react';
 import { AdDisplay } from '../advertising/AdDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Business } from '@/types/business';
-import { getTodayHours, getGoogleMapsUrl, isBusinessOpen } from '@/lib/directory';
+import { getTodayHours, getGoogleMapsUrl, isBusinessOpen, getActiveBusinesses } from '@/lib/directory';
+import { DirectoryMap } from './DirectoryMap';
 
 interface BusinessDetailProps {
   business: Business;
@@ -26,9 +29,22 @@ interface BusinessDetailProps {
 }
 
 export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDetailProps) {
+  const [allBusinesses, setAllBusinesses] = useState<Business[]>([]);
   const isOpen = isBusinessOpen(business.hours);
   const todayHours = getTodayHours(business.hours);
   const mapsUrl = getGoogleMapsUrl(business.address);
+
+  useEffect(() => {
+    async function loadAll() {
+      try {
+        const businesses = await getActiveBusinesses();
+        setAllBusinesses(businesses);
+      } catch (error) {
+        console.error('Error loading businesses for map:', error);
+      }
+    }
+    loadAll();
+  }, []);
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -39,16 +55,13 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
           url: window.location.href,
         });
       } catch {
-        console.log('Share cancelled');
+        // Share cancelled or failed
       }
     } else {
       navigator.clipboard.writeText(window.location.href);
       alert('Link copied to clipboard!');
     }
   };
-
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const today = new Date().getDay();
 
   return (
     <div className="flex flex-col lg:flex-row gap-8">
@@ -63,7 +76,7 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
               width={800}
               height={400}
               className="w-full h-full object-cover"
-              style={{ width: '100%', height: 'auto' }}
+              priority
             />
           ) : business.logo ? (
             <Image
@@ -72,7 +85,6 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
               width={200}
               height={200}
               className="w-full h-full object-contain p-8"
-              style={{ width: 'auto', height: 'auto' }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl font-bold text-muted-foreground/30">
@@ -83,14 +95,14 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
           {/* Badges */}
           <div className="absolute top-4 left-4 flex gap-2">
             {business.featured && (
-              <Badge className="bg-yellow-500 text-yellow-950 shadow-sm">
+              <Badge className="bg-yellow-500 text-yellow-950 shadow-sm border-none">
                 <Star size={12} className="mr-1" fill="currentColor" />
                 Featured
               </Badge>
             )}
             <Badge 
               variant={isOpen ? 'default' : 'secondary'}
-              className={isOpen ? 'bg-green-600 hover:bg-green-600 shadow-sm' : 'shadow-sm'}
+              className={isOpen ? 'bg-green-600 hover:bg-green-600 border-none' : ''}
             >
               {isOpen ? 'Open Now' : 'Closed'}
             </Badge>
@@ -217,104 +229,111 @@ export function BusinessDetail({ business, relatedBusinesses = [] }: BusinessDet
 
       {/* Sidebar Content */}
       <div className="lg:w-1/3 space-y-6">
+        {/* 1. Map Module - Top Right (Sidebar Top) */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            Explore Local
+          </h3>
+          <DirectoryMap businesses={allBusinesses} className="shadow-lg border-primary/10 hover:border-primary/30 transition-colors" />
+        </div>
+
         {/* Full Hours Card */}
-        {business.hours && (
-          <Card className="shadow-sm border-border/50">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock size={16} className="text-primary" />
-                Full Business Hours
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <ul className="space-y-2.5">
-                {dayNames.map((day, i) => {
-                  const hoursKey = day.toLowerCase() as keyof typeof business.hours;
-                  const hoursValue = (business.hours as Record<string, string>)?.[hoursKey];
-                  const isToday = i === today;
-                  return (
-                    <li
-                      key={day}
-                      className={`flex justify-between text-sm py-1 border-b border-muted/50 last:border-0 ${
-                        isToday ? 'font-bold text-foreground' : 'text-muted-foreground'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        {isToday && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
-                        {day}
-                      </span>
-                      <span>{hoursValue || 'Closed'}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3 border-b">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock size={16} className="text-primary" />
+              Complete Hours
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="space-y-2">
+              {business.hours ? Object.entries(business.hours).map(([day, time]) => (
+                <div key={day} className="flex justify-between text-sm py-1 border-b border-border/30 last:border-0">
+                  <span className="capitalize font-medium text-muted-foreground">{day}</span>
+                  <span className={time.toLowerCase() === 'closed' ? 'text-red-500 font-bold' : 'text-foreground'}>
+                    {time}
+                  </span>
+                </div>
+              )) : (
+                <p className="text-sm text-muted-foreground italic">Hours not specified</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Claim Listing Card */}
-        {!business.ownerId && (
-          <Card className="bg-primary/5 border-primary/20 shadow-sm">
-            <CardContent className="pt-6 text-center">
-              <div className="bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BadgeCheck className="text-primary" size={24} />
+        {!business.verified && (
+          <Card className="bg-primary/5 border-primary/20 shadow-none border-dashed">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                  <ShieldCheck size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Unverified Listing</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                    Is this your business? Claim it to manage photos, update hours, and reply to customers.
+                  </p>
+                </div>
               </div>
-              <h3 className="font-bold text-foreground mb-2">Claim This Listing</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Are you the owner of {business.name}? Claim this listing to manage your information and connect with customers.
-              </p>
-              <Button className="w-full font-bold">
-                Claim Now
+              <Button size="sm" className="w-full font-bold">
+                Claim this Listing
               </Button>
             </CardContent>
           </Card>
         )}
 
         {/* More from Category */}
-        {relatedBusinesses.length > 0 && (
-          <div className="pt-2">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Star size={18} className="text-primary" />
-              Similar in {business.category}
-            </h2>
-            <div className="space-y-4">
-              {relatedBusinesses.map((b) => (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">
+            More {business.category}
+          </h3>
+          <div className="space-y-3">
+            {relatedBusinesses.length > 0 ? (
+              relatedBusinesses.slice(0, 3).map((related) => (
                 <Link
-                  key={b.id}
-                  href={`/directory/${b.slug}`}
-                  className="flex gap-4 group p-2 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
+                  key={related.id}
+                  href={`/directory/${related.slug}`}
+                  className="flex gap-3 group p-2 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
                 >
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0 border border-border">
-                    {b.logo ? (
+                  <div className="w-14 h-14 bg-muted rounded-md overflow-hidden shrink-0 border border-border">
+                    {related.logo ? (
                       <Image 
-                        src={b.logo} 
-                        alt={b.name} 
-                        width={64}
-                        height={64}
+                        src={related.logo} 
+                        alt="" 
+                        width={56} 
+                        height={56} 
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 font-black text-xl">
-                        {b.name.charAt(0)}
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 font-black text-lg">
+                        {related.name.charAt(0)}
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex flex-col justify-center">
-                    <p className="font-bold group-hover:text-primary transition-colors line-clamp-1 text-sm">
-                      {b.name}
+                    <p className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors">
+                      {related.name}
                     </p>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                      {b.description}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Star size={10} className="text-yellow-500 fill-yellow-500" />
+                      <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">
+                        {related.address.city}, NC
+                      </span>
+                    </div>
                   </div>
                 </Link>
-              ))}
-            </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground italic px-1">None found in this category.</p>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Ad Spot */}
-        <AdDisplay position="sidebar_sticky" />
+        {/* Ad Spot & Sticky Behavior */}
+        <div className="sticky top-24 space-y-6">
+          <AdDisplay position="sidebar_sticky" />
+        </div>
       </div>
     </div>
   );
