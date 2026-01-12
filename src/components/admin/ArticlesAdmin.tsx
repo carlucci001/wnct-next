@@ -281,34 +281,36 @@ export default function ArticlesAdmin() {
       header: 'Actions',
       className: 'text-right',
       cell: (article) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => window.open(`/admin/articles/new?id=${article.id}`, '_blank')}>
-              <Edit className="h-4 w-4 mr-2" /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.open(`/article/${article.slug}`, '_blank')}>
-              <ExternalLink className="h-4 w-4 mr-2" /> View
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleToggleFeatured(article)}>
-              <Star className="h-4 w-4 mr-2" /> {article.isFeatured ? 'Unfeature' : 'Feature'}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setFactCheckPanel({ isOpen: true, article })}>
-              <Shield className="h-4 w-4 mr-2" /> Fact Check
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => openDeleteModal([article.id])}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => window.open(`/admin/articles/new?id=${article.id}`, '_blank')}>
+                <Edit className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`/article/${article.slug}`, '_blank')}>
+                <ExternalLink className="h-4 w-4 mr-2" /> View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleToggleFeatured(article)}>
+                <Star className="h-4 w-4 mr-2" /> {article.isFeatured ? 'Unfeature' : 'Feature'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFactCheckPanel({ isOpen: true, article })}>
+                <Shield className="h-4 w-4 mr-2" /> Fact Check
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => openDeleteModal([article.id])}
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
