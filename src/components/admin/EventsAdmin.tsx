@@ -477,6 +477,7 @@ export default function EventsAdmin() {
           searchPlaceholder="Search events..."
           batchActions={batchActions}
           isLoading={loading}
+          onRowClick={(event) => openEditModal(event)}
         />
       </CardContent>
 

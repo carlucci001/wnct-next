@@ -272,13 +272,14 @@ export default function AdvertisingAdmin() {
         </Button>
       </div>
 
-      <DataTable 
+      <DataTable
         data={campaigns}
         columns={columns}
         searchKey="title"
         searchPlaceholder="Search campaigns or clients..."
         batchActions={batchActions}
         isLoading={loading}
+        onRowClick={(ad) => { setEditingAd(ad); setIsModalOpen(true); }}
       />
 
       {/* Edit Modal */}

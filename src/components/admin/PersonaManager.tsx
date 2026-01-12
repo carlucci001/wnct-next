@@ -656,7 +656,8 @@ export default function PersonaManager({ currentUserId }: PersonaManagerProps) {
           {filteredPersonas.map((persona) => (
             <div
               key={persona.id}
-              className={`bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow ${
+              onClick={() => openEditModal(persona)}
+              className={`bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
                 !persona.isActive ? 'opacity-60' : ''
               }`}
             >
@@ -757,7 +758,7 @@ export default function PersonaManager({ currentUserId }: PersonaManagerProps) {
               )}
 
               {/* Actions */}
-              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => openEditModal(persona)}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg transition-colors"
@@ -832,7 +833,8 @@ export default function PersonaManager({ currentUserId }: PersonaManagerProps) {
               {filteredPersonas.map((persona) => (
                 <tr
                   key={persona.id}
-                  className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${
+                  onClick={() => openEditModal(persona)}
+                  className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors ${
                     !persona.isActive ? 'opacity-60' : ''
                   }`}
                 >
@@ -910,7 +912,7 @@ export default function PersonaManager({ currentUserId }: PersonaManagerProps) {
                       {persona.isActive ? <Power size={16} /> : <PowerOff size={16} />}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEditModal(persona)}

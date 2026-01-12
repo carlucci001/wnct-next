@@ -652,6 +652,7 @@ export default function CommunityAdmin() {
             searchPlaceholder="Search posts..."
             batchActions={batchActions}
             isLoading={loading}
+            onRowClick={(post) => openEditModal(post)}
           />
         </TabsContent>
 

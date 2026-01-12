@@ -423,11 +423,12 @@ export default function CategoryManager({ currentUserId }: CategoryManagerProps)
               paginatedCategories.map((category) => (
                 <tr
                   key={category.id}
-                  className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                  onClick={() => openEditModal(category)}
+                  className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
                     !category.isActive ? 'opacity-60' : ''
                   }`}
                 >
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIds.has(category.id)}
@@ -488,7 +489,7 @@ export default function CategoryManager({ currentUserId }: CategoryManagerProps)
                       <span className="text-sm text-slate-400 italic">No directive set</span>
                     )}
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => openEditModal(category)}
