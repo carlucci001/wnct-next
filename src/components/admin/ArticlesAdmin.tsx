@@ -432,7 +432,7 @@ export default function ArticlesAdmin() {
           batchActions={batchActions}
           isLoading={loading}
           onRowClick={(article) => {
-             // Optional: handle row click
+            window.open(`/admin/articles/new?id=${article.id}`, '_blank');
           }}
         />
       </CardContent>

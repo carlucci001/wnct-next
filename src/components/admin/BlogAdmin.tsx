@@ -395,6 +395,7 @@ export default function BlogAdmin() {
           searchPlaceholder="Search posts..."
           batchActions={batchActions}
           isLoading={loading}
+          onRowClick={(post) => openEditModal(post)}
         />
       </CardContent>
 

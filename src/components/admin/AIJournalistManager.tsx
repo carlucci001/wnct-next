@@ -416,7 +416,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
           {journalists.map((journalist) => (
             <div
               key={journalist.id}
-              className={`bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow ${
+              onClick={() => openEditModal(journalist)}
+              className={`bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
                 !journalist.isActive ? 'opacity-60' : ''
               }`}
             >
@@ -468,7 +469,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
               )}
 
               {/* Schedule Status */}
-              <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+              <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className={journalist.schedule?.isEnabled ? 'text-green-500' : 'text-slate-400'} />
@@ -501,7 +502,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
                 {/* Run Now Button - Primary Action */}
                 <button
                   onClick={() => handleRunNow(journalist)}

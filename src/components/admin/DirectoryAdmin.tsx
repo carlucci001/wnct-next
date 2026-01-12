@@ -424,6 +424,7 @@ export default function DirectoryAdmin() {
           searchPlaceholder="Search businesses..."
           batchActions={batchActions}
           isLoading={loading}
+          onRowClick={(business) => openEditModal(business)}
         />
       </CardContent>
 
