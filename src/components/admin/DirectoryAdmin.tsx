@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Plus, Trash2, Edit, Search,
   CheckCircle, XCircle, Star, ExternalLink, MoreHorizontal,
-  Database
+  Database, ImageIcon, X
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,8 @@ export default function DirectoryAdmin() {
     phone: '',
     email: '',
     website: '',
+    logo: '',
+    images: [] as string[],
     featured: false,
     verified: false,
     status: 'pending' as Business['status'],
@@ -120,6 +122,8 @@ export default function DirectoryAdmin() {
       phone: '',
       email: '',
       website: '',
+      logo: '',
+      images: [],
       featured: false,
       verified: false,
       status: 'pending',
@@ -134,7 +138,7 @@ export default function DirectoryAdmin() {
     }
 
     try {
-      await createBusiness({
+      const businessData: any = {
         name: formData.name,
         slug: generateSlug(formData.name),
         description: formData.description,
@@ -148,11 +152,18 @@ export default function DirectoryAdmin() {
         phone: formData.phone,
         email: formData.email,
         website: formData.website,
+        images: formData.images,
         featured: formData.featured,
         verified: formData.verified,
         status: formData.status,
-        images: [],
-      });
+      };
+
+      // Only include logo if it has a value
+      if (formData.logo) {
+        businessData.logo = formData.logo;
+      }
+
+      await createBusiness(businessData);
       toast.success('Business added successfully');
       setShowAddModal(false);
       resetForm();
@@ -177,6 +188,8 @@ export default function DirectoryAdmin() {
       phone: business.phone || '',
       email: business.email || '',
       website: business.website || '',
+      logo: business.logo || '',
+      images: business.images || [],
       featured: business.featured,
       verified: business.verified,
       status: business.status,
@@ -188,7 +201,7 @@ export default function DirectoryAdmin() {
     if (!editingBusiness) return;
 
     try {
-      await updateBusiness(editingBusiness.id, {
+      const businessData: any = {
         name: formData.name,
         slug: generateSlug(formData.name),
         description: formData.description,
@@ -202,10 +215,18 @@ export default function DirectoryAdmin() {
         phone: formData.phone,
         email: formData.email,
         website: formData.website,
+        images: formData.images,
         featured: formData.featured,
         verified: formData.verified,
         status: formData.status,
-      });
+      };
+
+      // Only include logo if it has a value
+      if (formData.logo) {
+        businessData.logo = formData.logo;
+      }
+
+      await updateBusiness(editingBusiness.id, businessData);
       toast.success('Business updated successfully');
       setShowEditModal(false);
       setEditingBusiness(null);
@@ -269,17 +290,26 @@ export default function DirectoryAdmin() {
       accessorKey: 'name',
       sortable: true,
       cell: (business) => (
-        <div>
-          <div className="font-medium flex items-center gap-2">
-            {business.name}
-            {business.verified && (
-              <Badge variant="outline" className="text-blue-600 border-blue-600">
-                <CheckCircle className="h-3 w-3 mr-1" /> Verified
-              </Badge>
-            )}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {business.address.city}, {business.address.state}
+        <div className="flex items-center gap-3">
+          {business.logo && (
+            <img
+              src={business.logo}
+              alt={business.name}
+              className="h-10 w-10 rounded object-cover border"
+            />
+          )}
+          <div>
+            <div className="font-medium flex items-center gap-2">
+              {business.name}
+              {business.verified && (
+                <Badge variant="outline" className="text-blue-600 border-blue-600">
+                  <CheckCircle className="h-3 w-3 mr-1" /> Verified
+                </Badge>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {business.address.city}, {business.address.state}
+            </div>
           </div>
         </div>
       ),
@@ -552,6 +582,53 @@ export default function DirectoryAdmin() {
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://www.business.com"
                 />
+              </div>
+
+              <div className="col-span-2">
+                <Label htmlFor="logo" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Logo URL
+                </Label>
+                <Input
+                  id="logo"
+                  value={formData.logo}
+                  onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                />
+                {formData.logo && (
+                  <div className="mt-2">
+                    <img src={formData.logo} alt="Logo preview" className="h-16 w-16 object-cover rounded border" />
+                  </div>
+                )}
+              </div>
+
+              <div className="col-span-2">
+                <Label className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Gallery Images (one per line)
+                </Label>
+                <Textarea
+                  value={formData.images.join('\n')}
+                  onChange={(e) => setFormData({ ...formData, images: e.target.value.split('\n').filter(url => url.trim()) })}
+                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                  rows={3}
+                />
+                {formData.images.length > 0 && (
+                  <div className="mt-2 flex gap-2 flex-wrap">
+                    {formData.images.map((url, idx) => (
+                      <div key={idx} className="relative group">
+                        <img src={url} alt={`Gallery ${idx + 1}`} className="h-16 w-16 object-cover rounded border" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, images: formData.images.filter((_, i) => i !== idx) })}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">

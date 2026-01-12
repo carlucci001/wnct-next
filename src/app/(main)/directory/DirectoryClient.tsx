@@ -139,7 +139,7 @@ export default function DirectoryClient() {
           )}
         </div>
 
-        <div className="lg:w-1/3 hidden lg:flex flex-col sticky top-24">
+        <div className="lg:w-1/3 hidden lg:flex flex-col">
           <DirectorySidebar
             selectedCategory={selectedCategory}
             onCategoryChange={handleCategoryChange}

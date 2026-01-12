@@ -231,11 +231,30 @@ interface BusinessData {
   name: string;
   description: string;
   address: { street: string; city: string; state: string; zip: string };
+  coordinates?: { lat: number; lng: number };
   phone: string;
   website?: string;
   hours?: Record<string, string>;
   images?: string[];
   logo?: string;
+}
+
+// Get placeholder image based on category
+function getFallbackImage(category: string): string {
+  const categoryImages: Record<string, string> = {
+    'Restaurants & Dining': 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=1200',
+    'Shopping & Retail': 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?auto=format&fit=crop&q=80&w=1200',
+    'Health & Medical': 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&q=80&w=1200',
+    'Professional Services': 'https://images.unsplash.com/photo-1454165833767-1316b284102e?auto=format&fit=crop&q=80&w=1200',
+    'Home Services': 'https://images.unsplash.com/photo-1581578731548-c64695cc6958?auto=format&fit=crop&q=80&w=1200',
+    'Automotive': 'https://images.unsplash.com/photo-1487754180451-c456f719c141?auto=format&fit=crop&q=80&w=1200',
+    'Beauty & Personal Care': 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200',
+    'Entertainment & Recreation': 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=1200',
+    'Real Estate': 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=1200',
+    'Education & Childcare': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&q=80&w=1200',
+  };
+
+  return categoryImages[category] || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1200';
 }
 
 // Google Places API integration (if API key is available)
@@ -266,7 +285,7 @@ async function fetchFromGooglePlaces(category: string, googleType: string): Prom
     const businesses = [];
     for (const place of data.results.slice(0, 10)) {
       try {
-        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,opening_hours,geometry&key=${apiKey}`;
+        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,opening_hours,geometry,photos&key=${apiKey}`;
         const detailsResponse = await fetch(detailsUrl);
         const detailsData = await detailsResponse.json();
 
@@ -279,9 +298,22 @@ async function fetchFromGooglePlaces(category: string, googleType: string): Prom
           const cityState = addressParts[1]?.trim() || '';
           const zipMatch = addressParts[2]?.match(/\d{5}/);
 
+          // Get images from Google Photos if available
+          const images: string[] = [];
+          if (details.photos && details.photos.length > 0) {
+            for (const photo of details.photos.slice(0, 3)) {
+              images.push(`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photoreference=${photo.photo_reference}&key=${apiKey}`);
+            }
+          }
+
+          // If no Google photos, use context-sensitive fallback
+          if (images.length === 0) {
+            images.push(getFallbackImage(category));
+          }
+
           businesses.push({
             name: details.name,
-            description: `${details.name} is a local ${category.toLowerCase()} business in Asheville.`,
+            description: `${details.name} is a local ${category.toLowerCase()} business in Asheville, known for its quality service and community presence.`,
             address: {
               street,
               city: cityState.split(' ')[0] || 'Asheville',
@@ -290,6 +322,11 @@ async function fetchFromGooglePlaces(category: string, googleType: string): Prom
             },
             phone: details.formatted_phone_number || '',
             website: details.website || '',
+            images,
+            coordinates: details.geometry?.location ? {
+              lat: details.geometry.location.lat,
+              lng: details.geometry.location.lng
+            } : undefined,
             hours: details.opening_hours?.weekday_text ? {
               monday: details.opening_hours.weekday_text[0]?.replace('Monday: ', '') || '',
               tuesday: details.opening_hours.weekday_text[1]?.replace('Tuesday: ', '') || '',
@@ -352,6 +389,7 @@ export async function GET() {
           description: business.description,
           category: category.name,
           address: business.address,
+          coordinates: business.coordinates || null,
           phone: business.phone || '',
           email: '',
           website: business.website || '',

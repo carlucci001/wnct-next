@@ -72,6 +72,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings || null);
+  const [settingsLoaded, setSettingsLoaded] = useState(!!initialSettings);
   const [dateStr, setDateStr] = useState("");
 
   // Dynamic navigation menus
@@ -136,6 +137,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               primaryColor: parsed.primaryColor || "#1d4ed8",
             };
             setSettings(newSettings);
+            setSettingsLoaded(true);
           } catch {}
         }
       }
@@ -155,8 +157,10 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           setSettings(newSettings);
           localStorage.setItem('wnc_settings', JSON.stringify(data));
         }
+        setSettingsLoaded(true);
       } catch (error) {
         console.error("[Header] Failed to load settings:", error);
+        setSettingsLoaded(true);
       }
     };
 
@@ -321,7 +325,9 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       <div className="container mx-auto px-4 py-2 flex items-center justify-between gap-5 bg-white dark:bg-slate-900">
         {/* Logo - Left justified, max 90px tall */}
         <Link href="/" className="h-[90px] flex items-center shrink-0">
-          {showLogoImage ? (
+          {!settingsLoaded ? (
+            <div className="h-[90px] w-[200px] bg-transparent" />
+          ) : showLogoImage ? (
             <Image
               src={displaySettings.logoUrl}
               alt="Site Logo"

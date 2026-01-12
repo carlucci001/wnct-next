@@ -25,6 +25,10 @@ export interface Business {
   category: string;
   subcategory?: string;
   address: BusinessAddress;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
   phone?: string;
   email?: string;
   website?: string;
