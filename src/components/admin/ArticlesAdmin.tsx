@@ -429,8 +429,6 @@ export default function ArticlesAdmin() {
         <DataTable
           data={filteredArticles}
           columns={columns}
-          searchKey="title"
-          searchPlaceholder="Search articles..."
           batchActions={batchActions}
           isLoading={loading}
           onRowClick={(article) => {
