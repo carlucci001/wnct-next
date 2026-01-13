@@ -7,7 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -466,6 +475,9 @@ export default function ModuleManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<ModulePosition | null>(null);
+  const [tempSettings, setTempSettings] = useState<Record<string, any>>({});
 
   // Load module configurations from Firestore
   useEffect(() => {
@@ -527,6 +539,67 @@ export default function ModuleManager() {
 
   function isModuleEnabled(moduleId: string): boolean {
     return moduleConfigs[moduleId]?.enabled ?? true;
+  }
+
+  function openConfigDialog(module: ModulePosition) {
+    setSelectedModule(module);
+    setTempSettings(moduleConfigs[module.id]?.settings || getDefaultSettings(module));
+    setConfigDialogOpen(true);
+  }
+
+  function saveModuleSettings() {
+    if (!selectedModule) return;
+
+    setModuleConfigs((prev) => ({
+      ...prev,
+      [selectedModule.id]: {
+        ...prev[selectedModule.id],
+        enabled: prev[selectedModule.id]?.enabled ?? true,
+        settings: tempSettings,
+      },
+    }));
+    setHasChanges(true);
+    setConfigDialogOpen(false);
+    toast.success(`${selectedModule.name} settings updated`);
+  }
+
+  function getDefaultSettings(module: ModulePosition): Record<string, any> {
+    // Default settings based on module type
+    if (module.component === 'AdDisplay') {
+      return {
+        showToLoggedIn: false,
+        frequency: 3,
+      };
+    }
+    if (module.id.includes('trending') || module.id.includes('popular')) {
+      return {
+        maxItems: 5,
+      };
+    }
+    if (module.id.includes('newsletter')) {
+      return {
+        buttonText: 'Subscribe',
+        description: 'Get the latest news delivered to your inbox',
+      };
+    }
+    if (module.id.includes('calendar')) {
+      return {
+        defaultView: 'month',
+      };
+    }
+    if (module.id.includes('comments')) {
+      return {
+        requireModeration: false,
+        allowAnonymous: false,
+      };
+    }
+    if (module.id.includes('weather')) {
+      return {
+        units: 'imperial',
+        defaultLocation: 'Asheville, NC',
+      };
+    }
+    return {};
   }
 
   const filteredModules = MODULE_DATA.filter((module) => {
@@ -777,16 +850,28 @@ export default function ModuleManager() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{module.description}</p>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="px-2 py-0.5 bg-muted rounded font-mono">
-                            {module.position}
-                          </span>
-                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded">
-                            {module.component}
-                          </span>
-                          <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded">
-                            {module.page}
-                          </span>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="px-2 py-0.5 bg-muted rounded font-mono">
+                              {module.position}
+                            </span>
+                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded">
+                              {module.component}
+                            </span>
+                            <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded">
+                              {module.page}
+                            </span>
+                          </div>
+                          {module.configurable && enabled && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openConfigDialog(module)}
+                            >
+                              <Settings className="h-4 w-4 mr-2" />
+                              Configure
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -817,6 +902,238 @@ export default function ModuleManager() {
           </CardContent>
         </Card>
       )}
+
+      {/* Configuration Dialog */}
+      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Configure {selectedModule?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Customize settings for this module. Changes will be saved when you click Save.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Advertising Module Settings */}
+            {selectedModule?.component === 'AdDisplay' && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="showToLoggedIn">Show ads to logged-in users</Label>
+                    <Switch
+                      id="showToLoggedIn"
+                      checked={tempSettings.showToLoggedIn || false}
+                      onCheckedChange={(checked) =>
+                        setTempSettings({ ...tempSettings, showToLoggedIn: checked })
+                      }
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, ads will be shown to authenticated users
+                  </p>
+                </div>
+
+                {selectedModule.id.includes('inline') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="frequency">Ad frequency (paragraphs)</Label>
+                    <Input
+                      id="frequency"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={tempSettings.frequency || 3}
+                      onChange={(e) =>
+                        setTempSettings({ ...tempSettings, frequency: parseInt(e.target.value) })
+                      }
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Show ad every N paragraphs in article content
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Trending/Popular Module Settings */}
+            {(selectedModule?.id.includes('trending') || selectedModule?.id.includes('popular')) && (
+              <div className="space-y-2">
+                <Label htmlFor="maxItems">Maximum items to show</Label>
+                <Select
+                  value={String(tempSettings.maxItems || 5)}
+                  onValueChange={(value) =>
+                    setTempSettings({ ...tempSettings, maxItems: parseInt(value) })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">3 items</SelectItem>
+                    <SelectItem value="4">4 items</SelectItem>
+                    <SelectItem value="5">5 items</SelectItem>
+                    <SelectItem value="6">6 items</SelectItem>
+                    <SelectItem value="8">8 items</SelectItem>
+                    <SelectItem value="10">10 items</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Number of articles to display in this widget
+                </p>
+              </div>
+            )}
+
+            {/* Newsletter Module Settings */}
+            {selectedModule?.id.includes('newsletter') && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="buttonText">Button text</Label>
+                  <Input
+                    id="buttonText"
+                    value={tempSettings.buttonText || 'Subscribe'}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, buttonText: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    rows={3}
+                    value={tempSettings.description || 'Get the latest news delivered to your inbox'}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, description: e.target.value })
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Calendar Module Settings */}
+            {selectedModule?.id.includes('calendar') && (
+              <div className="space-y-2">
+                <Label htmlFor="defaultView">Default view</Label>
+                <Select
+                  value={tempSettings.defaultView || 'month'}
+                  onValueChange={(value) =>
+                    setTempSettings({ ...tempSettings, defaultView: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Month view</SelectItem>
+                    <SelectItem value="week">Week view</SelectItem>
+                    <SelectItem value="day">Day view</SelectItem>
+                    <SelectItem value="list">List view</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Comments Module Settings */}
+            {selectedModule?.id.includes('comments') && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="requireModeration">Require moderation</Label>
+                    <Switch
+                      id="requireModeration"
+                      checked={tempSettings.requireModeration || false}
+                      onCheckedChange={(checked) =>
+                        setTempSettings({ ...tempSettings, requireModeration: checked })
+                      }
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Comments require approval before being published
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="allowAnonymous">Allow anonymous comments</Label>
+                    <Switch
+                      id="allowAnonymous"
+                      checked={tempSettings.allowAnonymous || false}
+                      onCheckedChange={(checked) =>
+                        setTempSettings({ ...tempSettings, allowAnonymous: checked })
+                      }
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Users can comment without logging in
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Weather Module Settings */}
+            {selectedModule?.id.includes('weather') && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="units">Temperature units</Label>
+                  <Select
+                    value={tempSettings.units || 'imperial'}
+                    onValueChange={(value) =>
+                      setTempSettings({ ...tempSettings, units: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="imperial">Fahrenheit (°F)</SelectItem>
+                      <SelectItem value="metric">Celsius (°C)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="defaultLocation">Default location</Label>
+                  <Input
+                    id="defaultLocation"
+                    value={tempSettings.defaultLocation || 'Asheville, NC'}
+                    onChange={(e) =>
+                      setTempSettings({ ...tempSettings, defaultLocation: e.target.value })
+                    }
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Fallback location when geolocation is unavailable
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Generic modules with no specific settings */}
+            {!selectedModule?.id.includes('ad') &&
+              !selectedModule?.id.includes('trending') &&
+              !selectedModule?.id.includes('popular') &&
+              !selectedModule?.id.includes('newsletter') &&
+              !selectedModule?.id.includes('calendar') &&
+              !selectedModule?.id.includes('comments') &&
+              !selectedModule?.id.includes('weather') && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Settings className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p>No additional settings available for this module</p>
+                  <p className="text-sm mt-2">Use the toggle switch to enable/disable</p>
+                </div>
+              )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveModuleSettings}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Settings
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
