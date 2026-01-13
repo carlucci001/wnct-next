@@ -176,8 +176,8 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [initialSettings]);
 
-  // Use settings or fallback to defaults
-  const displaySettings = settings || {
+  // Use settings, fallback to initialSettings, then defaults
+  const displaySettings = settings || initialSettings || {
     tagline: "Engaging Our Community",
     logoUrl: "",
     brandingMode: "text" as const,
