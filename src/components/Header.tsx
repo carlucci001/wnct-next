@@ -74,6 +74,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings || null);
   const [settingsLoaded, setSettingsLoaded] = useState(!!initialSettings);
+  const [logoImageLoaded, setLogoImageLoaded] = useState(false);
   const [dateStr, setDateStr] = useState("");
 
   // Dynamic navigation menus
@@ -208,6 +209,13 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const showLogoImage = displaySettings.brandingMode === "logo" && displaySettings.logoUrl;
   const isDataUrl = displaySettings.logoUrl?.startsWith("data:");
 
+  // Reset logo loaded state when URL changes
+  useEffect(() => {
+    if (displaySettings.logoUrl) {
+      setLogoImageLoaded(false);
+    }
+  }, [displaySettings.logoUrl]);
+
   return (
     <>
     <header className="flex flex-col w-full bg-white dark:bg-slate-900 font-sans relative z-40">
@@ -334,7 +342,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       <div className="container mx-auto px-4 py-2 flex items-center justify-between gap-5 bg-white dark:bg-slate-900">
         {/* Logo - Left justified, max 90px tall */}
         <Link href="/" className="h-[90px] flex items-center shrink-0">
-          {!settingsLoaded ? (
+          {!settingsLoaded || (showLogoImage && !logoImageLoaded) ? (
             <div className="h-[90px] w-[200px] bg-transparent" />
           ) : showLogoImage ? (
             <Image
@@ -344,6 +352,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
               height={90}
               unoptimized={!!isDataUrl}
               priority
+              onLoad={() => setLogoImageLoaded(true)}
               className="max-h-[90px] w-auto object-contain object-left"
             />
           ) : (
