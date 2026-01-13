@@ -160,6 +160,16 @@ const MenuManager = dynamic(() => import('@/components/admin/MenuManager'), {
   ),
 });
 
+// Dynamically import ModuleManager
+const ModuleManager = dynamic(() => import('@/components/admin/ModuleManager'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import SiteConfigManager
 const SiteConfigManager = dynamic(() => import('@/components/admin/SiteConfigManager'), {
   ssr: false,
@@ -7499,25 +7509,8 @@ Return ONLY the JSON object, no other text.`;
             {/* Paper Partner Admin - Super Admin Only */}
             {activeTab === 'paper-partners' && <PaperPartnerAdmin />}
 
-            {/* Modules Section Placeholder */}
-            {activeTab === 'modules' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plug className="h-5 w-5 text-cyan-600" />
-                    Module Manager
-                  </CardTitle>
-                  <CardDescription>Install, configure, and manage system modules</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Plug className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                    <p className="text-lg font-medium">Coming Soon</p>
-                    <p className="text-sm">Module management features are under development</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Module Manager */}
+            {activeTab === 'modules' && <ModuleManager />}
 
             {/* My Account Section */}
             {activeTab === 'my-account' && currentUser && (
