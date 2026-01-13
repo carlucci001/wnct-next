@@ -66,6 +66,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isNavigatingToAdmin, setIsNavigatingToAdmin] = useState(false);
   const router = useRouter();
   const { currentUser, userProfile, signOut } = useAuth();
   const { colorMode, toggleColorMode, currentTheme } = useTheme();
@@ -189,6 +190,13 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
     router.push("/");
   };
 
+  const handleAdminClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsNavigatingToAdmin(true);
+    setUserMenuOpen(false);
+    router.push("/admin");
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -201,6 +209,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const isDataUrl = displaySettings.logoUrl?.startsWith("data:");
 
   return (
+    <>
     <header className="flex flex-col w-full bg-white dark:bg-slate-900 font-sans relative z-40">
       {/* Top Bar */}
       <div className="bg-slate-900 text-gray-300 text-xs border-b border-gray-800">
@@ -288,9 +297,9 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
                     <Link href="/account" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
                       <UserIcon size={14} className="mr-2 text-emerald-600" /> My Account
                     </Link>
-                    <Link href="/admin" className="px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700" onClick={() => setUserMenuOpen(false)}>
+                    <button onClick={handleAdminClick} className="w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-100 dark:hover:bg-slate-700">
                       <LayoutDashboard size={14} className="mr-2 text-blue-600" /> Admin Panel
-                    </Link>
+                    </button>
                     <div className="border-t dark:border-slate-700">
                       <button
                         onClick={() => setThemeMenuOpen(!themeMenuOpen)}
@@ -471,6 +480,37 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         )}
       </nav>
     </header>
+
+    {/* Admin Loading Overlay */}
+    {isNavigatingToAdmin && (
+      <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          {/* Spinner */}
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-900 rounded-full"></div>
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
+          </div>
+
+          {/* Loading text */}
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Loading Admin Panel
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Please wait while we prepare your dashboard...
+            </p>
+          </div>
+
+          {/* Progress dots */}
+          <div className="flex gap-2">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
