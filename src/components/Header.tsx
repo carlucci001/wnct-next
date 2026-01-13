@@ -341,20 +341,25 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
       {/* Logo Area with Weather Module */}
       <div className="container mx-auto px-4 py-2 flex items-center justify-between gap-5 bg-white dark:bg-slate-900">
         {/* Logo - Left justified, max 90px tall */}
-        <Link href="/" className="h-[90px] flex items-center shrink-0">
-          {!settingsLoaded || (showLogoImage && !logoImageLoaded) ? (
-            <div className="h-[90px] w-[200px] bg-transparent" />
-          ) : showLogoImage ? (
-            <Image
-              src={displaySettings.logoUrl}
-              alt="Site Logo"
-              width={300}
-              height={90}
-              unoptimized={!!isDataUrl}
-              priority
-              onLoad={() => setLogoImageLoaded(true)}
-              className="max-h-[90px] w-auto object-contain object-left"
-            />
+        <Link href="/" className="h-[90px] flex items-center shrink-0 relative">
+          {showLogoImage ? (
+            <>
+              {/* Placeholder while image loads */}
+              {!logoImageLoaded && (
+                <div className="h-[90px] w-[200px] bg-transparent" />
+              )}
+              {/* Actual image - hidden until loaded */}
+              <Image
+                src={displaySettings.logoUrl}
+                alt="Site Logo"
+                width={300}
+                height={90}
+                unoptimized={!!isDataUrl}
+                priority
+                onLoad={() => setLogoImageLoaded(true)}
+                className={`max-h-[90px] w-auto object-contain object-left transition-opacity duration-200 ${!logoImageLoaded ? 'opacity-0 absolute' : 'opacity-100'}`}
+              />
+            </>
           ) : (
             <div className="flex flex-col items-start justify-center h-full">
               <h1 className="text-4xl md:text-5xl font-serif font-black tracking-tight text-gray-900 dark:text-white leading-none">
