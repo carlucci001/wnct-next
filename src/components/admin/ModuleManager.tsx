@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -17,18 +20,23 @@ import {
   Search,
   Layers,
   Layout,
-  Sidebar as SidebarIcon,
   Image as ImageIcon,
   Newspaper,
   Calendar,
   Users,
-  MessageSquare,
   MapPin,
   FileText,
   Globe,
   Eye,
   EyeOff,
+  Settings,
+  Save,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
+import { getDb } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 type ModuleStatus = 'active' | 'inactive' | 'reserved';
 
@@ -42,6 +50,14 @@ interface ModulePosition {
   status: ModuleStatus;
   description: string;
   dimensions?: string;
+  configurable: boolean;
+}
+
+interface ModuleConfigs {
+  [moduleId: string]: {
+    enabled: boolean;
+    settings?: Record<string, any>;
+  };
 }
 
 const MODULE_DATA: ModulePosition[] = [
@@ -55,6 +71,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'header',
     status: 'active',
     description: 'Dynamic weather display with location detection',
+    configurable: true,
   },
   {
     id: 'header-ad-primary',
@@ -66,6 +83,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Main header banner advertisement',
     dimensions: '728x90',
+    configurable: true,
   },
   {
     id: 'header-nav-dynamic',
@@ -76,6 +94,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'header',
     status: 'active',
     description: 'API-driven navigation menus',
+    configurable: false,
   },
 
   // Home Page Positions
@@ -88,6 +107,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Featured articles carousel',
+    configurable: true,
   },
   {
     id: 'home-feed-inline-1',
@@ -99,6 +119,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Ad between featured sections',
     dimensions: 'Adaptive',
+    configurable: true,
   },
   {
     id: 'home-sidebar-1',
@@ -110,6 +131,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sidebar top advertisement',
     dimensions: '300x250',
+    configurable: true,
   },
   {
     id: 'home-sidebar-2',
@@ -120,6 +142,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Trending articles widget',
+    configurable: true,
   },
   {
     id: 'home-sidebar-3',
@@ -130,6 +153,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Category navigation links',
+    configurable: true,
   },
   {
     id: 'home-sidebar-4',
@@ -140,6 +164,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Events preview widget',
+    configurable: true,
   },
   {
     id: 'home-sidebar-5',
@@ -150,6 +175,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Newsletter subscription form',
+    configurable: true,
   },
   {
     id: 'home-sidebar-6',
@@ -160,6 +186,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'home',
     status: 'active',
     description: 'Most popular articles widget',
+    configurable: true,
   },
   {
     id: 'home-sidebar-7',
@@ -171,29 +198,10 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sticky sidebar advertisement',
     dimensions: '300x600',
+    configurable: true,
   },
 
   // Article Page Positions
-  {
-    id: 'article-header',
-    name: 'Article Header',
-    position: 'ARTICLE_HEADER',
-    component: 'ArticleClient',
-    page: 'Article',
-    category: 'article',
-    status: 'active',
-    description: 'Article metadata and title',
-  },
-  {
-    id: 'article-featured-image',
-    name: 'Featured Image',
-    position: 'ARTICLE_FEATURED_IMAGE',
-    component: 'ArticleClient',
-    page: 'Article',
-    category: 'article',
-    status: 'active',
-    description: 'Article hero image',
-  },
   {
     id: 'article-inline',
     name: 'In-Article Ad',
@@ -204,26 +212,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Ad injected mid-article',
     dimensions: 'Adaptive',
-  },
-  {
-    id: 'article-related',
-    name: 'Related Articles',
-    position: 'ARTICLE_RELATED',
-    component: 'ArticleClient',
-    page: 'Article',
-    category: 'article',
-    status: 'active',
-    description: 'Related content grid',
-  },
-  {
-    id: 'article-comments',
-    name: 'Comments Section',
-    position: 'ARTICLE_COMMENTS',
-    component: 'CommentSection',
-    page: 'Article',
-    category: 'article',
-    status: 'active',
-    description: 'User comments and discussion',
+    configurable: true,
   },
   {
     id: 'article-sidebar-top',
@@ -235,6 +224,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sidebar top advertisement',
     dimensions: '300x250',
+    configurable: true,
   },
   {
     id: 'article-sidebar-sticky',
@@ -246,19 +236,21 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sticky sidebar advertisement',
     dimensions: '300x600',
+    configurable: true,
+  },
+  {
+    id: 'article-comments',
+    name: 'Comments Section',
+    position: 'ARTICLE_COMMENTS',
+    component: 'CommentSection',
+    page: 'Article',
+    category: 'article',
+    status: 'active',
+    description: 'User comments and discussion',
+    configurable: true,
   },
 
   // Blog Page Positions
-  {
-    id: 'blog-grid',
-    name: 'Blog Grid',
-    position: 'BLOG_GRID',
-    component: 'BlogGrid',
-    page: 'Blog',
-    category: 'blog',
-    status: 'active',
-    description: 'Blog post card grid',
-  },
   {
     id: 'blog-sidebar-search',
     name: 'Blog Search',
@@ -268,16 +260,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'blog',
     status: 'active',
     description: 'Search widget',
-  },
-  {
-    id: 'blog-sidebar-author',
-    name: 'Author Bio',
-    position: 'BLOG_SIDEBAR_AUTHOR',
-    component: 'BlogSidebar',
-    page: 'Blog',
-    category: 'blog',
-    status: 'active',
-    description: 'Author bio card (context-aware)',
+    configurable: true,
   },
   {
     id: 'blog-sidebar-newsletter',
@@ -288,36 +271,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'blog',
     status: 'active',
     description: 'Newsletter signup',
-  },
-  {
-    id: 'blog-sidebar-recent',
-    name: 'Recent Posts',
-    position: 'BLOG_SIDEBAR_RECENT',
-    component: 'BlogSidebar',
-    page: 'Blog',
-    category: 'blog',
-    status: 'active',
-    description: 'Recent posts list',
-  },
-  {
-    id: 'blog-sidebar-tags',
-    name: 'Popular Tags',
-    position: 'BLOG_SIDEBAR_TAGS',
-    component: 'BlogSidebar',
-    page: 'Blog',
-    category: 'blog',
-    status: 'active',
-    description: 'Topics tag cloud',
-  },
-  {
-    id: 'blog-sidebar-quote',
-    name: 'Featured Quote',
-    position: 'BLOG_SIDEBAR_QUOTE',
-    component: 'BlogSidebar',
-    page: 'Blog',
-    category: 'blog',
-    status: 'active',
-    description: 'Featured quote widget',
+    configurable: true,
   },
   {
     id: 'blog-sidebar-sticky',
@@ -329,29 +283,10 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sticky sidebar advertisement',
     dimensions: '300x600',
+    configurable: true,
   },
 
   // Directory Page Positions
-  {
-    id: 'directory-search',
-    name: 'Directory Search',
-    position: 'DIRECTORY_SEARCH',
-    component: 'DirectoryClient',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Search and filter bar',
-  },
-  {
-    id: 'directory-grid',
-    name: 'Business Grid',
-    position: 'DIRECTORY_GRID',
-    component: 'DirectoryClient',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Business cards grid',
-  },
   {
     id: 'directory-sidebar-map',
     name: 'Business Map',
@@ -361,26 +296,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'directory',
     status: 'active',
     description: 'Interactive business map',
-  },
-  {
-    id: 'directory-sidebar-featured',
-    name: 'Featured Businesses',
-    position: 'DIRECTORY_SIDEBAR_FEATURED',
-    component: 'DirectorySidebar',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Top rated businesses (max 4)',
-  },
-  {
-    id: 'directory-sidebar-categories',
-    name: 'Category Badges',
-    position: 'DIRECTORY_SIDEBAR_CATEGORIES',
-    component: 'DirectorySidebar',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Category filter badges',
+    configurable: true,
   },
   {
     id: 'directory-sidebar-ad-top',
@@ -392,26 +308,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sidebar top advertisement',
     dimensions: '300x250',
-  },
-  {
-    id: 'directory-sidebar-areas',
-    name: 'Neighborhoods',
-    position: 'DIRECTORY_SIDEBAR_AREAS',
-    component: 'DirectorySidebar',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Area/neighborhood selector',
-  },
-  {
-    id: 'directory-sidebar-cta',
-    name: 'Business Promo',
-    position: 'DIRECTORY_SIDEBAR_CTA',
-    component: 'DirectorySidebar',
-    page: 'Directory',
-    category: 'directory',
-    status: 'active',
-    description: 'Business promotion card',
+    configurable: true,
   },
   {
     id: 'directory-sidebar-sticky',
@@ -423,39 +320,10 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sticky sidebar advertisement',
     dimensions: '300x600',
+    configurable: true,
   },
 
   // Events Page Positions
-  {
-    id: 'events-filters',
-    name: 'Event Filters',
-    position: 'EVENTS_FILTERS',
-    component: 'EventsClient',
-    page: 'Events',
-    category: 'events',
-    status: 'active',
-    description: 'Category and search filters',
-  },
-  {
-    id: 'events-list',
-    name: 'Events List',
-    position: 'EVENTS_LIST',
-    component: 'EventsClient',
-    page: 'Events',
-    category: 'events',
-    status: 'active',
-    description: 'Event cards or calendar view',
-  },
-  {
-    id: 'events-sidebar-cta',
-    name: 'Submit Event',
-    position: 'EVENTS_SIDEBAR_CTA',
-    component: 'EventsSidebar',
-    page: 'Events',
-    category: 'events',
-    status: 'active',
-    description: 'Submit event CTA card',
-  },
   {
     id: 'events-sidebar-calendar',
     name: 'Mini Calendar',
@@ -465,16 +333,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'events',
     status: 'active',
     description: 'Mini calendar widget',
-  },
-  {
-    id: 'events-sidebar-upcoming',
-    name: 'Upcoming Events',
-    position: 'EVENTS_SIDEBAR_UPCOMING',
-    component: 'EventsSidebar',
-    page: 'Events',
-    category: 'events',
-    status: 'active',
-    description: 'Upcoming events list (max 5)',
+    configurable: true,
   },
   {
     id: 'events-sidebar-ad',
@@ -486,39 +345,10 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Sidebar top advertisement',
     dimensions: '300x250',
+    configurable: true,
   },
 
   // Community Page Positions
-  {
-    id: 'community-create-post',
-    name: 'Create Post',
-    position: 'COMMUNITY_CREATE_POST',
-    component: 'CommunityClient',
-    page: 'Community',
-    category: 'community',
-    status: 'active',
-    description: 'Create post widget',
-  },
-  {
-    id: 'community-feed',
-    name: 'Community Feed',
-    position: 'COMMUNITY_FEED',
-    component: 'CommunityClient',
-    page: 'Community',
-    category: 'community',
-    status: 'active',
-    description: 'Post cards feed',
-  },
-  {
-    id: 'community-sidebar-filters',
-    name: 'Topic Filters',
-    position: 'COMMUNITY_SIDEBAR_FILTERS',
-    component: 'CommunitySidebar',
-    page: 'Community',
-    category: 'community',
-    status: 'active',
-    description: 'Topic quick filters',
-  },
   {
     id: 'community-sidebar-trending',
     name: 'Trending Posts',
@@ -528,6 +358,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'community',
     status: 'active',
     description: 'Top 5 trending posts',
+    configurable: true,
   },
   {
     id: 'community-sidebar-stats',
@@ -538,26 +369,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'community',
     status: 'active',
     description: 'Total/weekly/active stats',
-  },
-  {
-    id: 'community-sidebar-guidelines',
-    name: 'Community Guidelines',
-    position: 'COMMUNITY_SIDEBAR_GUIDELINES',
-    component: 'CommunitySidebar',
-    page: 'Community',
-    category: 'community',
-    status: 'active',
-    description: 'Community rules',
-  },
-  {
-    id: 'community-sidebar-cta',
-    name: 'Join CTA',
-    position: 'COMMUNITY_SIDEBAR_CTA',
-    component: 'CommunitySidebar',
-    page: 'Community',
-    category: 'community',
-    status: 'active',
-    description: 'Join conversation CTA (logged-out)',
+    configurable: true,
   },
 
   // Footer Positions
@@ -571,36 +383,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'active',
     description: 'Footer wide banner advertisement',
     dimensions: '970x90',
-  },
-  {
-    id: 'footer-about',
-    name: 'Footer About',
-    position: 'FOOTER_ABOUT',
-    component: 'Footer',
-    page: 'All Pages',
-    category: 'footer',
-    status: 'active',
-    description: 'About section',
-  },
-  {
-    id: 'footer-links',
-    name: 'Footer Links',
-    position: 'FOOTER_LINKS',
-    component: 'Footer',
-    page: 'All Pages',
-    category: 'footer',
-    status: 'active',
-    description: 'Quick links column',
-  },
-  {
-    id: 'footer-categories',
-    name: 'Footer Categories',
-    position: 'FOOTER_CATEGORIES',
-    component: 'Footer',
-    page: 'All Pages',
-    category: 'footer',
-    status: 'active',
-    description: 'Categories column',
+    configurable: true,
   },
   {
     id: 'footer-newsletter',
@@ -611,16 +394,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'footer',
     status: 'active',
     description: 'Newsletter signup',
-  },
-  {
-    id: 'footer-copyright',
-    name: 'Copyright Bar',
-    position: 'FOOTER_COPYRIGHT',
-    component: 'Footer',
-    page: 'All Pages',
-    category: 'footer',
-    status: 'active',
-    description: 'Copyright information',
+    configurable: true,
   },
 
   // Global Positions
@@ -633,6 +407,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'global',
     status: 'active',
     description: 'Breaking news ticker',
+    configurable: true,
   },
   {
     id: 'global-chat-assistant',
@@ -643,6 +418,7 @@ const MODULE_DATA: ModulePosition[] = [
     category: 'global',
     status: 'active',
     description: 'Chat widget (bottom-right)',
+    configurable: true,
   },
   {
     id: 'global-popup-overlay',
@@ -654,6 +430,7 @@ const MODULE_DATA: ModulePosition[] = [
     status: 'reserved',
     description: 'Modal overlay ads (special campaigns)',
     dimensions: '800x600',
+    configurable: true,
   },
 ];
 
@@ -685,6 +462,72 @@ export default function ModuleManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [moduleConfigs, setModuleConfigs] = useState<ModuleConfigs>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Load module configurations from Firestore
+  useEffect(() => {
+    loadConfigs();
+  }, []);
+
+  async function loadConfigs() {
+    try {
+      setLoading(true);
+      const docRef = doc(getDb(), 'settings', 'modules');
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        setModuleConfigs(docSnap.data() as ModuleConfigs);
+      } else {
+        // Initialize with all modules enabled by default
+        const defaultConfigs: ModuleConfigs = {};
+        MODULE_DATA.forEach((module) => {
+          defaultConfigs[module.id] = {
+            enabled: module.status === 'active',
+            settings: {},
+          };
+        });
+        setModuleConfigs(defaultConfigs);
+      }
+    } catch (error) {
+      console.error('Error loading module configs:', error);
+      toast.error('Failed to load module configurations');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveConfigs() {
+    try {
+      setSaving(true);
+      const docRef = doc(getDb(), 'settings', 'modules');
+      await setDoc(docRef, moduleConfigs);
+      toast.success('Module configurations saved successfully');
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Error saving module configs:', error);
+      toast.error('Failed to save module configurations');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleModule(moduleId: string) {
+    setModuleConfigs((prev) => ({
+      ...prev,
+      [moduleId]: {
+        ...prev[moduleId],
+        enabled: !prev[moduleId]?.enabled,
+      },
+    }));
+    setHasChanges(true);
+  }
+
+  function isModuleEnabled(moduleId: string): boolean {
+    return moduleConfigs[moduleId]?.enabled ?? true;
+  }
 
   const filteredModules = MODULE_DATA.filter((module) => {
     const matchesSearch =
@@ -695,9 +538,16 @@ export default function ModuleManager() {
       module.description.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory = selectedCategory === 'all' || module.category === selectedCategory;
-    const matchesStatus = selectedStatus === 'all' || module.status === selectedStatus;
 
-    return matchesSearch && matchesCategory && matchesStatus;
+    // Filter by enabled/disabled status
+    if (selectedStatus === 'enabled') {
+      return matchesSearch && matchesCategory && isModuleEnabled(module.id);
+    }
+    if (selectedStatus === 'disabled') {
+      return matchesSearch && matchesCategory && !isModuleEnabled(module.id);
+    }
+
+    return matchesSearch && matchesCategory;
   });
 
   const modulesByCategory = filteredModules.reduce((acc, module) => {
@@ -709,15 +559,58 @@ export default function ModuleManager() {
   }, {} as Record<string, ModulePosition[]>);
 
   const statusCount = {
-    active: MODULE_DATA.filter((m) => m.status === 'active').length,
-    inactive: MODULE_DATA.filter((m) => m.status === 'inactive').length,
-    reserved: MODULE_DATA.filter((m) => m.status === 'reserved').length,
+    total: MODULE_DATA.length,
+    enabled: Object.values(moduleConfigs).filter((c) => c.enabled).length,
+    disabled: Object.values(moduleConfigs).filter((c) => !c.enabled).length,
   };
 
   const advertisingModules = MODULE_DATA.filter((m) => m.component === 'AdDisplay');
+  const configurableModules = MODULE_DATA.filter((m) => m.configurable);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading module configurations...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Save Bar */}
+      {hasChanges && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-900 dark:text-amber-100">
+                    You have unsaved changes
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Save your module configuration changes to apply them
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={loadConfigs} disabled={saving}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reset
+                </Button>
+                <Button onClick={saveConfigs} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -725,15 +618,23 @@ export default function ModuleManager() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Modules</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{MODULE_DATA.length}</div>
+            <div className="text-3xl font-bold">{statusCount.total}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Enabled</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{statusCount.active}</div>
+            <div className="text-3xl font-bold text-green-600">{statusCount.enabled}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Disabled</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-gray-600">{statusCount.disabled}</div>
           </CardContent>
         </Card>
         <Card>
@@ -744,24 +645,14 @@ export default function ModuleManager() {
             <div className="text-3xl font-bold text-blue-600">{advertisingModules.length}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-purple-600">
-              {Object.keys(modulesByCategory).length}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Module Registry</CardTitle>
+          <CardTitle>Module Registry & Controls</CardTitle>
           <CardDescription>
-            View and manage all system module positions across the site
+            Enable/disable module positions and view configurations
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -769,7 +660,7 @@ export default function ModuleManager() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search modules by name, position, or component..."
+                placeholder="Search modules..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -797,10 +688,9 @@ export default function ModuleManager() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="reserved">Reserved</SelectItem>
+                <SelectItem value="all">All Modules</SelectItem>
+                <SelectItem value="enabled">Enabled Only</SelectItem>
+                <SelectItem value="disabled">Disabled Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -830,57 +720,78 @@ export default function ModuleManager() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {modules.map((module) => (
-                  <div
-                    key={module.id}
-                    className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex-shrink-0 mt-1">
-                      {module.status === 'active' && (
-                        <Eye className="h-5 w-5 text-green-600" />
-                      )}
-                      {module.status === 'inactive' && (
-                        <EyeOff className="h-5 w-5 text-gray-400" />
-                      )}
-                      {module.status === 'reserved' && (
-                        <Plug className="h-5 w-5 text-yellow-600" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-sm">{module.name}</h4>
-                        {module.component === 'AdDisplay' && (
-                          <Badge variant="outline" className="text-xs">
-                            <ImageIcon className="h-3 w-3 mr-1" />
-                            Ad
-                          </Badge>
-                        )}
-                        {module.status === 'reserved' && (
-                          <Badge variant="secondary" className="text-xs">
-                            Reserved
-                          </Badge>
-                        )}
-                        {module.dimensions && (
-                          <Badge variant="secondary" className="text-xs font-mono">
-                            {module.dimensions}
-                          </Badge>
+                {modules.map((module) => {
+                  const enabled = isModuleEnabled(module.id);
+                  return (
+                    <div
+                      key={module.id}
+                      className={`flex items-start gap-4 p-4 border rounded-lg transition-colors ${
+                        enabled ? 'bg-white dark:bg-slate-900' : 'bg-gray-50 dark:bg-slate-800/50 opacity-60'
+                      }`}
+                    >
+                      <div className="flex-shrink-0 mt-1">
+                        {module.configurable ? (
+                          <Switch
+                            checked={enabled}
+                            onCheckedChange={() => toggleModule(module.id)}
+                            aria-label={`Toggle ${module.name}`}
+                          />
+                        ) : (
+                          <div className="w-10 h-6 flex items-center justify-center">
+                            {enabled ? (
+                              <Eye className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <EyeOff className="h-5 w-5 text-gray-400" />
+                            )}
+                          </div>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">{module.description}</p>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="px-2 py-0.5 bg-muted rounded font-mono">
-                          {module.position}
-                        </span>
-                        <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded">
-                          {module.component}
-                        </span>
-                        <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded">
-                          {module.page}
-                        </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-sm">{module.name}</h4>
+                          {module.component === 'AdDisplay' && (
+                            <Badge variant="outline" className="text-xs">
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              Ad
+                            </Badge>
+                          )}
+                          {module.status === 'reserved' && (
+                            <Badge variant="secondary" className="text-xs">
+                              Reserved
+                            </Badge>
+                          )}
+                          {module.dimensions && (
+                            <Badge variant="secondary" className="text-xs font-mono">
+                              {module.dimensions}
+                            </Badge>
+                          )}
+                          {!module.configurable && (
+                            <Badge variant="outline" className="text-xs">
+                              System
+                            </Badge>
+                          )}
+                          {!enabled && (
+                            <Badge variant="destructive" className="text-xs">
+                              Disabled
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{module.description}</p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="px-2 py-0.5 bg-muted rounded font-mono">
+                            {module.position}
+                          </span>
+                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded">
+                            {module.component}
+                          </span>
+                          <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded">
+                            {module.page}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
