@@ -8,7 +8,14 @@
       "Bash(taskkill:*)",
       "Bash(pkill:*)",
       "Bash(netstat:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(firebase --version:*)",
+      "Bash(npx firebase:*)",
+      "Bash(where bash:*)",
+      "Bash(where:*)",
+      "Bash(echo:*)",
+      "Bash(tr:*)",
+      "Bash(\"C:\\\\Users\\\\carlf\\\\AppData\\\\Roaming\\\\npm\\\\claude.cmd\" --version)"
     ]
   }
 }
