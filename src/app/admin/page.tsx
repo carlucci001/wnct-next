@@ -210,6 +210,16 @@ const CommentAdmin = dynamic(() => import('@/components/admin/CommentAdmin'), {
   ),
 });
 
+// Dynamically import GoogleAnalyticsWidget
+const GoogleAnalyticsWidget = dynamic(() => import('@/components/admin/GoogleAnalyticsWidget'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import AgentPromptEditor
 const AgentPromptEditor = dynamic(() => import('@/components/admin/AgentPromptEditor'), {
   ssr: false,
@@ -2397,6 +2407,9 @@ Example structure:
           </CardContent>
         </Card>
       </div>
+
+      {/* Google Analytics Widget */}
+      <GoogleAnalyticsWidget />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
