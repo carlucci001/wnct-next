@@ -690,63 +690,73 @@ const ChatAssistant: React.FC = () => {
         <div className="bg-white rounded-lg shadow-2xl w-80 sm:w-96 mb-4 flex flex-col border border-gray-200 overflow-hidden transition-all duration-300 origin-bottom-right relative" style={{height: '500px', maxHeight: '80vh'}}>
 
           <div
-            className="text-white p-3 flex justify-between items-center shrink-0 shadow-sm relative z-20"
+            className="text-white p-3 flex flex-col gap-2 shrink-0 shadow-sm relative z-20"
             style={{ backgroundColor: primaryColor }}
           >
-            <div className="flex items-center gap-2">
+            {/* Row 1: Persona Info */}
+            <div className="flex items-center justify-center gap-2">
               <Sparkles size={16} className="text-white/80" />
               <div className="flex flex-col">
-                <h3 className="font-bold text-sm tracking-wide leading-none">
+                <h3 className="font-bold text-sm tracking-wide leading-none text-center">
                   {currentPersona?.name || 'Assistant'}
                 </h3>
-                <span className="text-[10px] opacity-80 font-normal">
+                <span className="text-[10px] opacity-80 font-normal text-center">
                   {currentPersona?.title || 'Reader Support'}
                 </span>
               </div>
-              {isSpeaking && (
-                <div className="flex space-x-0.5 items-center h-3 ml-2" title="Speaking...">
-                  <div className="w-0.5 bg-white h-full animate-pulse"></div>
-                  <div className="w-0.5 bg-white h-2/3 animate-pulse delay-75"></div>
-                  <div className="w-0.5 bg-white h-full animate-pulse delay-150"></div>
-                </div>
-              )}
-              {isListening && (
-                <div className="flex items-center gap-1 ml-2" title="Listening...">
-                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                  <span className="text-[10px] text-white/90 font-medium">LISTENING</span>
-                </div>
-              )}
             </div>
-            <div className="flex items-center gap-1">
-              {/* Persona Selector */}
-              {personas.length > 1 && (
-                <PersonaSelector
-                  personas={personas}
-                  selectedPersonaId={selectedPersonaId}
-                  onSelectPersona={handlePersonaSelect}
-                />
-              )}
-              <button
-                onClick={resetChat}
-                className="hover:bg-white/20 p-1.5 rounded transition text-white/70 hover:text-white"
-                title="Reset conversation"
-              >
-                <RotateCcw size={14} />
-              </button>
-              <button
-                onClick={toggleVoice}
-                className={`hover:bg-white/20 p-1.5 rounded transition ${isVoiceEnabled ? 'text-white' : 'text-white/50'}`}
-                title={isVoiceEnabled ? "Turn off voice responses" : "Turn on voice responses (AI will speak)"}
-              >
-                {isVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="hover:bg-white/20 p-1.5 rounded transition text-white/90 hover:text-white"
-                aria-label="Minimize chat"
-              >
-                <Minimize2 size={16} />
-              </button>
+
+            {/* Row 2: Indicators + Controls */}
+            <div className="flex justify-between items-center">
+              {/* Left: Status Indicators */}
+              <div className="flex items-center gap-2">
+                {isSpeaking && (
+                  <div className="flex space-x-0.5 items-center h-3" title="Speaking...">
+                    <div className="w-0.5 bg-white h-full animate-pulse"></div>
+                    <div className="w-0.5 bg-white h-2/3 animate-pulse delay-75"></div>
+                    <div className="w-0.5 bg-white h-full animate-pulse delay-150"></div>
+                  </div>
+                )}
+                {isListening && (
+                  <div className="flex items-center gap-1" title="Listening...">
+                    <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] text-white/90 font-medium">LISTENING</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Control Buttons */}
+              <div className="flex items-center gap-1">
+                {/* Persona Selector */}
+                {personas.length > 1 && (
+                  <PersonaSelector
+                    personas={personas}
+                    selectedPersonaId={selectedPersonaId}
+                    onSelectPersona={handlePersonaSelect}
+                  />
+                )}
+                <button
+                  onClick={resetChat}
+                  className="hover:bg-white/20 p-1.5 rounded transition text-white/70 hover:text-white"
+                  title="Reset conversation"
+                >
+                  <RotateCcw size={14} />
+                </button>
+                <button
+                  onClick={toggleVoice}
+                  className={`hover:bg-white/20 p-1.5 rounded transition ${isVoiceEnabled ? 'text-white' : 'text-white/50'}`}
+                  title={isVoiceEnabled ? "Turn off voice responses" : "Turn on voice responses (AI will speak)"}
+                >
+                  {isVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="hover:bg-white/20 p-1.5 rounded transition text-white/90 hover:text-white"
+                  aria-label="Minimize chat"
+                >
+                  <Minimize2 size={16} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -786,6 +796,8 @@ const ChatAssistant: React.FC = () => {
                 {interimTranscript}...
               </div>
             )}
+
+            {/* Row 1: Input + Send */}
             <div className="flex gap-2">
               <input
                 type="text"
@@ -804,38 +816,6 @@ const ChatAssistant: React.FC = () => {
                   isListening ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-300'
                 }`}
               />
-              {speechSupported && (
-                <>
-                  <button
-                    type="button"
-                    onClick={toggleLiveMode}
-                    disabled={isLoading}
-                    className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
-                      isLiveMode
-                        ? 'bg-red-500 text-white hover:bg-red-600'
-                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    aria-label={isLiveMode ? "Turn off hands-free mode" : "Turn on hands-free mode"}
-                    title={isLiveMode ? "Hands-free ON: auto-listen after AI speaks" : "Hands-free mode: auto-listen & respond"}
-                  >
-                    <Radio size={18} className={isLiveMode ? 'animate-pulse' : ''} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleListening}
-                    disabled={isLoading}
-                    className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
-                      isListening
-                        ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
-                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    aria-label={isListening ? "Stop listening" : "Start voice input"}
-                    title={isListening ? "Tap to stop" : "Tap to speak (press-to-talk)"}
-                  >
-                    {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-                  </button>
-                </>
-              )}
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
@@ -846,6 +826,40 @@ const ChatAssistant: React.FC = () => {
                 <Send size={18} />
               </button>
             </div>
+
+            {/* Row 2: Voice controls (if supported) */}
+            {speechSupported && (
+              <div className="flex gap-2 justify-center">
+                <button
+                  type="button"
+                  onClick={toggleLiveMode}
+                  disabled={isLoading}
+                  className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
+                    isLiveMode
+                      ? 'bg-red-500 text-white hover:bg-red-600'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label={isLiveMode ? "Turn off hands-free mode" : "Turn on hands-free mode"}
+                  title={isLiveMode ? "Hands-free ON: auto-listen after AI speaks" : "Hands-free mode: auto-listen & respond"}
+                >
+                  <Radio size={18} className={isLiveMode ? 'animate-pulse' : ''} />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  disabled={isLoading}
+                  className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
+                    isListening
+                      ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label={isListening ? "Stop listening" : "Start voice input"}
+                  title={isListening ? "Tap to stop" : "Tap to speak (press-to-talk)"}
+                >
+                  {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       )}
