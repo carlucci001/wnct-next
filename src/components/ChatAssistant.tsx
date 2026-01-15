@@ -77,6 +77,9 @@ const ChatAssistant: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState("Hi! I'm your assistant. Ask me about local news, find articles, or get help navigating the site.");
 
+  // Module state - check if enabled in Module Manager
+  const [isModuleEnabled, setIsModuleEnabled] = useState(true);
+
   // Persona state
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
@@ -103,6 +106,30 @@ const ChatAssistant: React.FC = () => {
   // Audio session management to prevent overlapping audio
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
   const audioSessionIdRef = useRef<number>(0);
+
+  // Check if module is enabled in Module Manager
+  useEffect(() => {
+    const checkModuleStatus = async () => {
+      try {
+        const modulesDoc = await getDoc(doc(getDb(), 'componentSettings', 'modules'));
+        if (modulesDoc.exists()) {
+          const data = modulesDoc.data();
+          const moduleConfig = data['global-chat-assistant'];
+          if (moduleConfig && moduleConfig.enabled === false) {
+            setIsModuleEnabled(false);
+            return;
+          }
+        }
+        setIsModuleEnabled(true);
+      } catch (error) {
+        console.error('[ChatAssistant] Failed to check module status:', error);
+        // Default to enabled on error
+        setIsModuleEnabled(true);
+      }
+    };
+
+    checkModuleStatus();
+  }, []);
 
   // Load UI settings (welcome message)
   useEffect(() => {
@@ -652,6 +679,11 @@ const ChatAssistant: React.FC = () => {
     }
   };
 
+  // Don't render if module is disabled in Module Manager
+  if (!isModuleEnabled) {
+    return null;
+  }
+
   return (
     <div className="fixed bottom-6 right-6 z-50 font-sans flex flex-col items-end">
       {isOpen && (
@@ -708,16 +740,6 @@ const ChatAssistant: React.FC = () => {
               >
                 {isVoiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               </button>
-              {speechSupported && (
-                <button
-                  onClick={toggleLiveMode}
-                  className={`hover:bg-white/20 p-1.5 rounded transition flex items-center gap-1 ${isLiveMode ? 'text-white bg-white/20' : 'text-white/50'}`}
-                  title={isLiveMode ? "Turn off hands-free mode" : "Hands-free mode: speak and AI responds automatically"}
-                >
-                  <Radio size={14} className={isLiveMode ? 'animate-pulse' : ''} />
-                  {isLiveMode && <span className="text-[10px] font-medium">LIVE</span>}
-                </button>
-              )}
               <button
                 onClick={() => setIsOpen(false)}
                 className="hover:bg-white/20 p-1.5 rounded transition text-white/90 hover:text-white"
@@ -783,20 +805,36 @@ const ChatAssistant: React.FC = () => {
                 }`}
               />
               {speechSupported && (
-                <button
-                  type="button"
-                  onClick={toggleListening}
-                  disabled={isLoading}
-                  className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
-                    isListening
-                      ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  aria-label={isListening ? "Stop listening" : "Start voice input"}
-                  title={isListening ? "Tap to stop" : "Tap to speak (press-to-talk)"}
-                >
-                  {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={toggleLiveMode}
+                    disabled={isLoading}
+                    className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
+                      isLiveMode
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    aria-label={isLiveMode ? "Turn off hands-free mode" : "Turn on hands-free mode"}
+                    title={isLiveMode ? "Hands-free ON: auto-listen after AI speaks" : "Hands-free mode: auto-listen & respond"}
+                  >
+                    <Radio size={18} className={isLiveMode ? 'animate-pulse' : ''} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleListening}
+                    disabled={isLoading}
+                    className={`p-2.5 rounded-full transition-all shadow-sm shrink-0 ${
+                      isListening
+                        ? 'bg-red-500 text-white animate-pulse hover:bg-red-600'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    aria-label={isListening ? "Stop listening" : "Start voice input"}
+                    title={isListening ? "Tap to stop" : "Tap to speak (press-to-talk)"}
+                  >
+                    {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                  </button>
+                </>
               )}
               <button
                 type="submit"
