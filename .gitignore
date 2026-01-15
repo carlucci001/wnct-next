@@ -44,6 +44,10 @@ next-env.d.ts
 # Firebase
 .firebase/
 
+# Google Cloud Service Account Keys
+service-account-key.json
+*-service-account*.json
+
 # Logs
 *.log
 *_history.txt
