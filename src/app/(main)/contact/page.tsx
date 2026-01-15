@@ -57,7 +57,7 @@ const Contact: React.FC = () => {
                   <MapPin size={24} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">Visit Our Office</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">Location</h3>
                   <p className="text-gray-600 dark:text-gray-300">
                     {contact.address.street}<br />
                     {contact.address.city}, {contact.address.state} {contact.address.zip}

@@ -148,7 +148,7 @@ export default function CategoryClient({ category }: { category: string }) {
             )}
 
             {totalPages > 1 && (
-              <div className="mt-12 flex justify-center items-center space-x-2">
+              <div className="mt-12 flex justify-center items-center space-x-2 flex-wrap gap-y-2">
                 <button
                   onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
@@ -157,20 +157,69 @@ export default function CategoryClient({ category }: { category: string }) {
                   <ChevronLeft size={16} /> Previous
                 </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    className={`px-4 py-2 rounded transition font-medium ${
-                      currentPage === page
-                        ? 'text-white shadow-sm'
-                        : 'border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800'
-                    }`}
-                    style={currentPage === page ? { backgroundColor: accentColor } : {}}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  const maxVisible = 5; // Show max 5 page numbers
+
+                  if (totalPages <= maxVisible + 2) {
+                    // Show all pages if total is small
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Always show first page
+                    pages.push(1);
+
+                    if (currentPage <= 3) {
+                      // Near start
+                      for (let i = 2; i <= 4; i++) {
+                        pages.push(i);
+                      }
+                      pages.push('...');
+                      pages.push(totalPages);
+                    } else if (currentPage >= totalPages - 2) {
+                      // Near end
+                      pages.push('...');
+                      for (let i = totalPages - 3; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Middle
+                      pages.push('...');
+                      pages.push(currentPage - 1);
+                      pages.push(currentPage);
+                      pages.push(currentPage + 1);
+                      pages.push('...');
+                      pages.push(totalPages);
+                    }
+                  }
+
+                  return pages.map((page, idx) => {
+                    if (page === '...') {
+                      return (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 dark:text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+
+                    const pageNum = page as number;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-4 py-2 rounded transition font-medium ${
+                          currentPage === pageNum
+                            ? 'text-white shadow-sm'
+                            : 'border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800'
+                        }`}
+                        style={currentPage === pageNum ? { backgroundColor: accentColor } : {}}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  });
+                })()}
 
                 <button
                   onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}

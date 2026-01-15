@@ -107,6 +107,11 @@ const Sidebar: React.FC<SidebarProps> = ({ trendingArticles = [] }) => {
           </ol>
         </div>
       )}
+
+      {/* Bottom Sidebar Ad */}
+      <div className="mb-8">
+        <AdDisplay position="sidebar_sticky" className="w-full" />
+      </div>
     </aside>
   );
 };
