@@ -183,6 +183,27 @@ service cloud.firestore {
     }
 
     // ============================================
+    // COMMUNITY POSTS (user-generated community feed)
+    // ============================================
+    match /communityPosts/{postId} {
+      // Allow public read for SSR and public viewing
+      allow read: if true;
+
+      // Authenticated users can create posts
+      allow create: if isAuthenticated();
+
+      // Post authors and moderators can update
+      allow update: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid ||
+        isModerator() ||
+        isEditor()
+      );
+
+      // Only moderators and editors can delete
+      allow delete: if isModerator() || isEditor();
+    }
+
+    // ============================================
     // PERSONAS (AI chat personas)
     // ============================================
     match /personas/{personaId} {
