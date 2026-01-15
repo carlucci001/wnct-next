@@ -88,7 +88,7 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
     if (position === 'header_main') {
       return (
         <a
-          href="/advertise"
+          href="/contact"
           className={`group relative block w-full max-w-[728px] overflow-hidden rounded-lg bg-gradient-to-r from-blue-50 via-slate-50 to-blue-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 transition-all ${className}`}
           style={{ aspectRatio: '728/90' }}
         >
@@ -122,7 +122,7 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
     if (position === 'footer_wide' || position === 'article_inline') {
       return (
         <a
-          href="/advertise"
+          href="/contact"
           className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-700 hover:via-blue-600 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
         >
           {/* Animated shimmer effect */}
@@ -159,7 +159,7 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
       // 300x600 - Tall ad with more content to fill vertical space
       return (
         <a
-          href="/advertise"
+          href="/contact"
           className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 hover:from-blue-700 hover:via-purple-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
         >
           {/* Animated shimmer effect */}
@@ -218,7 +218,7 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
     // 300x250 - Compact square ad
     return (
       <a
-        href="/advertise"
+        href="/contact"
         className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 hover:from-blue-700 hover:via-purple-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
       >
         {/* Animated shimmer effect */}
