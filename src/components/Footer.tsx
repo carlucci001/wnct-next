@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Youtube } from "lucide-react";
-import { AdDisplay } from "./advertising/AdDisplay";
 
 interface NavItem {
   label: string;
@@ -157,11 +156,6 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="footer-root bg-slate-900 text-gray-300 font-sans border-t-4" style={{ borderTopColor: primaryColor }}>
-      {/* Footer Ad Spot */}
-      <div className="container mx-auto px-4 py-8 border-b border-gray-800">
-        <AdDisplay position="footer_wide" className="max-w-[970px] mx-auto" />
-      </div>
-
       <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12 px-4 pt-16">
 
         {/* About */}

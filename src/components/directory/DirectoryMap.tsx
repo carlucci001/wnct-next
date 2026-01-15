@@ -33,12 +33,40 @@ interface DirectoryMapProps {
 export function DirectoryMap({ businesses, className = '' }: DirectoryMapProps) {
   const [hoveredBusiness, setHoveredBusiness] = useState<Business | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [centerCoords, setCenterCoords] = useState<[number, number]>([35.5951, -82.5515]); // Default fallback
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
 
-  // Memoize ASHEVILLE_LAT_LNG to avoid re-triggering effects unnecessarily
-  const ASHEVILLE_LAT_LNG = React.useMemo<[number, number]>(() => [35.5951, -82.5515], []);
+  // Load site config and geocode zip code for map center
+  useEffect(() => {
+    async function loadMapCenter() {
+      try {
+        const response = await fetch('/api/site-config');
+        const data = await response.json();
+
+        if (data.success && data.config?.contact?.address?.zip) {
+          const zipCode = data.config.contact.address.zip;
+
+          // Geocode the zip code using Nominatim (OpenStreetMap)
+          const geocodeResponse = await fetch(
+            `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=US&format=json&limit=1`
+          );
+          const geocodeData = await geocodeResponse.json();
+
+          if (geocodeData && geocodeData.length > 0) {
+            const lat = parseFloat(geocodeData[0].lat);
+            const lng = parseFloat(geocodeData[0].lon);
+            setCenterCoords([lat, lng]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to geocode zip code, using default center:', error);
+      }
+    }
+
+    loadMapCenter();
+  }, []);
 
   // Load Leaflet Assets
   useEffect(() => {
@@ -75,7 +103,7 @@ export function DirectoryMap({ businesses, className = '' }: DirectoryMapProps) 
     mapRef.current = L.map(mapContainerRef.current, {
       zoomControl: false,
       attributionControl: false
-    }).setView(ASHEVILLE_LAT_LNG, 11);
+    }).setView(centerCoords, 11);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
@@ -89,7 +117,7 @@ export function DirectoryMap({ businesses, className = '' }: DirectoryMapProps) 
         mapRef.current = null;
       }
     };
-  }, [mapLoaded, ASHEVILLE_LAT_LNG]);
+  }, [mapLoaded, centerCoords]);
 
   // Handle Markers
   useEffect(() => {
@@ -154,11 +182,11 @@ export function DirectoryMap({ businesses, className = '' }: DirectoryMapProps) 
       />
 
       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button 
-          size="icon" 
-          variant="secondary" 
+        <Button
+          size="icon"
+          variant="secondary"
           className="h-8 w-8 rounded-full shadow-sm bg-white/80 backdrop-blur-sm hover:bg-white"
-          onClick={() => mapRef.current?.setView(ASHEVILLE_LAT_LNG, 11, { animate: true })}
+          onClick={() => mapRef.current?.setView(centerCoords, 11, { animate: true })}
         >
           <RefreshCw size={14} className="text-muted-foreground" />
         </Button>

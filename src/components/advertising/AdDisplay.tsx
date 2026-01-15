@@ -84,47 +84,165 @@ export function AdDisplay({ position, fallback, className, priority }: AdDisplay
   if (!ad) {
     if (fallback) return <>{fallback}</>;
 
-    // Header banner - pixel perfect 728x90
+    // Header banner - responsive within container, maintains aspect ratio
     if (position === 'header_main') {
       return (
         <a
-          href="/contact"
-          className={`group relative block w-[728px] h-[90px] overflow-hidden rounded-lg bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 ${className}`}
+          href="/advertise"
+          className={`group relative block w-full max-w-[728px] overflow-hidden rounded-lg bg-gradient-to-r from-blue-50 via-slate-50 to-blue-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 transition-all ${className}`}
+          style={{ aspectRatio: '728/90' }}
         >
-          {/* Subtle pattern */}
-          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '20px 20px' }} />
-          {/* Centered text overlay */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
-              Advertise Here
-            </span>
+          {/* Subtle animated gradient */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* Content */}
+          <div className="absolute inset-0 flex items-center justify-center gap-3">
+            <div className="text-center">
+              <p className="text-xs md:text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                Your Ad Could Be Here
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Click to learn more</p>
+            </div>
           </div>
         </a>
       );
     }
 
-    // Default fallback for other positions
+    // Default fallback for other positions - fully responsive
+    // Exact aspect ratios: footer_wide = 728x90, sidebar_top = 300x250, sidebar_sticky = 300x600
     const dimMap: Record<string, string> = {
-      sidebar_top: 'aspect-square md:aspect-[300/250]',
-      sidebar_sticky: 'aspect-square md:aspect-[300/600]',
-      article_inline: 'aspect-[21/9] md:aspect-[970/250]',
-      footer_wide: 'aspect-[21/9] md:aspect-[970/90]',
+      sidebar_top: 'aspect-[300/250]',
+      sidebar_sticky: 'aspect-[300/600]',
+      article_inline: 'aspect-[728/90]',
+      footer_wide: 'aspect-[728/90]',
       popup_overlay: 'aspect-video lg:aspect-[4/3] max-w-2xl',
     };
     const dims = dimMap[position] || 'aspect-video';
 
+    // Different mockup for banner ads (728x90)
+    if (position === 'footer_wide' || position === 'article_inline') {
+      return (
+        <a
+          href="/advertise"
+          className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-700 hover:via-blue-600 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
+        >
+          {/* Animated shimmer effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
+          {/* Content */}
+          <div className="absolute inset-0 flex items-center justify-center gap-4 px-4">
+            <div className="flex items-center gap-3">
+              {/* Icon */}
+              <div className="bg-white/20 rounded-full p-2 backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+              </div>
+
+              {/* Text */}
+              <div className="text-left">
+                <p className="text-sm md:text-base font-bold text-white">
+                  This Could Be Your Ad!
+                </p>
+                <p className="text-[10px] md:text-xs text-white/90">
+                  Reach thousands of local readers • Click to learn more
+                </p>
+              </div>
+            </div>
+          </div>
+        </a>
+      );
+    }
+
+    // Sidebar ads (300x250 or 300x600)
+    // Different layout for tall 300x600 vs square 300x250
+    if (position === 'sidebar_sticky') {
+      // 300x600 - Tall ad with more content to fill vertical space
+      return (
+        <a
+          href="/advertise"
+          className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 hover:from-blue-700 hover:via-purple-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
+        >
+          {/* Animated shimmer effect */}
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-transparent -translate-x-full -translate-y-full group-hover:translate-x-full group-hover:translate-y-full transition-transform duration-1000" />
+
+          {/* Content - More vertical elements for 300x600 */}
+          <div className="absolute inset-0 flex flex-col items-center justify-between p-8 text-center">
+            {/* Top section */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              {/* Large Icon */}
+              <div className="bg-white/20 rounded-full p-6 backdrop-blur-sm mb-6">
+                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+              </div>
+
+              {/* Headline */}
+              <h3 className="text-2xl font-bold text-white mb-4 leading-tight">
+                This Could Be<br />Your Ad!
+              </h3>
+
+              {/* Benefits */}
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center gap-2 text-white/90">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm">Reach Local Readers</span>
+                </div>
+                <div className="flex items-center gap-2 text-white/90">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm">Targeted Audience</span>
+                </div>
+                <div className="flex items-center gap-2 text-white/90">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm">Affordable Rates</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom CTA */}
+            <div className="w-full">
+              <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full border-2 border-white/30 group-hover:bg-white/30 transition-all">
+                <p className="text-sm font-bold text-white">Click to Learn More →</p>
+              </div>
+            </div>
+          </div>
+        </a>
+      );
+    }
+
+    // 300x250 - Compact square ad
     return (
       <a
-        href="/contact"
-        className={`group relative block overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 ${dims} ${className}`}
+        href="/advertise"
+        className={`group relative block w-full overflow-hidden rounded-lg bg-gradient-to-br from-blue-600 via-purple-600 to-blue-700 hover:from-blue-700 hover:via-purple-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl ${dims} ${className}`}
       >
-        {/* Subtle pattern */}
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '16px 16px' }} />
-        {/* Centered text overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors">
-            Advertise Here
-          </span>
+        {/* Animated shimmer effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-transparent -translate-x-full -translate-y-full group-hover:translate-x-full group-hover:translate-y-full transition-transform duration-1000" />
+
+        {/* Content - Compact for 300x250 */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+          {/* Icon */}
+          <div className="bg-white/20 rounded-full p-4 backdrop-blur-sm mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+          </div>
+
+          {/* Text */}
+          <p className="text-xl font-bold text-white mb-2">
+            This Could Be Your Ad!
+          </p>
+          <p className="text-sm text-white/90 mb-4">
+            Reach your local community
+          </p>
+          <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+            <p className="text-xs font-bold text-white">Learn More →</p>
+          </div>
         </div>
       </a>
     );
