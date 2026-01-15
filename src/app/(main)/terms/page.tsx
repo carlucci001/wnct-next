@@ -49,26 +49,23 @@ export default async function TermsOfUsePage() {
   const processedContent = replaceVariables(termsContent, config);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Banner */}
-      <div
-        className="py-12 text-white"
-        style={{ backgroundColor: config.branding?.primaryColor || '#1d4ed8' }}
-      >
-        <div className="container mx-auto px-4">
-          <h1 className="text-4xl font-serif font-bold">Terms of Use</h1>
-          <p className="mt-2 text-blue-100">
-            Terms and conditions for using our website
-          </p>
-        </div>
-      </div>
+    <div className="bg-gray-50 py-12">
+      <div className="container mx-auto px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Page Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-serif font-bold text-gray-900 mb-2">Terms of Use</h1>
+            <p className="text-gray-600">
+              Terms and conditions for using our website
+            </p>
+          </div>
 
-      {/* Content */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 md:p-12">
-          <article className="prose prose-lg max-w-none prose-headings:font-serif prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-a:text-blue-600">
-            <ReactMarkdown>{processedContent}</ReactMarkdown>
-          </article>
+          {/* Content */}
+          <div className="bg-white rounded-lg shadow-sm p-8 md:p-12">
+            <article className="prose prose-lg max-w-none prose-headings:font-serif prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-a:text-blue-600">
+              <ReactMarkdown>{processedContent}</ReactMarkdown>
+            </article>
+          </div>
         </div>
       </div>
     </div>
