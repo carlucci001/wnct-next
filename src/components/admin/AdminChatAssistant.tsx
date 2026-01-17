@@ -89,6 +89,7 @@ const AdminChatAssistant: React.FC = () => {
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [canInterrupt, setCanInterrupt] = useState(false); // Shows when user can interrupt AI speech
 
   // Admin chat voice configuration
   const [voiceConfig, setVoiceConfig] = useState<AdminChatVoiceConfig | null>(null);
@@ -207,11 +208,13 @@ const AdminChatAssistant: React.FC = () => {
     shouldRestartListening.current = false;
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback((backgroundMode = false) => {
     if (!speechSupported || isLoading) return;
 
-    // Stop any current speech
-    stopSpeaking();
+    // In background mode (during AI speech), don't stop AI yet
+    if (!backgroundMode) {
+      stopSpeaking();
+    }
 
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
@@ -227,7 +230,9 @@ const AdminChatAssistant: React.FC = () => {
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
-      setIsListening(true);
+      if (!backgroundMode) {
+        setIsListening(true);
+      }
       setInterimTranscript('');
     };
 
@@ -242,6 +247,15 @@ const AdminChatAssistant: React.FC = () => {
         } else {
           interimText += transcript;
         }
+      }
+
+      // If we're in background mode and detect speech, interrupt AI
+      if (backgroundMode && (interimText || finalText)) {
+        console.log('[Voice] Interruption detected during AI speech');
+        stopSpeaking();
+        setCanInterrupt(false);
+        setIsListening(true);
+        // Continue processing the speech as normal
       }
 
       if (interimText) {
@@ -265,13 +279,17 @@ const AdminChatAssistant: React.FC = () => {
       // Only log actual errors, not expected user behaviors
       if (event.error !== 'aborted' && event.error !== 'no-speech') {
         console.error('Speech recognition error:', event.error);
-        setIsListening(false);
+        if (!backgroundMode) {
+          setIsListening(false);
+        }
         setInterimTranscript('');
       }
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      if (!backgroundMode) {
+        setIsListening(false);
+      }
       setInterimTranscript('');
 
       // In live mode, if we should restart (after AI finishes speaking)
@@ -332,6 +350,7 @@ const AdminChatAssistant: React.FC = () => {
     }
 
     setIsSpeaking(false);
+    setCanInterrupt(false);
   };
 
   // Speak text using ElevenLabs TTS (via /api/tts) with fallback to browser TTS
@@ -410,6 +429,7 @@ const AdminChatAssistant: React.FC = () => {
         // Only handle if this is still the current session
         if (audioSessionIdRef.current === sessionId) {
           setIsSpeaking(false);
+          setCanInterrupt(false);
           audioRef.current = null;
           // In live mode, restart listening after AI finishes speaking
           if (isLiveMode) {
@@ -424,15 +444,28 @@ const AdminChatAssistant: React.FC = () => {
         URL.revokeObjectURL(audioUrl);
         if (audioSessionIdRef.current === sessionId) {
           setIsSpeaking(false);
+          setCanInterrupt(false);
           audioRef.current = null;
         }
       };
 
       await audio.play();
+
+      // In live mode, start background listening to detect interruptions
+      if (isLiveMode && speechSupported) {
+        setCanInterrupt(true);
+        // Small delay to avoid picking up end of user's speech
+        setTimeout(() => {
+          if (audioSessionIdRef.current === sessionId && isSpeaking) {
+            startListeningRef.current(true); // true = background mode
+          }
+        }, 800);
+      }
     } catch (error) {
       console.error('[Audio] Playback failed:', error);
       if (audioSessionIdRef.current === sessionId) {
         setIsSpeaking(false);
+        setCanInterrupt(false);
       }
     }
   };
@@ -470,9 +503,22 @@ const AdminChatAssistant: React.FC = () => {
         utterance.lang = 'en-US';
       }
 
+      utterance.onstart = () => {
+        // In live mode, start background listening to detect interruptions
+        if (isLiveMode && speechSupported) {
+          setCanInterrupt(true);
+          setTimeout(() => {
+            if (audioSessionIdRef.current === currentSessionId && isSpeaking) {
+              startListeningRef.current(true); // true = background mode
+            }
+          }, 800);
+        }
+      };
+
       utterance.onend = () => {
         if (audioSessionIdRef.current === currentSessionId) {
           setIsSpeaking(false);
+          setCanInterrupt(false);
           if (isLiveMode) {
             shouldRestartListening.current = true;
             setTimeout(() => startListeningRef.current(), 500);
@@ -483,6 +529,7 @@ const AdminChatAssistant: React.FC = () => {
       utterance.onerror = () => {
         if (audioSessionIdRef.current === currentSessionId) {
           setIsSpeaking(false);
+          setCanInterrupt(false);
         }
       };
 
@@ -490,6 +537,7 @@ const AdminChatAssistant: React.FC = () => {
     } catch (error) {
       console.error('[Browser TTS] Error:', error);
       setIsSpeaking(false);
+      setCanInterrupt(false);
     }
   };
 
@@ -607,14 +655,20 @@ const AdminChatAssistant: React.FC = () => {
             <div className="flex justify-between items-center">
               {/* Left: Status Indicators */}
               <div className="flex items-center gap-2">
-                {isSpeaking && (
+                {isSpeaking && !canInterrupt && (
                   <div className="flex space-x-0.5 items-center h-3" title="Speaking...">
                     <div className="w-0.5 bg-white h-full animate-pulse"></div>
                     <div className="w-0.5 bg-white h-2/3 animate-pulse delay-75"></div>
                     <div className="w-0.5 bg-white h-full animate-pulse delay-150"></div>
                   </div>
                 )}
-                {isListening && (
+                {canInterrupt && (
+                  <div className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full" title="Speak to interrupt">
+                    <Mic size={10} className="text-white animate-pulse" />
+                    <span className="text-[9px] text-white/90 font-medium">SPEAK TO INTERRUPT</span>
+                  </div>
+                )}
+                {isListening && !canInterrupt && (
                   <div className="flex items-center gap-1" title="Listening...">
                     <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
                     <span className="text-[10px] text-white/90 font-medium">LISTENING</span>
@@ -649,7 +703,19 @@ const AdminChatAssistant: React.FC = () => {
             </div>
           </div>
 
-          <div className="grow overflow-y-auto p-4 bg-gray-50 space-y-4">
+          <div
+            className="grow overflow-y-auto p-4 bg-gray-50 space-y-4"
+            onClick={() => {
+              // Click to interrupt in live mode
+              if (canInterrupt && isSpeaking && isLiveMode) {
+                console.log('[Voice] Manual interruption via click');
+                stopSpeaking();
+                if (speechSupported) {
+                  setTimeout(() => startListeningRef.current(), 100);
+                }
+              }
+            }}
+          >
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
