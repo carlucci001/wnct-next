@@ -6,6 +6,28 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/index.php*",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/component/**",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/content/**",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/**/*.html",
+        "destination": "/",
+        "type": 301
+      }
+    ],
     "frameworksBackend": {
       "region": "us-east1"
     }

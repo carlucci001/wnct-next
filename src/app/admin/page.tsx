@@ -10,7 +10,7 @@ import { collection, getDocs, doc, deleteDoc, updateDoc, getDoc, setDoc } from '
 import { Article } from '@/types/article';
 import {
   LayoutDashboard, FileText, Settings, Users, Database, User,
-  Plus, Trash2, Edit, Save, X, RefreshCw, CheckCircle, LogOut,
+  Plus, Trash2, Edit, Save, X, RefreshCw, CheckCircle, CheckCircle2, LogOut,
   Search, Image as ImageIcon, Eye, EyeOff, Bell, HelpCircle,
   Download, Cloud, Palette, ExternalLink, MessageCircle, Activity,
   ChevronDown, BarChart3, Clock, TrendingUp, Zap, PenTool,
@@ -279,12 +279,14 @@ interface SiteSettings {
   serviceArea: string;
   targetAudience: string;
   logoUrl?: string;
+  darkModeLogoUrl?: string; // Optional dark mode logo (falls back to logoUrl)
   brandingMode?: 'text' | 'logo';
   showTagline?: boolean;
   defaultArticleStatus?: string;
   // API Keys
   openaiApiKey?: string;
   geminiApiKey?: string;
+  perplexityApiKey?: string; // For real-time web search and fact-checking
   weatherApiKey?: string;
   defaultLocation?: string;
   // DALL-E Settings
@@ -428,6 +430,7 @@ export default function AdminDashboard() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingDarkModeLogo, setUploadingDarkModeLogo] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [menuSections, setMenuSections] = useState<MenuSections>({
@@ -568,7 +571,7 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // API Configuration state
-  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'elevenlabs' | 'weather' | 'payments'>('openai');
+  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments'>('openai');
 
   // Roles & Permissions state
   const [customRolePermissions, setCustomRolePermissions] = useState<Record<UserRole, UserPermissions>>(ROLE_PERMISSIONS);
@@ -3615,6 +3618,63 @@ Example structure:
               Upload an image or paste a URL. Best size: 300x100 pixels.
             </p>
           </div>
+          {settings.brandingMode === 'logo' && (
+            <div className="space-y-2 pt-4 border-t">
+              <Label htmlFor="darkModeLogoUrl">Dark Mode Logo (Optional)</Label>
+              <div className="flex items-start gap-3">
+                <Input
+                  id="darkModeLogoUrl"
+                  value={settings.darkModeLogoUrl || ''}
+                  onChange={(e) => setSettings({ ...settings, darkModeLogoUrl: e.target.value })}
+                  placeholder="Paste image URL or upload below"
+                  className="flex-1"
+                />
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setUploadingDarkModeLogo(true);
+                        try {
+                          const url = await storageService.uploadLogo(file);
+                          setSettings({ ...settings, darkModeLogoUrl: url });
+                          setMessage({ type: 'success', text: 'Dark mode logo uploaded successfully!' });
+                        } catch (err) {
+                          setMessage({ type: 'error', text: 'Failed to upload dark mode logo' });
+                        } finally {
+                          setUploadingDarkModeLogo(false);
+                        }
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" disabled={uploadingDarkModeLogo} asChild>
+                    <span>{uploadingDarkModeLogo ? 'Uploading...' : 'Upload'}</span>
+                  </Button>
+                </label>
+                {settings.darkModeLogoUrl && (
+                  <>
+                    <div className="w-[150px] h-[50px] border rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center shrink-0">
+                      <img src={settings.darkModeLogoUrl} alt="Dark Mode Logo Preview" className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSettings({ ...settings, darkModeLogoUrl: '' })}
+                      className="text-destructive"
+                    >
+                      Clear
+                    </Button>
+                  </>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Optional: Upload a logo optimized for dark mode. If not set, the primary logo will be used.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -3696,13 +3756,16 @@ Example structure:
       </div>
 
       {/* Tabs Navigation */}
-      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'elevenlabs' | 'weather' | 'payments')} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments')} className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="openai" className="flex items-center gap-2">
             <Sparkles size={16} /> OpenAI
           </TabsTrigger>
           <TabsTrigger value="google" className="flex items-center gap-2">
             <Sparkles size={16} /> Google AI
+          </TabsTrigger>
+          <TabsTrigger value="perplexity" className="flex items-center gap-2">
+            <Search size={16} /> Perplexity
           </TabsTrigger>
           <TabsTrigger value="elevenlabs" className="flex items-center gap-2">
             <Volume2 size={16} /> ElevenLabs
@@ -3964,6 +4027,127 @@ Example structure:
                     <li>1,500 requests per day</li>
                     <li>1 million tokens per day</li>
                   </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Perplexity Tab */}
+        <TabsContent value="perplexity" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-indigo-100 rounded-lg">
+                  <Search className="text-indigo-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>Perplexity AI (Web Search)</CardTitle>
+                  <CardDescription>
+                    Powers real-time web search for article fact-checking and current information.{' '}
+                    <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key Input */}
+              <div className="space-y-2">
+                <Label htmlFor="perplexityKey">Perplexity API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="perplexityKey"
+                    type="password"
+                    value={settings.perplexityApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, perplexityApiKey: e.target.value })}
+                    placeholder="pplx-..."
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.perplexityApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch('/api/admin/test-perplexity', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            apiKey: settings.perplexityApiKey
+                          })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                          showMessage('success', data.message || 'API Key Valid! Perplexity web search is ready.');
+                        } else {
+                          // Show detailed error with model information if available
+                          let errorMsg = `${data.error || 'API Key Invalid'}: ${data.details || 'Please check your key'}`;
+                          if (data.fullError) {
+                            console.log('[Perplexity Test] Full error details:', data.fullError);
+                          }
+                          showMessage('error', errorMsg);
+                        }
+                      } catch (error: any) {
+                        showMessage('error', `API Key Test Failed: ${error.message}`);
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Optional but recommended for A/B testing article quality improvements.
+                </p>
+              </div>
+
+              {/* Status Badge */}
+              <div className={`flex items-center gap-2 p-3 rounded-lg ${settings.perplexityApiKey ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+                <Badge variant={settings.perplexityApiKey ? 'default' : 'secondary'} className={settings.perplexityApiKey ? 'bg-green-600' : 'bg-amber-600'}>
+                  {settings.perplexityApiKey ? 'Configured' : 'Not Configured'}
+                </Badge>
+                <span className={`text-sm ${settings.perplexityApiKey ? 'text-green-700' : 'text-amber-700'}`}>
+                  {settings.perplexityApiKey ? 'Web search enabled for A/B testing' : 'Web search disabled'}
+                </span>
+              </div>
+
+              {/* Feature Info */}
+              <Card className="bg-indigo-50/50 border-indigo-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-indigo-900">
+                    <Sparkles size={18} /> Article Quality Improvements
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-indigo-700 mb-3">
+                    Enable Perplexity web search on individual AI journalists to test article quality improvements:
+                  </p>
+                  <ul className="space-y-2 text-sm text-indigo-700">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Real-time information:</strong> Fetch current job titles, organizations, and facts</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Reduce hallucinations:</strong> Verify claims against live web data</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Source citations:</strong> Include verifiable sources in articles</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>A/B testing:</strong> Compare Gemini-only vs Perplexity+Gemini article quality</span>
+                    </li>
+                  </ul>
+                  <p className="text-xs text-indigo-600 mt-3">
+                    💡 Configure per-journalist in AI Journalists → Edit → Article Generation Features
+                  </p>
                 </CardContent>
               </Card>
             </CardContent>

@@ -8,6 +8,7 @@ import { createScheduledTask, updateTaskStatus } from '@/lib/scheduledTasks';
 import { formatArticleContent, formatExcerpt } from '@/lib/articles';
 import { AIJournalist } from '@/types/aiJournalist';
 import { Category } from '@/types/category';
+import { searchWithPerplexity, PerplexitySearchResult } from '@/lib/perplexitySearch';
 
 export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
@@ -166,12 +167,38 @@ export async function POST(request: NextRequest) {
         // Pick the most relevant item
         const selectedItem = contentItems[0];
 
-        // Generate article using Gemini
+        // Optional: Perform web search if enabled for this journalist
+        let webSearchResults: PerplexitySearchResult | undefined;
+        if (agent.useWebSearch) {
+          try {
+            console.log(`[${agent.name}] Web search enabled - fetching current information via Perplexity`);
+            const perplexityApiKey = settings?.perplexityApiKey as string;
+
+            if (perplexityApiKey) {
+              const searchQuery = `Latest information about: ${selectedItem.title}`;
+              webSearchResults = await searchWithPerplexity(
+                searchQuery,
+                selectedItem.description,
+                perplexityApiKey
+              );
+              console.log(`[${agent.name}] Web search completed - confidence: ${webSearchResults.confidence}`);
+            } else {
+              console.log(`[${agent.name}] Web search enabled but Perplexity API key not configured`);
+            }
+          } catch (error) {
+            console.error(`[${agent.name}] Web search failed, proceeding without current info:`, error);
+          }
+        } else {
+          console.log(`[${agent.name}] Web search disabled - using Gemini-only approach`);
+        }
+
+        // Generate article using Gemini (with optional web search results)
         const article = await generateArticle(
           geminiApiKey,
           agent,
           category,
-          selectedItem
+          selectedItem,
+          webSearchResults
         );
 
         // Generate AI image using DALL-E (never use copyrighted RSS feed images)
@@ -208,6 +235,12 @@ export async function POST(request: NextRequest) {
           sourceSummary: selectedItem.description,
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
+          // A/B Testing metadata
+          metadata: {
+            usedWebSearch: agent.useWebSearch || false,
+            usedFullContent: !!selectedItem.fullContent,
+            generationApproach: agent.useWebSearch ? 'perplexity+gemini' : 'gemini-only',
+          },
         };
 
         // PREVIEW MODE: Run fact-check and return data without saving
@@ -323,12 +356,13 @@ async function generateArticle(
   apiKey: string,
   agent: AIJournalist,
   category: Category | null,
-  sourceItem: ContentItem
+  sourceItem: ContentItem,
+  webSearchResults?: PerplexitySearchResult
 ): Promise<{ title: string; content: string; tags: string[] }> {
   const model = 'gemini-2.0-flash';
 
-  // Build the prompt with category directive and source material
-  const prompt = buildArticlePrompt(agent, category, sourceItem);
+  // Build the prompt with category directive, source material, and optional web search results
+  const prompt = buildArticlePrompt(agent, category, sourceItem, webSearchResults);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -344,7 +378,7 @@ async function generateArticle(
         ],
         generationConfig: {
           maxOutputTokens: 2000,
-          temperature: 0.7,
+          temperature: 0.3, // Lowered from 0.7 to reduce hallucinations
         },
       }),
     }
@@ -368,12 +402,13 @@ async function generateArticle(
 }
 
 /**
- * Build the prompt for article generation
+ * Build the prompt for article generation with anti-hallucination rules
  */
 function buildArticlePrompt(
   agent: AIJournalist,
   category: Category | null,
-  sourceItem: ContentItem
+  sourceItem: ContentItem,
+  webSearchResults?: PerplexitySearchResult
 ): string {
   let prompt = `You are ${agent.name}, ${agent.title}`;
 
@@ -381,7 +416,7 @@ function buildArticlePrompt(
     prompt += ` covering the ${agent.beat} beat`;
   }
 
-  prompt += ` for the WNC Times, a local news website covering Western North Carolina.\n\n`;
+  prompt += ` for WNC Times.\n\n`;
 
   if (agent.bio) {
     prompt += `About you: ${agent.bio}\n\n`;
@@ -401,14 +436,31 @@ function buildArticlePrompt(
     prompt += `Summary: ${sourceItem.description}\n`;
   }
 
-  prompt += `URL: ${sourceItem.url}\n\n`;
+  // Include full content if available
+  if (sourceItem.fullContent) {
+    prompt += `\nFull Article Content:\n${sourceItem.fullContent.substring(0, 3000)}\n`;
+  }
 
-  prompt += `TASK: Write a news article based on the source material above. The article should:
-1. Be written in your voice and style as ${agent.name}
-2. Be relevant to Western North Carolina readers
-3. Follow the editorial directive if provided
-4. Be informative, accurate, and engaging
-5. Include attribution to the original source
+  prompt += `\nSource URL: ${sourceItem.url}\n`;
+
+  // Add web search results if available
+  if (webSearchResults) {
+    prompt += `\nVERIFIED CURRENT INFORMATION (from real-time web search):\n${webSearchResults.answer}\n`;
+    if (webSearchResults.citations.length > 0) {
+      prompt += `\nSOURCES TO CITE:\n${webSearchResults.citations.join('\n')}\n`;
+    }
+  }
+
+  prompt += `\nCRITICAL INSTRUCTIONS - ANTI-HALLUCINATION RULES:
+1. ❌ DO NOT add names, job titles, or organizational affiliations NOT in the source material${webSearchResults ? ' or verified web search results' : ''}
+2. ❌ DO NOT invent quotes or statements
+3. ❌ DO NOT assume current employment or positions unless explicitly stated in sources
+4. ✅ ONLY include facts explicitly stated in source material${webSearchResults ? ' or verified web search results' : ''}
+5. ✅ If a detail is uncertain, use phrases like "according to ${sourceItem.sourceName}" or "as reported by [source]"
+6. ✅ When mentioning people, ONLY use information from the sources - NO assumed titles or current roles
+7. ✅ If source lacks critical details, acknowledge the limitation or omit rather than guess
+
+TASK: Write a factual news article based STRICTLY on the source material above${webSearchResults ? ' and verified web search results' : ''}.
 
 FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS:
 
@@ -419,11 +471,14 @@ CONTENT:
 
 TAGS: [comma-separated tags]
 
-Important:
-- Write 3-5 paragraphs
-- Use a journalistic tone appropriate for local news
+Article Requirements:
+- 3-5 paragraphs
+- Journalistic tone appropriate for local news
 - Include relevant local context when possible
-- Keep the article factual and avoid speculation`;
+- Attribute ALL facts to sources (use "according to..." or "as reported by...")
+- Use direct quotes ONLY if they appear in source material
+- When in doubt, stick to what's verifiable
+- ${webSearchResults ? 'Include citations from web search when using that information' : 'Cite the original source for all claims'}`;
 
   return prompt;
 }
@@ -559,7 +614,31 @@ export async function GET(request: NextRequest) {
           }
 
           const selectedItem = contentItems[0];
-          const article = await generateArticleCron(geminiApiKey, agent, category, selectedItem);
+
+          // Optional: Perform web search if enabled for this journalist (same as POST)
+          let webSearchResults: PerplexitySearchResult | undefined;
+          if (agent.useWebSearch) {
+            try {
+              console.log(`[Cron][${agent.name}] Web search enabled - fetching current information via Perplexity`);
+              const perplexityApiKey = settings?.perplexityApiKey as string;
+
+              if (perplexityApiKey) {
+                const searchQuery = `Latest information about: ${selectedItem.title}`;
+                webSearchResults = await searchWithPerplexity(
+                  searchQuery,
+                  selectedItem.description,
+                  perplexityApiKey
+                );
+                console.log(`[Cron][${agent.name}] Web search completed - confidence: ${webSearchResults.confidence}`);
+              } else {
+                console.log(`[Cron][${agent.name}] Web search enabled but Perplexity API key not configured`);
+              }
+            } catch (error) {
+              console.error(`[Cron][${agent.name}] Web search failed, proceeding without current info:`, error);
+            }
+          }
+
+          const article = await generateArticle(geminiApiKey, agent, category, selectedItem, webSearchResults);
 
           // Generate AI image using DALL-E (never use copyrighted RSS feed images)
           const openaiApiKey = settings?.openaiApiKey as string;
@@ -569,7 +648,7 @@ export async function GET(request: NextRequest) {
             title: article.title,
             content: formatArticleContent(article.content),
             excerpt: formatExcerpt(article.content.replace(/<[^>]+>/g, ''), 200),
-            slug: generateSlugCron(article.title),
+            slug: generateSlug(article.title),
             author: agent.name,
             authorId: agent.id,
             authorPhotoURL: agent.photoURL || '',
@@ -589,6 +668,12 @@ export async function GET(request: NextRequest) {
             sourceUrl: selectedItem.url,
             sourceItemId: selectedItem.id,
             generatedBy: 'ai-agent',
+            // A/B Testing metadata
+            metadata: {
+              usedWebSearch: agent.useWebSearch || false,
+              usedFullContent: !!selectedItem.fullContent,
+              generationApproach: agent.useWebSearch ? 'perplexity+gemini' : 'gemini-only',
+            },
           };
 
           const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
@@ -656,61 +741,5 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper functions for cron (duplicated to avoid scope issues)
-async function generateArticleCron(
-  apiKey: string,
-  agent: AIJournalist,
-  category: Category | null,
-  sourceItem: ContentItem
-): Promise<{ title: string; content: string; tags: string[] }> {
-  const model = 'gemini-2.0-flash';
-  let prompt = `You are ${agent.name}, ${agent.title}`;
-  if (agent.beat) prompt += ` covering the ${agent.beat} beat`;
-  prompt += ` for the WNC Times, a local news website covering Western North Carolina.\n\n`;
-  if (agent.bio) prompt += `About you: ${agent.bio}\n\n`;
-  if (category?.editorialDirective) {
-    prompt += `EDITORIAL DIRECTIVE for ${category.name} articles:\n${category.editorialDirective}\n\n`;
-  }
-  prompt += `SOURCE MATERIAL:\nTitle: ${sourceItem.title}\nSource: ${sourceItem.sourceName}\nPublished: ${new Date(sourceItem.publishedAt).toLocaleDateString()}\n`;
-  if (sourceItem.description) prompt += `Summary: ${sourceItem.description}\n`;
-  prompt += `URL: ${sourceItem.url}\n\n`;
-  prompt += `TASK: Write a news article based on the source material above.\n\nFORMAT YOUR RESPONSE:\nTITLE: [headline]\n\nCONTENT:\n[article]\n\nTAGS: [comma-separated]`;
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 2000, temperature: 0.7 },
-      }),
-    }
-  );
-
-  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
-  const data = await response.json();
-  const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!responseText) throw new Error('No response from Gemini API');
-
-  // Parse response
-  const titleMatch = responseText.match(/TITLE:\s*(.+?)(?:\n|CONTENT:)/i);
-  const title = titleMatch ? titleMatch[1].trim() : `Local Update: ${sourceItem.title}`;
-
-  const contentMatch = responseText.match(/CONTENT:\s*([\s\S]+?)(?:TAGS:|$)/i);
-  let content = '';
-  if (contentMatch) {
-    content = contentMatch[1].trim().split(/\n\n+/).filter((p: string) => p.trim()).map((p: string) => `<p>${p.trim()}</p>`).join('\n');
-  }
-
-  const tagsMatch = responseText.match(/TAGS:\s*(.+?)$/im);
-  const tags = tagsMatch ? tagsMatch[1].split(',').map((t: string) => t.trim().toLowerCase()).filter((t: string) => t.length > 0) : [];
-
-  return { title, content, tags };
-}
-
-function generateSlugCron(title: string): string {
-  const timestamp = Date.now().toString(36);
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '').substring(0, 50);
-  return `${slug}-${timestamp}`;
-}
+// Note: The generateArticleCron function has been removed since we now use the main
+// generateArticle function with web search support for both POST and cron paths

@@ -63,6 +63,10 @@ export interface AIJournalist {
 
   // Performance metrics
   metrics?: AgentMetrics;
+
+  // A/B Testing Feature Flags (for article quality improvements)
+  useWebSearch?: boolean;           // Enable Perplexity web search for current information (default: false)
+  useFullArticleContent?: boolean;  // Fetch full article content from RSS URLs (default: true)
 }
 
 export type AIJournalistInput = Omit<AIJournalist, 'id' | 'createdAt' | 'updatedAt' | 'lastRunAt' | 'nextRunAt' | 'metrics'>;

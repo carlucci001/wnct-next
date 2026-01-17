@@ -50,6 +50,16 @@ export interface Article {
   sourceSummary?: string;
   sourceItemId?: string;
 
+  // Image attribution (for stock photos)
+  imageAttribution?: string;   // Attribution text for stock photos (e.g., "Photo by John Doe on Unsplash")
+
+  // Article generation metadata (for A/B testing)
+  metadata?: {
+    usedWebSearch?: boolean;           // Whether Perplexity web search was used
+    usedFullContent?: boolean;         // Whether full article content was fetched from RSS
+    generationApproach?: 'gemini-only' | 'perplexity+gemini';  // Which approach was used
+  };
+
   // SEO & Social Metadata (auto-generated)
   metaDescription?: string;    // SEO meta description (max 160 chars)
   imageAltText?: string;       // Alt text for featured image

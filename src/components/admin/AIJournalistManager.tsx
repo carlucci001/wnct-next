@@ -71,6 +71,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
   const [photoURL, setPhotoURL] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [personaId, setPersonaId] = useState('');
+  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [useFullArticleContent, setUseFullArticleContent] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
@@ -145,6 +147,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
     setPhotoURL('');
     setIsActive(true);
     setPersonaId('');
+    setUseWebSearch(false);
+    setUseFullArticleContent(true);
     setModal({ isOpen: true, mode: 'add', journalist: null });
   };
 
@@ -156,6 +160,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
     setPhotoURL(journalist.photoURL);
     setIsActive(journalist.isActive);
     setPersonaId(journalist.personaId || '');
+    setUseWebSearch(journalist.useWebSearch || false);
+    setUseFullArticleContent(journalist.useFullArticleContent ?? true);
     setModal({ isOpen: true, mode: 'edit', journalist });
   };
 
@@ -211,6 +217,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         createdBy: currentUserId,
         agentRole: 'journalist', // Default role for new journalists
         personaId: personaId || undefined,
+        useWebSearch,
+        useFullArticleContent,
       };
 
       if (modal.mode === 'add') {
@@ -710,6 +718,67 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
                   rows={3}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
+              </div>
+
+              {/* Article Generation Features - A/B Testing */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
+                <label className="block text-sm font-semibold text-indigo-900 mb-2">
+                  Article Generation Features (A/B Testing)
+                </label>
+
+                {/* Web Search Toggle */}
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseWebSearch(!useWebSearch)}
+                    className={`relative w-12 h-6 rounded-full transition-colors shrink-0 mt-0.5 ${
+                      useWebSearch ? 'bg-indigo-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        useWebSearch ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-slate-700">
+                      Use Web Search (Perplexity)
+                    </span>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Enable real-time web search for current information and fact verification
+                    </p>
+                  </div>
+                </div>
+
+                {/* Full Article Content Toggle */}
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseFullArticleContent(!useFullArticleContent)}
+                    className={`relative w-12 h-6 rounded-full transition-colors shrink-0 mt-0.5 ${
+                      useFullArticleContent ? 'bg-indigo-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        useFullArticleContent ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-slate-700">
+                      Fetch Full Article Content
+                    </span>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Fetch complete article text from RSS URLs (not just summaries)
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-indigo-600 mt-2 pt-2 border-t border-indigo-200">
+                  💡 Enable web search to test article quality with real-time information vs. Gemini-only generation
+                </p>
               </div>
 
               {/* Active Status */}

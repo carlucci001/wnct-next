@@ -24,6 +24,31 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Redirect old Joomla URLs to homepage
+  async redirects() {
+    return [
+      {
+        source: '/index.php',
+        destination: '/',
+        permanent: true, // 301 redirect
+      },
+      {
+        source: '/component/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/content/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/:path*.html',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

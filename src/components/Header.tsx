@@ -52,6 +52,7 @@ interface NavItem {
 interface SiteSettings {
   tagline: string;
   logoUrl: string;
+  darkModeLogoUrl?: string; // Optional dark mode logo (falls back to logoUrl)
   brandingMode: 'text' | 'logo';
   showTagline: boolean;
   primaryColor: string;
@@ -134,6 +135,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
             const newSettings = {
               tagline: parsed.tagline || "Engaging Our Community",
               logoUrl: parsed.logoUrl || "",
+              darkModeLogoUrl: parsed.darkModeLogoUrl || "",
               brandingMode: parsed.brandingMode || "text",
               showTagline: parsed.showTagline !== undefined ? parsed.showTagline : true,
               primaryColor: parsed.primaryColor || "#1d4ed8",
@@ -152,6 +154,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
           const newSettings = {
             tagline: data.tagline || "Engaging Our Community",
             logoUrl: data.logoUrl || "",
+            darkModeLogoUrl: data.darkModeLogoUrl || "",
             brandingMode: data.brandingMode || "text",
             showTagline: data.showTagline !== undefined ? data.showTagline : true,
             primaryColor: data.primaryColor || "#1d4ed8",
@@ -180,6 +183,7 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   const displaySettings = settings || initialSettings || {
     tagline: "Engaging Our Community",
     logoUrl: "",
+    darkModeLogoUrl: "",
     brandingMode: "text" as const,
     showTagline: true,
     primaryColor: "#1d4ed8",
@@ -207,14 +211,20 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
   };
 
   const showLogoImage = displaySettings.brandingMode === "logo" && displaySettings.logoUrl;
-  const isDataUrl = displaySettings.logoUrl?.startsWith("data:");
+
+  // Choose logo based on color mode: use dark mode logo if available, otherwise fall back to primary logo
+  const currentLogoUrl = colorMode === 'dark' && displaySettings.darkModeLogoUrl
+    ? displaySettings.darkModeLogoUrl
+    : displaySettings.logoUrl;
+
+  const isDataUrl = currentLogoUrl?.startsWith("data:");
 
   // Reset logo loaded state when URL changes
   useEffect(() => {
-    if (displaySettings.logoUrl) {
+    if (currentLogoUrl) {
       setLogoImageLoaded(false);
     }
-  }, [displaySettings.logoUrl]);
+  }, [currentLogoUrl]);
 
   return (
     <>
@@ -344,20 +354,16 @@ const Header: React.FC<HeaderProps> = ({ initialSettings }) => {
         <Link href="/" className="h-[90px] flex items-center shrink-0 relative">
           {showLogoImage ? (
             <>
-              {/* Placeholder while image loads */}
-              {!logoImageLoaded && (
-                <div className="h-[90px] w-[200px] bg-transparent" />
-              )}
-              {/* Actual image - hidden until loaded */}
+              {/* Logo image - show immediately, no placeholder flash */}
               <Image
-                src={displaySettings.logoUrl}
+                src={currentLogoUrl}
                 alt="Site Logo"
                 width={300}
                 height={90}
                 unoptimized={!!isDataUrl}
                 priority
                 onLoad={() => setLogoImageLoaded(true)}
-                className={`max-h-[90px] w-auto object-contain object-left transition-opacity duration-200 ${!logoImageLoaded ? 'opacity-0 absolute' : 'opacity-100'}`}
+                className="max-h-[90px] w-auto object-contain object-left"
               />
             </>
           ) : (
