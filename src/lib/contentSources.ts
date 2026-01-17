@@ -335,3 +335,74 @@ export async function updateSourceLastFetched(sourceId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Fetches full article content from URL
+ * Attempts to extract main article text from HTML
+ */
+export async function fetchFullArticle(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'WNCTimes-Bot/1.0 (Content Aggregator)'
+      },
+      next: { revalidate: 3600 } // Cache for 1 hour
+    });
+
+    if (!response.ok) {
+      console.log(`[FullArticle] Failed to fetch ${url}: ${response.status}`);
+      return null;
+    }
+
+    const html = await response.text();
+
+    // Extract content from common article selectors (basic regex approach)
+    // This works for most news sites without needing a heavy HTML parser
+    let content = '';
+
+    // Try to find article content using common patterns
+    const patterns = [
+      /<article[^>]*>([\s\S]*?)<\/article>/i,
+      /<div[^>]*class="[^"]*article-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*post-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*itemprop="articleBody"[^>]*>([\s\S]*?)<\/div>/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        content = match[1];
+        break;
+      }
+    }
+
+    if (!content) {
+      console.log(`[FullArticle] No article content found for ${url}`);
+      return null;
+    }
+
+    // Clean up HTML tags and extra whitespace
+    content = content
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')   // Remove styles
+      .replace(/<[^>]+>/g, ' ')                          // Remove HTML tags
+      .replace(/&nbsp;/g, ' ')                           // Replace &nbsp;
+      .replace(/&amp;/g, '&')                            // Replace &amp;
+      .replace(/&lt;/g, '<')                             // Replace &lt;
+      .replace(/&gt;/g, '>')                             // Replace &gt;
+      .replace(/&quot;/g, '"')                           // Replace &quot;
+      .replace(/\s+/g, ' ')                              // Collapse whitespace
+      .trim();
+
+    // Limit to 5000 characters to avoid overwhelming the AI
+    if (content.length > 5000) {
+      content = content.substring(0, 5000) + '...';
+    }
+
+    return content.length > 100 ? content : null; // Only return if substantial content
+  } catch (error) {
+    console.error(`[FullArticle] Error fetching ${url}:`, error);
+    return null;
+  }
+}

@@ -37,6 +37,7 @@ export interface ContentItem {
   title: string;
   description?: string;
   url: string;
+  fullContent?: string;           // Full article text fetched from URL (optional)
   publishedAt: string;
   fetchedAt: string;
   category?: string;

@@ -14,24 +14,65 @@ export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
- * Generate an AI image using DALL-E for the article
- * This ensures we only use legally owned images, never copyrighted news photos
+ * Generate article image using hybrid strategy: Stock photos first, then AI
+ * This ensures we use high-quality, relevant images while avoiding copyrighted news photos
  */
-async function generateAIImage(
-  openaiApiKey: string,
+async function generateArticleImage(
   title: string,
+  content: string,
+  category: string | undefined,
+  openaiApiKey: string,
+  geminiApiKey: string,
   settings: Record<string, unknown> | undefined
-): Promise<string> {
+): Promise<{ url: string; attribution?: string; method: string }> {
+  // STEP 1: Try stock photos first (Unsplash → Pexels)
+  try {
+    const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
+    const keywords = extractPhotoKeywords(title);
+    console.log(`[Image] Searching stock photos for: "${keywords}"`);
+
+    const stockPhoto = await findStockPhoto(keywords, category);
+    if (stockPhoto) {
+      console.log(`[Image] ✓ Using ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
+
+      // Persist stock photo to Firebase Storage
+      const { storageService } = await import('@/lib/storage');
+      const persistedUrl = await storageService.uploadAssetFromUrl(stockPhoto.url);
+
+      return {
+        url: persistedUrl,
+        attribution: stockPhoto.attribution,
+        method: stockPhoto.source
+      };
+    }
+  } catch (error) {
+    console.error('[Image] Stock photo search failed:', error);
+  }
+
+  // STEP 2: Fall back to AI generation with improved prompts
   if (!openaiApiKey) {
-    console.log('[Agent] No OpenAI API key - skipping image generation');
-    return '';
+    console.log('[Image] No OpenAI API key - cannot generate AI image');
+    return { url: '', method: 'none' };
   }
 
   try {
-    // Build AP-style news photo prompt
-    const imagePrompt = `A photorealistic news photograph depicting: ${title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+    console.log('[Image] No stock photos found, generating with DALL-E');
 
-    console.log('[Agent] Generating AI image for:', title.substring(0, 50));
+    // Extract visual elements from article
+    let visualElements: string | null = null;
+    if (geminiApiKey && content) {
+      const { extractVisualElements } = await import('@/lib/imageGeneration');
+      visualElements = await extractVisualElements(title, content, category || 'news', geminiApiKey);
+      if (visualElements) {
+        console.log(`[Image] Visual elements extracted: ${visualElements.substring(0, 100)}`);
+      }
+    }
+
+    // Build detailed prompt
+    const { buildDetailedImagePrompt } = await import('@/lib/imageGeneration');
+    const imagePrompt = buildDetailedImagePrompt(title, visualElements || undefined, category);
+
+    console.log('[Image] Generating with improved prompt...');
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
@@ -53,18 +94,23 @@ async function generateAIImage(
     const tempImageUrl = data.data?.[0]?.url;
 
     if (!tempImageUrl) {
-      console.error('[Agent] DALL-E returned no image:', data.error?.message);
-      return '';
+      console.error('[Image] DALL-E returned no image:', data.error?.message);
+      return { url: '', method: 'failed' };
     }
 
-    // Persist the temporary DALL-E URL to Firebase Storage
+    // Persist to Firebase Storage
     const { storageService } = await import('@/lib/storage');
     const persistedUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
-    console.log('[Agent] AI image generated and persisted:', persistedUrl.substring(0, 60));
-    return persistedUrl;
+
+    console.log('[Image] ✓ AI image generated and persisted');
+    return {
+      url: persistedUrl,
+      attribution: 'AI-generated image',
+      method: 'dall-e'
+    };
   } catch (error) {
-    console.error('[Agent] Failed to generate AI image:', error);
-    return '';
+    console.error('[Image] Failed to generate AI image:', error);
+    return { url: '', method: 'error' };
   }
 }
 
@@ -167,6 +213,23 @@ export async function POST(request: NextRequest) {
         // Pick the most relevant item
         const selectedItem = contentItems[0];
 
+        // Optional: Fetch full article content if enabled for this journalist
+        if (agent.useFullArticleContent && selectedItem.url && !selectedItem.fullContent) {
+          try {
+            console.log(`[${agent.name}] Fetching full article content from ${selectedItem.url}`);
+            const { fetchFullArticle } = await import('@/lib/contentSources');
+            const fullContent = await fetchFullArticle(selectedItem.url);
+            if (fullContent) {
+              selectedItem.fullContent = fullContent;
+              console.log(`[${agent.name}] Full article content fetched: ${fullContent.length} characters`);
+            } else {
+              console.log(`[${agent.name}] Could not extract full content, will use description only`);
+            }
+          } catch (error) {
+            console.error(`[${agent.name}] Failed to fetch full content:`, error);
+          }
+        }
+
         // Optional: Perform web search if enabled for this journalist
         let webSearchResults: PerplexitySearchResult | undefined;
         if (agent.useWebSearch) {
@@ -201,9 +264,16 @@ export async function POST(request: NextRequest) {
           webSearchResults
         );
 
-        // Generate AI image using DALL-E (never use copyrighted RSS feed images)
+        // Generate article image using hybrid strategy (stock photos → AI)
         const openaiApiKey = settings?.openaiApiKey as string;
-        const persistedImageUrl = await generateAIImage(openaiApiKey, article.title, settings);
+        const imageResult = await generateArticleImage(
+          article.title,
+          article.content,
+          category?.name,
+          openaiApiKey,
+          geminiApiKey,
+          settings
+        );
 
         // Prepare article data
         const formattedContent = formatArticleContent(article.content);
@@ -223,8 +293,9 @@ export async function POST(request: NextRequest) {
           publishedAt: agent.taskConfig?.autoPublish ? new Date().toISOString() : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          featuredImage: persistedImageUrl,
-          imageUrl: persistedImageUrl,
+          featuredImage: imageResult.url,
+          imageUrl: imageResult.url,
+          imageAttribution: imageResult.attribution,
           isFeatured: agent.taskConfig?.isFeatured ?? false,
           isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
           breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
@@ -240,6 +311,7 @@ export async function POST(request: NextRequest) {
             usedWebSearch: agent.useWebSearch || false,
             usedFullContent: !!selectedItem.fullContent,
             generationApproach: agent.useWebSearch ? 'perplexity+gemini' : 'gemini-only',
+            imageMethod: imageResult.method,
           },
         };
 

@@ -138,3 +138,111 @@ export async function generateArticleImage(
 export function isImageGenerationAvailable(openaiApiKey?: string): boolean {
   return Boolean(openaiApiKey && openaiApiKey.trim() !== '');
 }
+
+/**
+ * Extract visual elements from article content using Gemini
+ * Returns specific, photographable elements for better image generation
+ */
+export async function extractVisualElements(
+  title: string,
+  content: string,
+  category: string,
+  geminiApiKey: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Analyze this news article and extract specific visual elements for a news photograph.
+
+Article Title: ${title}
+Category: ${category}
+Content Preview: ${content.substring(0, 500)}
+
+Task: Identify 2-3 concrete, photographable elements from this article.
+
+Examples of GOOD elements:
+- "A brick building with white columns" (specific architecture)
+- "A person wearing a business suit shaking hands" (specific action)
+- "Mountains in the background with fog" (specific scene)
+
+Examples of BAD elements:
+- "Success" (abstract concept)
+- "Community" (too vague)
+- "The city council" (organization, not visual)
+
+Respond with ONLY 2-3 specific visual elements, comma-separated, that could appear in an AP-style news photograph. Focus on physical objects, locations, and actions.`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 100
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.log('[VisualExtract] Gemini API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const visualElements = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    return visualElements || null;
+  } catch (error) {
+    console.error('[VisualExtract] Failed to extract visual elements:', error);
+    return null;
+  }
+}
+
+/**
+ * Build a detailed DALL-E prompt with AP-style guidelines
+ */
+export function buildDetailedImagePrompt(
+  title: string,
+  visualElements?: string,
+  category?: string
+): string {
+  const timeOfDay = ['at dawn', 'in morning light', 'at golden hour', 'in afternoon light', 'at dusk'];
+  const weather = ['on a clear day', 'with blue sky', 'with soft overcast sky', 'with dramatic clouds'];
+
+  const randomTime = timeOfDay[Math.floor(Math.random() * timeOfDay.length)];
+  const randomWeather = weather[Math.floor(Math.random() * weather.length)];
+
+  let prompt = 'A professional AP-style news photograph';
+
+  if (category) {
+    prompt += ` for ${category} news story`;
+  }
+
+  prompt += '.\n\n';
+
+  if (visualElements) {
+    prompt += `Visual Elements: ${visualElements}\n\n`;
+  } else {
+    prompt += `Subject: ${title}\n\n`;
+  }
+
+  prompt += `Photography Requirements:
+- Professional editorial photojournalism style
+- High resolution, sharp focus
+- Natural lighting (${randomTime}, ${randomWeather})
+- Rule of thirds composition
+- Shallow depth of field (subject in focus, background slightly blurred)
+- Neutral color grading (realistic, not oversaturated)
+- NO text, NO watermarks, NO logos, NO signs with readable text
+- NO people's faces (to avoid AI bias and likeness issues)
+- Clean, uncluttered composition
+- Conveys the story visually without relying on text
+
+Technical specs: Canon EOS R5, 50mm lens, f/2.8, natural light, photorealistic`;
+
+  return prompt;
+}
