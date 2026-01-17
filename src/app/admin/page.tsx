@@ -332,6 +332,15 @@ interface SiteSettings {
   elevenLabsSpeakerBoost?: boolean;
   elevenLabsStreaming?: boolean;
   ttsProvider?: 'google' | 'elevenlabs';
+  // Admin Chat Voice Configuration
+  adminChatVoice?: {
+    voiceId?: string;
+    voiceName?: string;
+    stability?: number;
+    similarityBoost?: number;
+    style?: number;
+    useSpeakerBoost?: boolean;
+  };
 }
 
 interface AppUser {
@@ -4913,6 +4922,177 @@ Example structure:
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Admin Chat Voice Configuration */}
+              {settings.elevenLabsApiKey && (
+                <Card className="bg-purple-50 border-purple-200">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="text-purple-600" size={20} />
+                      <CardTitle className="text-base">Admin Chat Assistant Voice</CardTitle>
+                    </div>
+                    <CardDescription>Configure a separate voice for the admin chat assistant (optional)</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Admin Chat Voice Preset</Label>
+                      <select
+                        value={settings.adminChatVoice?.voiceId || ''}
+                        onChange={(e) => {
+                          const voiceId = e.target.value;
+                          const voiceName = e.target.options[e.target.selectedIndex].text;
+                          if (!voiceId) {
+                            // Clear admin chat voice - will use global settings
+                            const { adminChatVoice, ...rest } = settings;
+                            setSettings(rest);
+                          } else {
+                            setSettings({
+                              ...settings,
+                              adminChatVoice: {
+                                ...settings.adminChatVoice,
+                                voiceId,
+                                voiceName,
+                              }
+                            });
+                          }
+                        }}
+                        className="w-full h-10 rounded-md border border-input bg-white px-3 text-sm"
+                      >
+                        <option value="">Use Global Voice Settings</option>
+                        <option value="21m00Tcm4TlvDq8ikWAM">Rachel - News Anchor (Professional, clear)</option>
+                        <option value="pNInz6obpgDQGcFmaJgB">Adam - Authoritative (Deep, confident)</option>
+                        <option value="EXAVITQu4vr4xnSDxMaL">Bella - Friendly (Warm, conversational)</option>
+                        <option value="AZnzlk1XvdvUeBnXmlld">Domi - Energetic (Upbeat, engaging)</option>
+                        <option value="MF3mGyEYCl7XYWbV9V6O">Elli - Young Female (Friendly, casual)</option>
+                        <option value="TxGEqnHWrfWFTfGW9XjX">Josh - Young Male (Casual, relatable)</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        Leave as "Use Global Voice Settings" to use the same voice as frontend chat
+                      </p>
+                    </div>
+
+                    {settings.adminChatVoice?.voiceId && (
+                      <>
+                        {/* Voice Settings Override */}
+                        <div className="space-y-3 pt-2">
+                          <p className="text-sm font-medium text-muted-foreground">Custom Voice Settings (optional)</p>
+
+                          {/* Stability */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Stability</Label>
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round((settings.adminChatVoice?.stability ?? settings.elevenLabsStability ?? 0.5) * 100)}%
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={settings.adminChatVoice?.stability ?? settings.elevenLabsStability ?? 0.5}
+                              onChange={(e) => setSettings({
+                                ...settings,
+                                adminChatVoice: {
+                                  ...settings.adminChatVoice!,
+                                  stability: parseFloat(e.target.value)
+                                }
+                              })}
+                              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Similarity Boost */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <Label className="text-xs">Similarity Boost</Label>
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round((settings.adminChatVoice?.similarityBoost ?? settings.elevenLabsSimilarity ?? 0.75) * 100)}%
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={settings.adminChatVoice?.similarityBoost ?? settings.elevenLabsSimilarity ?? 0.75}
+                              onChange={(e) => setSettings({
+                                ...settings,
+                                adminChatVoice: {
+                                  ...settings.adminChatVoice!,
+                                  similarityBoost: parseFloat(e.target.value)
+                                }
+                              })}
+                              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Speaker Boost */}
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={settings.adminChatVoice?.useSpeakerBoost ?? settings.elevenLabsSpeakerBoost ?? true}
+                              onChange={(e) => setSettings({
+                                ...settings,
+                                adminChatVoice: {
+                                  ...settings.adminChatVoice!,
+                                  useSpeakerBoost: e.target.checked
+                                }
+                              })}
+                              className="h-3.5 w-3.5 rounded border-gray-300"
+                            />
+                            <div className="text-xs">Speaker Boost</div>
+                          </label>
+                        </div>
+
+                        {/* Preview Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={async () => {
+                            if (!settings.elevenLabsApiKey || !settings.adminChatVoice?.voiceId) return;
+                            showMessage('success', 'Generating admin chat voice preview...');
+                            try {
+                              const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${settings.adminChatVoice.voiceId}`, {
+                                method: 'POST',
+                                headers: {
+                                  'Accept': 'audio/mpeg',
+                                  'Content-Type': 'application/json',
+                                  'xi-api-key': settings.elevenLabsApiKey,
+                                },
+                                body: JSON.stringify({
+                                  text: "Hi, I'm your Admin Assistant. I can help you with articles, users, settings, and more!",
+                                  model_id: settings.elevenLabsModel || 'eleven_turbo_v2',
+                                  voice_settings: {
+                                    stability: settings.adminChatVoice.stability ?? settings.elevenLabsStability ?? 0.5,
+                                    similarity_boost: settings.adminChatVoice.similarityBoost ?? settings.elevenLabsSimilarity ?? 0.75,
+                                    style: settings.adminChatVoice.style ?? settings.elevenLabsStyle ?? 0,
+                                    use_speaker_boost: settings.adminChatVoice.useSpeakerBoost ?? settings.elevenLabsSpeakerBoost ?? true,
+                                  },
+                                }),
+                              });
+                              if (response.ok) {
+                                const audioBlob = await response.blob();
+                                const audioUrl = URL.createObjectURL(audioBlob);
+                                const audio = new Audio(audioUrl);
+                                audio.play();
+                                showMessage('success', 'Playing admin chat voice preview...');
+                              } else {
+                                showMessage('error', 'Preview failed. Check your API key.');
+                              }
+                            } catch {
+                              showMessage('error', 'Preview failed');
+                            }
+                          }}
+                        >
+                          <Volume2 size={14} className="mr-2" /> Preview Admin Chat Voice
+                        </Button>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

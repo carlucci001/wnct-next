@@ -3,11 +3,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, Minimize2, Sparkles, Volume2, VolumeX, RotateCcw, Mic, MicOff, Radio } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getDb } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface Message {
   id: string;
   role: 'user' | 'model';
   text: string;
+}
+
+interface AdminChatVoiceConfig {
+  voiceId?: string;
+  voiceName?: string;
+  stability?: number;
+  similarityBoost?: number;
+  style?: number;
+  useSpeakerBoost?: boolean;
 }
 
 // Web Speech API types
@@ -79,6 +90,10 @@ const AdminChatAssistant: React.FC = () => {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
 
+  // Admin chat voice configuration
+  const [voiceConfig, setVoiceConfig] = useState<AdminChatVoiceConfig | null>(null);
+  const [voiceName, setVoiceName] = useState<string>('Default');
+
   // Get theme colors from context
   const { currentTheme, colorMode } = useTheme();
   // Use a default blue for admin if theme is not available or suitable, but sticking to theme is safer.
@@ -96,7 +111,7 @@ const AdminChatAssistant: React.FC = () => {
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
   const audioSessionIdRef = useRef<number>(0);
 
-  // Load UI settings
+  // Load UI settings and voice configuration
   useEffect(() => {
     // Set initial welcome message
     setMessages([{ id: 'init', role: 'model', text: welcomeMessage }]);
@@ -110,6 +125,43 @@ const AdminChatAssistant: React.FC = () => {
     // Check if speech recognition is supported
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     setSpeechSupported(!!SpeechRecognitionAPI);
+
+    // Load voice configuration from Firestore
+    const loadVoiceConfig = async () => {
+      try {
+        const db = getDb();
+        const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
+        const settings = settingsDoc.data();
+
+        // Check if admin chat has specific voice configuration
+        const adminChatVoice = settings?.adminChatVoice as AdminChatVoiceConfig | undefined;
+
+        if (adminChatVoice?.voiceId) {
+          // Admin chat has its own voice configured
+          setVoiceConfig(adminChatVoice);
+          setVoiceName(adminChatVoice.voiceName || adminChatVoice.voiceId);
+        } else if (settings?.elevenLabsVoiceId) {
+          // Fall back to global ElevenLabs settings
+          setVoiceConfig({
+            voiceId: settings.elevenLabsVoiceId as string,
+            voiceName: settings.elevenLabsVoiceName as string | undefined,
+            stability: settings.elevenLabsStability as number | undefined,
+            similarityBoost: settings.elevenLabsSimilarity as number | undefined,
+            style: settings.elevenLabsStyle as number | undefined,
+            useSpeakerBoost: settings.elevenLabsSpeakerBoost as boolean | undefined,
+          });
+          setVoiceName((settings.elevenLabsVoiceName as string) || 'Global Voice');
+        } else {
+          // No ElevenLabs configured, will use Google TTS
+          setVoiceName('Google TTS');
+        }
+      } catch (error) {
+        console.error('Failed to load voice config:', error);
+        setVoiceName('Default');
+      }
+    };
+
+    loadVoiceConfig();
 
     return () => {
       stopSpeaking();
@@ -301,7 +353,8 @@ const AdminChatAssistant: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          // No voiceConfig - will use global settings from Firestore
+          // Pass admin chat voice config if configured
+          voiceConfig: voiceConfig || undefined,
         }),
         signal: abortController.signal,
       });
@@ -545,7 +598,7 @@ const AdminChatAssistant: React.FC = () => {
                   Admin Assistant
                 </h3>
                 <span className="text-[10px] opacity-80 font-normal text-center">
-                  System Support
+                  {isVoiceEnabled ? `Voice: ${voiceName}` : 'System Support'}
                 </span>
               </div>
             </div>
