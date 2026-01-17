@@ -204,6 +204,20 @@ service cloud.firestore {
     }
 
     // ============================================
+    // EVENTS (community calendar events)
+    // ============================================
+    match /events/{eventId} {
+      // Allow public read for SSR and calendar display
+      allow read: if true;
+
+      // Moderators and editors can create/update events
+      allow create, update: if isModerator() || isEditor();
+
+      // Only editors can delete events
+      allow delete: if isEditor();
+    }
+
+    // ============================================
     // PERSONAS (AI chat personas)
     // ============================================
     match /personas/{personaId} {
