@@ -5,15 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     const propertyId = process.env.GA_PROPERTY_ID;
-
-    if (!credentialsPath) {
-      return NextResponse.json({
-        status: 'error',
-        message: 'GOOGLE_APPLICATION_CREDENTIALS not set',
-      });
-    }
 
     if (!propertyId) {
       return NextResponse.json({
@@ -22,10 +14,8 @@ export async function GET() {
       });
     }
 
-    // Initialize client
-    const analyticsDataClient = new BetaAnalyticsDataClient({
-      keyFilename: credentialsPath,
-    });
+    // Initialize client with Application Default Credentials
+    const analyticsDataClient = new BetaAnalyticsDataClient();
 
     // Try a simple API call
     const [response] = await analyticsDataClient.runReport({
@@ -45,10 +35,8 @@ export async function GET() {
 
     return NextResponse.json({
       status: 'success',
-      message: 'Google Analytics API connection successful',
+      message: 'Google Analytics API connection successful (using Application Default Credentials)',
       propertyId,
-      credentialsPath,
-      serviceAccount: 'analytics-reader@gen-lang-client-0242565142.iam.gserviceaccount.com',
       activeUsers: response.rows?.[0]?.metricValues?.[0]?.value || '0',
     });
   } catch (error: any) {
@@ -58,14 +46,13 @@ export async function GET() {
       code: error.code,
       details: error.details,
       propertyId: process.env.GA_PROPERTY_ID,
-      credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-      serviceAccount: 'analytics-reader@gen-lang-client-0242565142.iam.gserviceaccount.com',
       instructions: {
         step1: 'Verify Google Analytics Data API is enabled in Google Cloud Console',
-        step2: 'Add service account email to GA4 property as Viewer',
-        step3: 'Go to GA4 Admin > Property Access Management > Add Users',
-        step4: 'Add: analytics-reader@gen-lang-client-0242565142.iam.gserviceaccount.com',
-        step5: 'Assign "Viewer" role',
+        step2: 'Add Firebase default service account to GA4 property as Viewer',
+        step3: 'Find your service account at: https://console.cloud.google.com/iam-admin/serviceaccounts',
+        step4: 'It will be named: gen-lang-client-0242565142@appspot.gserviceaccount.com (or similar)',
+        step5: 'Go to GA4 Admin > Property Access Management > Add Users',
+        step6: 'Add the service account email and assign "Viewer" role',
       },
     }, { status: 500 });
   }

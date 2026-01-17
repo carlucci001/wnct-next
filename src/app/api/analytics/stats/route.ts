@@ -5,20 +5,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 300; // Cache for 5 minutes
 
 // Initialize the Google Analytics Data API client
+// Uses Application Default Credentials (Firebase Functions default service account)
 function getAnalyticsClient() {
-  const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-
-  if (credentialsJson) {
-    // Parse JSON credentials from environment variable
-    const credentials = JSON.parse(credentialsJson);
-    return new BetaAnalyticsDataClient({ credentials });
-  } else if (credentialsPath) {
-    // Use credentials file path
-    return new BetaAnalyticsDataClient({ keyFilename: credentialsPath });
-  } else {
-    throw new Error('No Google Analytics credentials found. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS');
-  }
+  return new BetaAnalyticsDataClient();
 }
 
 /**
