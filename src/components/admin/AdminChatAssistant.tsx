@@ -127,6 +127,19 @@ const AdminChatAssistant: React.FC = () => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     setSpeechSupported(!!SpeechRecognitionAPI);
 
+    // Voice preset mapping
+    const getVoiceNameFromId = (voiceId: string): string => {
+      const voicePresets: Record<string, string> = {
+        '21m00Tcm4TlvDq8ikWAM': 'Rachel',
+        'pNInz6obpgDQGcFmaJgB': 'Adam',
+        'EXAVITQu4vr4xnSDxMaL': 'Bella',
+        'AZnzlk1XvdvUeBnXmlld': 'Domi',
+        'MF3mGyEYCl7XYWbV9V6O': 'Elli',
+        'TxGEqnHWrfWFTfGW9XjX': 'Josh',
+      };
+      return voicePresets[voiceId] || voiceId;
+    };
+
     // Load voice configuration from Firestore
     const loadVoiceConfig = async () => {
       try {
@@ -134,27 +147,38 @@ const AdminChatAssistant: React.FC = () => {
         const settingsDoc = await getDoc(doc(db, 'settings', 'config'));
         const settings = settingsDoc.data();
 
+        console.log('[AdminChat] Loading voice config:', {
+          hasAdminChatVoice: !!settings?.adminChatVoice,
+          hasGlobalVoice: !!settings?.elevenLabsVoiceId,
+          ttsProvider: settings?.ttsProvider,
+        });
+
         // Check if admin chat has specific voice configuration
         const adminChatVoice = settings?.adminChatVoice as AdminChatVoiceConfig | undefined;
 
         if (adminChatVoice?.voiceId) {
           // Admin chat has its own voice configured
           setVoiceConfig(adminChatVoice);
-          setVoiceName(adminChatVoice.voiceName || adminChatVoice.voiceId);
+          const displayName = adminChatVoice.voiceName || getVoiceNameFromId(adminChatVoice.voiceId);
+          setVoiceName(displayName);
+          console.log('[AdminChat] Using admin-specific voice:', displayName);
         } else if (settings?.elevenLabsVoiceId) {
           // Fall back to global ElevenLabs settings
+          const voiceId = settings.elevenLabsVoiceId as string;
           setVoiceConfig({
-            voiceId: settings.elevenLabsVoiceId as string,
-            voiceName: settings.elevenLabsVoiceName as string | undefined,
+            voiceId,
             stability: settings.elevenLabsStability as number | undefined,
             similarityBoost: settings.elevenLabsSimilarity as number | undefined,
             style: settings.elevenLabsStyle as number | undefined,
             useSpeakerBoost: settings.elevenLabsSpeakerBoost as boolean | undefined,
           });
-          setVoiceName((settings.elevenLabsVoiceName as string) || 'Global Voice');
+          const displayName = getVoiceNameFromId(voiceId);
+          setVoiceName(displayName);
+          console.log('[AdminChat] Using global voice:', displayName);
         } else {
           // No ElevenLabs configured, will use Google TTS
           setVoiceName('Google TTS');
+          console.log('[AdminChat] Using Google TTS fallback');
         }
       } catch (error) {
         console.error('Failed to load voice config:', error);
