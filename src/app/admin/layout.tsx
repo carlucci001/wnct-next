@@ -56,9 +56,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Admin has its own standalone layout - no header/footer from main site
   return (
-    <div className="min-h-screen bg-gray-100">
+    <>
       {children}
       <AdminChatAssistant />
-    </div>
+    </>
   );
 }
