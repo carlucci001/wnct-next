@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Settings, Users,
   ListOrdered, Image as ImageIcon, Shield,
   Sparkles, ChevronDown, PenTool, CheckCircle, Search, Share2, ShieldAlert,
-  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins, Newspaper, UserCircle2, Globe
+  Plug, Server, Building2, Megaphone, BookOpen, CalendarDays, Boxes, Package, Bot, X, MessageSquare, Wrench, Menu, Coins, Newspaper, UserCircle2, Globe, Mail
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessSuperAdmin } from '@/config/masterSite';
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
+type TabType = 'dashboard' | 'newsletters' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface MenuSections {
   ai: boolean;
@@ -197,6 +197,13 @@ export function AdminSidebar({
               />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-1">
+              <NavItem
+                active={activeTab === 'newsletters'}
+                onClick={() => setActiveTab('newsletters')}
+                icon={Mail}
+              >
+                Newsletters
+              </NavItem>
               <NavItem
                 active={activeTab === 'articles'}
                 onClick={() => setActiveTab('articles')}
