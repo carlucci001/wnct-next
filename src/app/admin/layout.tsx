@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { UserRole } from '@/types/user';
+import AdminChatAssistant from '@/components/admin/AdminChatAssistant';
 
 // Roles that have access to the admin panel
 const ADMIN_ROLES: UserRole[] = [
@@ -54,5 +55,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   // Admin has its own standalone layout - no header/footer from main site
-  return <>{children}</>;
+  return (
+    <div className="min-h-screen bg-gray-100">
+      {children}
+      <AdminChatAssistant />
+    </div>
+  );
 }
