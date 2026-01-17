@@ -282,23 +282,7 @@ const AdminChatAssistant: React.FC = () => {
     setIsSpeaking(false);
   };
 
-  // Speak using browser TTS as fallback (removed Google TTS dependency to simplify for now as it wasn't explicitly requested to keep complex TTS, but I'll keep the structure similar to original but maybe default to browser TTS if API is not set up, or just use browser TTS to be safe as no new API route for TTS was requested. The original ChatAssistant uses /api/tts. I can try to use it if it exists. The prompt says "Keep these features... Voice output (TTS)". I will try to use the existing /api/tts if possible, or fallback to browser.)
-  // Actually, I'll use browser TTS primarily to avoid dependency on /api/tts which might be persona specific.
-  // Wait, `ChatAssistant` uses `/api/tts`. I'll stick to browser TTS for the Admin Assistant to keep it simple and self-contained unless I see `api/tts` handles generic requests.
-  // `ChatAssistant` code:
-  /*
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voiceConfig: currentPersona?.voiceConfig,
-        }),
-        signal: abortController.signal,
-      });
-  */
-  // Since I don't have persona voice config, I'll just use browser TTS.
-
+  // Speak text using ElevenLabs TTS (via /api/tts) with fallback to browser TTS
   const speakText = async (text: string) => {
     if (!isVoiceEnabled || typeof window === 'undefined') return;
 
@@ -306,14 +290,104 @@ const AdminChatAssistant: React.FC = () => {
     const currentSessionId = audioSessionIdRef.current;
     setIsSpeaking(true);
 
-    speakWithBrowserTTS(text, currentSessionId);
+    // Create abort controller for this session
+    const abortController = new AbortController();
+    ttsAbortControllerRef.current = abortController;
+
+    try {
+      // Try to use ElevenLabs/Google TTS via API
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          // No voiceConfig - will use global settings from Firestore
+        }),
+        signal: abortController.signal,
+      });
+
+      // Check if we've been interrupted
+      if (audioSessionIdRef.current !== currentSessionId) {
+        console.log('[TTS] Session interrupted during fetch');
+        return;
+      }
+
+      const data = await response.json();
+
+      if (response.ok && data.audioContent) {
+        // Play the audio from API
+        await playAudioContent(data.audioContent, data.contentType, currentSessionId);
+      } else {
+        // Fallback to browser TTS if API fails
+        console.warn('[TTS] API failed, falling back to browser TTS:', data.error);
+        speakWithBrowserTTS(text, currentSessionId);
+      }
+    } catch (error: any) {
+      // If aborted, don't fallback
+      if (error.name === 'AbortError') {
+        console.log('[TTS] Request aborted');
+        return;
+      }
+      // Fallback to browser TTS on error
+      console.warn('[TTS] Error, falling back to browser TTS:', error);
+      speakWithBrowserTTS(text, currentSessionId);
+    }
+  };
+
+  // Play audio content from base64
+  const playAudioContent = async (base64Audio: string, contentType: string, sessionId: number) => {
+    // Check if we've been interrupted
+    if (audioSessionIdRef.current !== sessionId) {
+      console.log('[Audio] Session interrupted before playback');
+      return;
+    }
+
+    try {
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0))],
+        { type: contentType }
+      );
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        // Only handle if this is still the current session
+        if (audioSessionIdRef.current === sessionId) {
+          setIsSpeaking(false);
+          audioRef.current = null;
+          // In live mode, restart listening after AI finishes speaking
+          if (isLiveMode) {
+            shouldRestartListening.current = true;
+            setTimeout(() => startListeningRef.current(), 500);
+          }
+        }
+      };
+
+      audio.onerror = (e) => {
+        console.error('[Audio] Playback error:', e);
+        URL.revokeObjectURL(audioUrl);
+        if (audioSessionIdRef.current === sessionId) {
+          setIsSpeaking(false);
+          audioRef.current = null;
+        }
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('[Audio] Playback failed:', error);
+      if (audioSessionIdRef.current === sessionId) {
+        setIsSpeaking(false);
+      }
+    }
   };
 
   // Browser TTS fallback
   const speakWithBrowserTTS = (text: string, sessionId?: number) => {
     if (typeof window === 'undefined') return;
 
-    // Use current session if not provided
     const currentSessionId = sessionId ?? audioSessionIdRef.current;
 
     // Check if we've been interrupted
@@ -329,7 +403,6 @@ const AdminChatAssistant: React.FC = () => {
       utterance.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      // Prefer American English voices (en-US)
       const preferredVoice =
         voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('samantha')) ||
         voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('jenny')) ||
@@ -345,16 +418,15 @@ const AdminChatAssistant: React.FC = () => {
       }
 
       utterance.onend = () => {
-        // Only handle if this is still the current session
         if (audioSessionIdRef.current === currentSessionId) {
           setIsSpeaking(false);
-          // In live mode, restart listening after AI finishes speaking
           if (isLiveMode) {
             shouldRestartListening.current = true;
             setTimeout(() => startListeningRef.current(), 500);
           }
         }
       };
+
       utterance.onerror = () => {
         if (audioSessionIdRef.current === currentSessionId) {
           setIsSpeaking(false);
@@ -363,7 +435,7 @@ const AdminChatAssistant: React.FC = () => {
 
       window.speechSynthesis.speak(utterance);
     } catch (error) {
-      console.error('Browser TTS Error:', error);
+      console.error('[Browser TTS] Error:', error);
       setIsSpeaking(false);
     }
   };
