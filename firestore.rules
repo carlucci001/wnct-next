@@ -434,5 +434,33 @@ service cloud.firestore {
       // Only admins can modify agent prompts
       allow write: if isAdmin();
     }
+
+    // ============================================
+    // NEWSLETTERS
+    // ============================================
+    match /newsletters/{newsletterId} {
+      // Newsletters are mostly admin managed
+      // Public read might be needed for web archives
+      allow read: if true;
+
+      // Only admins/editors can create/update/delete
+      allow write: if isEditor();
+    }
+
+    match /newsletter_subscriptions/{subscriptionId} {
+      // Admins can read all
+      allow list: if isEditor();
+      // Users can read their own if authenticated (ID is sanitized email)
+      // For now, let's restrict read to admins for privacy.
+      allow get: if isEditor();
+
+      // Anyone can write (subscribe/unsubscribe)
+      allow write: if true;
+    }
+
+    match /newsletter_templates/{templateId} {
+       allow read: if isEditor();
+       allow write: if isEditor();
+    }
   }
 }

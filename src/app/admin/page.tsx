@@ -45,6 +45,16 @@ const AIJournalistManager = dynamic(() => import('@/components/admin/AIJournalis
   ),
 });
 
+// Dynamically import NewsletterDashboard
+const NewsletterDashboard = dynamic(() => import('@/components/admin/newsletter/NewsletterDashboard'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import PersonaManager to avoid SSR issues
 const PersonaManager = dynamic(() => import('@/components/admin/PersonaManager'), {
   ssr: false,
@@ -261,7 +271,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Toaster, toast } from 'sonner';
 
-type TabType = 'dashboard' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
+type TabType = 'dashboard' | 'newsletters' | 'articles' | 'categories' | 'comments' | 'media' | 'users' | 'personas' | 'roles' | 'settings' | 'api-config' | 'infrastructure' | 'tools' | 'MASTER' | 'JOURNALIST' | 'EDITOR' | 'SEO' | 'SOCIAL' | 'GEO' | 'directory' | 'advertising' | 'blog' | 'events' | 'modules' | 'ai-journalists' | 'my-account' | 'community' | 'menus' | 'site-config' | 'credits' | 'paper-partners';
 
 interface DashboardStats {
   totalArticles: number;
@@ -373,7 +383,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL param if present
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'articles', 'categories', 'comments', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'GEO', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'newsletters', 'articles', 'categories', 'comments', 'media', 'users', 'roles', 'settings', 'api-config', 'infrastructure', 'MASTER', 'JOURNALIST', 'EDITOR', 'SEO', 'SOCIAL', 'GEO', 'directory', 'advertising', 'blog', 'events', 'modules', 'ai-journalists', 'my-account', 'community', 'menus', 'site-config', 'credits'].includes(tabParam)) {
       return tabParam as TabType;
     }
     return 'dashboard';
@@ -8149,6 +8159,7 @@ Return ONLY the JSON object, no other text.`;
         <main className="flex-grow bg-muted/30 overflow-y-auto">
           <div className="max-w-[1800px] mx-auto p-6 px-4 md:p-6">
             {activeTab === 'dashboard' && renderDashboard()}
+            {activeTab === 'newsletters' && <NewsletterDashboard />}
             {activeTab === 'articles' && <ArticlesAdmin />}
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'settings' && renderSettings()}
