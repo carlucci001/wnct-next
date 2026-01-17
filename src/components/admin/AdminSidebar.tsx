@@ -485,6 +485,14 @@ export function AdminSidebar({
               >
                 Tools
               </NavItem>
+              <NavItem
+                active={activeTab === 'ai-config'}
+                onClick={() => setActiveTab('ai-config')}
+                icon={Bot}
+                iconColor="text-purple-600"
+              >
+                AI Configuration
+              </NavItem>
             </CollapsibleContent>
           </Collapsible>
 

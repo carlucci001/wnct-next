@@ -19,7 +19,7 @@ import {
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
   Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2,
-  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin
+  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin, Code
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
@@ -201,6 +201,16 @@ const CreditsDashboard = dynamic(() => import('@/components/admin/CreditsDashboa
   ),
 });
 
+// Dynamically import AIConfigurator
+const AIConfigurator = dynamic(() => import('@/components/admin/AIConfigurator'), {
+  ssr: false,
+  loading: () => (
+    <div className="p-8 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
+
 // Dynamically import PaperPartnerAdmin
 const PaperPartnerAdmin = dynamic(() => import('@/components/admin/PaperPartnerAdmin'), {
   ssr: false,
@@ -301,6 +311,7 @@ interface SiteSettings {
   pexelsApiKey?: string; // For stock photo search (free tier: 200 requests/hour)
   weatherApiKey?: string;
   defaultLocation?: string;
+  claudeCodeApiKey?: string; // For Claude Code API integration
   // DALL-E Settings
   dalleQuality?: 'standard' | 'hd';
   dalleStyle?: 'natural' | 'vivid';
@@ -598,7 +609,7 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // API Configuration state
-  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments'>('openai');
+  const [apiConfigTab, setApiConfigTab] = useState<'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments' | 'claudecode'>('openai');
 
   // Roles & Permissions state
   const [customRolePermissions, setCustomRolePermissions] = useState<Record<UserRole, UserPermissions>>(ROLE_PERMISSIONS);
@@ -3978,13 +3989,16 @@ Example structure:
       </div>
 
       {/* Tabs Navigation */}
-      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments')} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+      <Tabs value={apiConfigTab} onValueChange={(v) => setApiConfigTab(v as 'openai' | 'google' | 'perplexity' | 'elevenlabs' | 'weather' | 'payments' | 'claudecode')} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 gap-2">
           <TabsTrigger value="openai" className="flex items-center gap-2">
             <Sparkles size={16} /> OpenAI
           </TabsTrigger>
           <TabsTrigger value="google" className="flex items-center gap-2">
             <Sparkles size={16} /> Google AI
+          </TabsTrigger>
+          <TabsTrigger value="claudecode" className="flex items-center gap-2">
+            <Code size={16} /> Claude Code
           </TabsTrigger>
           <TabsTrigger value="perplexity" className="flex items-center gap-2">
             <Search size={16} /> Perplexity
@@ -4312,6 +4326,136 @@ Example structure:
                     <li>15 requests per minute</li>
                     <li>1,500 requests per day</li>
                     <li>1 million tokens per day</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Claude Code API Tab */}
+        <TabsContent value="claudecode" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <Code className="text-purple-700" size={24} />
+                </div>
+                <div>
+                  <CardTitle>Claude Code API (Anthropic)</CardTitle>
+                  <CardDescription>
+                    Powers advanced coding assistance, content generation, and AI-driven features.{' '}
+                    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Get your API key here
+                    </a>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* API Key Input */}
+              <div className="space-y-2">
+                <Label htmlFor="claudeCodeKey">Claude Code API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="claudeCodeKey"
+                    type="password"
+                    value={settings.claudeCodeApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, claudeCodeApiKey: e.target.value })}
+                    placeholder="sk-ant-api..."
+                    className="font-mono flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!settings.claudeCodeApiKey) {
+                        showMessage('error', 'Please enter an API key first');
+                        return;
+                      }
+                      try {
+                        const response = await fetch('/api/admin/test-claude', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            apiKey: settings.claudeCodeApiKey
+                          })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                          showMessage('success', data.message || 'API Key Valid! Claude Code services are ready.');
+                        } else {
+                          // Show detailed error with model information if available
+                          let errorMsg = `${data.error || 'API Key Invalid'}: ${data.details || 'Please check your key'}`;
+                          if (data.fullError) {
+                            console.log('[Claude Test] Full error details:', data.fullError);
+                          }
+                          showMessage('error', errorMsg);
+                        }
+                      } catch (error: any) {
+                        showMessage('error', `API Key Test Failed: ${error.message}`);
+                      }
+                    }}
+                  >
+                    Test Key
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Optional. Enables Claude Code features for advanced content generation and coding assistance.
+                </p>
+              </div>
+
+              {/* Status Badge */}
+              <div className={`flex items-center gap-2 p-3 rounded-lg ${settings.claudeCodeApiKey ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+                <Badge variant={settings.claudeCodeApiKey ? 'default' : 'secondary'} className={settings.claudeCodeApiKey ? 'bg-green-600' : 'bg-amber-600'}>
+                  {settings.claudeCodeApiKey ? 'Configured' : 'Not Configured'}
+                </Badge>
+                <span className={`text-sm ${settings.claudeCodeApiKey ? 'text-green-700' : 'text-amber-700'}`}>
+                  {settings.claudeCodeApiKey ? 'Claude Code features enabled' : 'Claude Code features disabled'}
+                </span>
+              </div>
+
+              {/* Feature Info */}
+              <Card className="bg-purple-50/50 border-purple-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-purple-900">
+                    <Sparkles size={18} /> Claude Code Capabilities
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm text-purple-700">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Advanced Content Generation:</strong> Create high-quality, nuanced articles with Claude's reasoning capabilities</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Code Assistance:</strong> Generate and optimize code snippets, templates, and integrations</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Long-form Writing:</strong> Extended context window supports comprehensive articles and research</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
+                      <span><strong>Multi-turn Conversations:</strong> Enhanced chat assistant with better context retention</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              {/* Available Models Info */}
+              <Card className="bg-blue-50/50 border-blue-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-blue-900">Available Models</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm text-blue-800 space-y-2 list-disc list-inside">
+                    <li><strong>Claude 3.5 Sonnet:</strong> Best balance of intelligence and speed</li>
+                    <li><strong>Claude 3 Opus:</strong> Most powerful for complex tasks</li>
+                    <li><strong>Claude 3 Haiku:</strong> Fastest and most cost-effective</li>
+                    <li><strong>Context Window:</strong> 200K tokens (approximately 150,000 words)</li>
                   </ul>
                 </CardContent>
               </Card>
@@ -8200,6 +8344,9 @@ Return ONLY the JSON object, no other text.`;
 
             {/* Credits & Billing */}
             {activeTab === 'credits' && <CreditsDashboard />}
+
+            {/* AI Configuration */}
+            {activeTab === 'ai-config' && <AIConfigurator />}
 
             {/* Paper Partner Admin - Super Admin Only */}
             {activeTab === 'paper-partners' && <PaperPartnerAdmin />}
