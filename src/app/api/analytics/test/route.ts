@@ -14,8 +14,11 @@ export async function GET() {
       });
     }
 
-    // Initialize client with Application Default Credentials
-    const analyticsDataClient = new BetaAnalyticsDataClient();
+    // Initialize client
+    const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    const analyticsDataClient = credentialsJson
+      ? new BetaAnalyticsDataClient({ credentials: JSON.parse(credentialsJson) })
+      : new BetaAnalyticsDataClient();
 
     // Try a simple API call
     const [response] = await analyticsDataClient.runReport({

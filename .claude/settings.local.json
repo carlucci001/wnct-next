@@ -15,7 +15,10 @@
       "Bash(where:*)",
       "Bash(echo:*)",
       "Bash(tr:*)",
-      "Bash(\"C:\\\\Users\\\\carlf\\\\AppData\\\\Roaming\\\\npm\\\\claude.cmd\" --version)"
+      "Bash(\"C:\\\\Users\\\\carlf\\\\AppData\\\\Roaming\\\\npm\\\\claude.cmd\" --version)",
+      "Bash(dir /s /b C:Users%USERNAME%*.bat)",
+      "Bash(findstr:*)",
+      "Bash(dir /s /b C:*.bat)"
     ]
   }
 }

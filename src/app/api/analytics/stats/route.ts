@@ -5,8 +5,15 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 300; // Cache for 5 minutes
 
 // Initialize the Google Analytics Data API client
-// Uses Application Default Credentials (Firebase Functions default service account)
 function getAnalyticsClient() {
+  const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+
+  if (credentialsJson) {
+    const credentials = JSON.parse(credentialsJson);
+    return new BetaAnalyticsDataClient({ credentials });
+  }
+
+  // Fallback to default credentials (works locally and on some cloud platforms)
   return new BetaAnalyticsDataClient();
 }
 
