@@ -78,7 +78,7 @@ const SectionHeader = ({
   iconColor?: string;
   isOpen: boolean;
 }) => (
-  <div className="w-full flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3 py-1 hover:text-foreground transition-colors rounded-md hover:bg-muted/50 cursor-pointer">
+  <div className="w-full flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-3 py-1 hover:text-foreground transition-colors rounded-md hover:bg-muted/50 cursor-pointer">
     <span className="flex items-center gap-2">
       {Icon && <Icon size={12} className={iconColor} />}
       {title}
@@ -86,7 +86,7 @@ const SectionHeader = ({
     <ChevronDown
       size={14}
       className={cn(
-        "transition-transform duration-200",
+        "transition-transform duration-300 ease-in-out",
         !isOpen && "-rotate-90"
       )}
     />
@@ -105,25 +105,50 @@ export function AdminSidebar({
   const { currentUser } = useAuth();
   const showPaperPartnerAdmin = canAccessSuperAdmin(currentUser?.uid);
 
+  // Accordion wrapper - closes all other sections when one opens
+  const handleToggleSection = (section: keyof MenuSections) => {
+    if (!menuSections[section]) {
+      Object.keys(menuSections).forEach((key) => {
+        if (menuSections[key as keyof MenuSections] && key !== section) {
+          toggleMenuSection(key as keyof MenuSections);
+        }
+      });
+    }
+    toggleMenuSection(section);
+  };
 
   const sidebarContent = (
     <ScrollArea className="flex-1 min-h-0">
-      <div className="p-4 space-y-4 pb-8">
-          {/* Dashboard */}
-          <div>
-            <NavItem
-              active={activeTab === 'dashboard'}
-              onClick={() => setActiveTab('dashboard')}
-              icon={LayoutDashboard}
-            >
-              Dashboard
-            </NavItem>
+      <div className="px-3 py-2 space-y-3 pb-6">
+          {/* Logo + Dashboard Combined Header */}
+          <div
+            onClick={() => setActiveTab('dashboard')}
+            className={cn(
+              "mx-1 mb-3 p-3 rounded-lg cursor-pointer transition-all duration-200",
+              "border-2",
+              activeTab === 'dashboard'
+                ? "border-primary bg-primary/10 shadow-sm"
+                : "border-border bg-card hover:border-primary/50 hover:bg-muted/50"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-md",
+                activeTab === 'dashboard' ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+              )}>
+                <LayoutDashboard size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-sm">WNC Times</div>
+                <div className="text-xs text-muted-foreground">Dashboard</div>
+              </div>
+            </div>
           </div>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* AI Workforce Section */}
-          <Collapsible open={menuSections.ai} onOpenChange={() => toggleMenuSection('ai')}>
+          <Collapsible open={menuSections.ai} onOpenChange={() => handleToggleSection('ai')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="AI Workforce"
@@ -132,7 +157,7 @@ export function AdminSidebar({
                 isOpen={menuSections.ai}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'MASTER'}
                 onClick={() => { setActiveTab('MASTER'); onClearChat(); }}
@@ -184,10 +209,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Content Section */}
-          <Collapsible open={menuSections.content} onOpenChange={() => toggleMenuSection('content')}>
+          <Collapsible open={menuSections.content} onOpenChange={() => handleToggleSection('content')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Content"
@@ -196,7 +221,7 @@ export function AdminSidebar({
                 isOpen={menuSections.content}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'articles'}
                 onClick={() => setActiveTab('articles')}
@@ -228,10 +253,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Components Section */}
-          <Collapsible open={menuSections.components} onOpenChange={() => toggleMenuSection('components')}>
+          <Collapsible open={menuSections.components} onOpenChange={() => handleToggleSection('components')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Components"
@@ -240,7 +265,7 @@ export function AdminSidebar({
                 isOpen={menuSections.components}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'directory'}
                 onClick={() => setActiveTab('directory')}
@@ -284,10 +309,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Navigation Section */}
-          <Collapsible open={menuSections.navigation} onOpenChange={() => toggleMenuSection('navigation')}>
+          <Collapsible open={menuSections.navigation} onOpenChange={() => handleToggleSection('navigation')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Navigation"
@@ -296,7 +321,7 @@ export function AdminSidebar({
                 isOpen={menuSections.navigation}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'menus'}
                 onClick={() => setActiveTab('menus')}
@@ -308,10 +333,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Modules Section */}
-          <Collapsible open={menuSections.modules} onOpenChange={() => toggleMenuSection('modules')}>
+          <Collapsible open={menuSections.modules} onOpenChange={() => handleToggleSection('modules')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Modules"
@@ -320,7 +345,7 @@ export function AdminSidebar({
                 isOpen={menuSections.modules}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'modules'}
                 onClick={() => setActiveTab('modules')}
@@ -332,10 +357,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Plugins Section */}
-          <Collapsible open={menuSections.plugins} onOpenChange={() => toggleMenuSection('plugins')}>
+          <Collapsible open={menuSections.plugins} onOpenChange={() => handleToggleSection('plugins')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Plugins"
@@ -344,7 +369,7 @@ export function AdminSidebar({
                 isOpen={menuSections.plugins}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'api-config'}
                 onClick={() => setActiveTab('api-config')}
@@ -356,10 +381,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* Users Section */}
-          <Collapsible open={menuSections.users} onOpenChange={() => toggleMenuSection('users')}>
+          <Collapsible open={menuSections.users} onOpenChange={() => handleToggleSection('users')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="Users & Roles"
@@ -368,7 +393,7 @@ export function AdminSidebar({
                 isOpen={menuSections.users}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'users'}
                 onClick={() => setActiveTab('users')}
@@ -402,10 +427,10 @@ export function AdminSidebar({
             </CollapsibleContent>
           </Collapsible>
 
-          <Separator />
+          <Separator className="my-2" />
 
           {/* System Settings Section */}
-          <Collapsible open={menuSections.systemSettings} onOpenChange={() => toggleMenuSection('systemSettings')}>
+          <Collapsible open={menuSections.systemSettings} onOpenChange={() => handleToggleSection('systemSettings')}>
             <CollapsibleTrigger className="w-full">
               <SectionHeader
                 title="System"
@@ -414,7 +439,7 @@ export function AdminSidebar({
                 isOpen={menuSections.systemSettings}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1">
+            <CollapsibleContent className="space-y-1 overflow-hidden transition-all duration-300 ease-in-out">
               <NavItem
                 active={activeTab === 'site-config'}
                 onClick={() => setActiveTab('site-config')}
@@ -459,7 +484,7 @@ export function AdminSidebar({
           {/* Paper Partner Admin - Super Admin Only */}
           {showPaperPartnerAdmin && (
             <>
-              <Separator />
+              <Separator className="my-2" />
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3 py-1 flex items-center gap-2">
                   <Newspaper size={12} className="text-red-500" />

@@ -26,6 +26,7 @@ import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, UserRole, UserPermissions } from '@/data/rolePermissions';
 import { storageService } from '@/lib/storage';
 import { batchFormatArticles, batchMigrateImages, formatArticleContent, batchAssignArticlesToUser, getArticleBySlug } from '@/lib/articles';
+import { addCost, formatCost, getCategoryLabel, API_PRICING } from '@/lib/costs';
 import { AddUserModal } from '@/components/admin/modals/AddUserModal';
 import { EditUserModal } from '@/components/admin/modals/EditUserModal';
 import { createUser, updateUser, getUsers, deleteUser, seedTestUsers, deleteTestUsers } from '@/lib/users';
@@ -287,6 +288,7 @@ interface SiteSettings {
   openaiApiKey?: string;
   geminiApiKey?: string;
   perplexityApiKey?: string; // For real-time web search and fact-checking
+  pexelsApiKey?: string; // For stock photo search (free tier: 200 requests/hour)
   weatherApiKey?: string;
   defaultLocation?: string;
   // DALL-E Settings
@@ -434,14 +436,14 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [menuSections, setMenuSections] = useState<MenuSections>({
-    ai: true,
-    content: true,
+    ai: true,              // Only AI Workforce open by default
+    content: false,        // All others closed for accordion behavior
     components: false,
     navigation: false,
     modules: false,
     plugins: false,
-    users: true,
-    systemSettings: true,
+    users: false,
+    systemSettings: false,
   });
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -562,6 +564,21 @@ export default function AdminDashboard() {
   const articleLoadingRef = useRef<string | null>(null); // Track which article is being loaded
   const [showMediaPicker, setShowMediaPicker] = useState(false);
 
+  // Fact-check states
+  const [factCheckResult, setFactCheckResult] = useState<{
+    mode: 'quick' | 'detailed';
+    status: 'passed' | 'review_recommended' | 'caution' | 'high_risk';
+    summary: string;
+    confidence: number;
+    claims?: { text: string; status: string; explanation: string }[];
+    recommendations?: string[];
+    checkedAt: string;
+  } | null>(null);
+  const [isFactChecking, setIsFactChecking] = useState(false);
+  const [factCheckMode, setFactCheckMode] = useState<'quick' | 'detailed'>('detailed');
+  const [showFactCheckModeMenu, setShowFactCheckModeMenu] = useState(false);
+  const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
+
   // Status Modal for AI generation progress
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusModalMessage, setStatusModalMessage] = useState('');
@@ -634,6 +651,19 @@ export default function AdminDashboard() {
       getAgentPrompt(activeTab as AgentType).then(setCurrentAgentPrompt).catch(console.error);
     }
   }, [activeTab]);
+
+  // Close fact-check mode menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showFactCheckModeMenu && !target.closest('.fact-check-mode-selector')) {
+        setShowFactCheckModeMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showFactCheckModeMenu]);
 
   // Handle URL action params (e.g., ?action=new-article, ?action=edit-article&id=xxx)
   useEffect(() => {
@@ -1525,6 +1555,119 @@ Return ONLY valid JSON array with no markdown:
     }
   };
 
+  // Fact-check article
+  const handleFactCheck = async (mode: 'quick' | 'detailed' = 'detailed') => {
+    if (!agentArticle?.title || !agentArticle?.content) {
+      showMessage('error', 'Article needs title and content to fact-check');
+      return;
+    }
+
+    setIsFactChecking(true);
+    setFactCheckResult(null);
+
+    try {
+      const response = await fetch('/api/fact-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode,
+          articleId: agentArticle.id || undefined,
+          title: agentArticle.title,
+          content: agentArticle.content,
+          sourceTitle: agentArticle.sourceTitle,
+          sourceSummary: agentArticle.description,
+          sourceUrl: agentArticle.sourceUrl
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Fact-check failed');
+      }
+
+      const result = await response.json();
+      setFactCheckResult(result);
+
+      // Add fact-check cost to article
+      if (result.cost) {
+        const updatedCosts = addCost(
+          agentArticle.generationCosts,
+          'factCheck',
+          result.cost
+        );
+        setAgentArticle({ ...agentArticle, generationCosts: updatedCosts });
+        console.log(`[FactCheck] Added cost: ${formatCost(result.cost)} (Total: ${formatCost(updatedCosts.total)})`);
+      }
+
+      // Show success message based on confidence
+      if (result.confidence >= 80) {
+        showMessage('success', `Fact-check passed! Confidence: ${result.confidence}%`);
+      } else if (result.confidence >= 60) {
+        showMessage('warning', `Review recommended. Confidence: ${result.confidence}%`);
+      } else {
+        showMessage('error', `Caution! Low confidence: ${result.confidence}%`);
+      }
+
+    } catch (error) {
+      console.error('[FactCheck] Error:', error);
+      showMessage('error', error instanceof Error ? error.message : 'Fact-check failed');
+    } finally {
+      setIsFactChecking(false);
+    }
+  };
+
+  // Regenerate featured image (try getting a different stock photo)
+  const handleRegenerateImage = async () => {
+    if (!agentArticle?.title) {
+      showMessage('error', 'Need an article title to search for images');
+      return;
+    }
+
+    setIsRegeneratingImage(true);
+    try {
+      const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
+      // Extract keywords from both title AND content for better relevance
+      const keywords = extractPhotoKeywords(agentArticle.title, agentArticle.content);
+      const pexelsApiKey = settings?.pexelsApiKey as string;
+
+      console.log(`[Image] Regenerating stock photo with keywords: "${keywords}"`);
+      const stockPhoto = await findStockPhoto(keywords, undefined, pexelsApiKey);
+
+      if (stockPhoto) {
+        console.log(`[Image] Found ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
+
+        // Update article with new image
+        const updatedArticle = {
+          ...agentArticle,
+          imageUrl: stockPhoto.url,
+          featuredImage: stockPhoto.url,
+          imageAttribution: stockPhoto.attribution
+        };
+
+        // Track cost (stock photos are free)
+        if (stockPhoto.cost !== undefined) {
+          const updatedCosts = addCost(
+            agentArticle.generationCosts,
+            'stockPhotoSearch',
+            stockPhoto.cost
+          );
+          updatedArticle.generationCosts = updatedCosts;
+          console.log(`[Cost] Stock photo regeneration: ${formatCost(stockPhoto.cost)} (Total: ${formatCost(updatedCosts.total)})`);
+        }
+
+        setAgentArticle(updatedArticle);
+        showMessage('success', `New stock photo from ${stockPhoto.source} by ${stockPhoto.photographer}`);
+      } else {
+        showMessage('warning', 'No stock photos found. Try the AI image generator instead.');
+      }
+    } catch (error) {
+      console.error('[Image] Regeneration failed:', error);
+      showMessage('error', 'Failed to regenerate image');
+    } finally {
+      setIsRegeneratingImage(false);
+    }
+  };
+
   // Save agent article
   const handleSaveAgentArticle = async (showNotification = true, articleOverride?: Article) => {
     // Use the override article if provided, otherwise use agentArticle state
@@ -2047,15 +2190,69 @@ Example structure:
         }
       }
 
+      // Initialize cost tracking
+      let articleCosts = { total: 0, breakdown: {}, lastUpdated: new Date().toISOString() };
+
+      // Track article generation cost
+      articleCosts = addCost(articleCosts, 'articleGeneration', API_PRICING.GEMINI_ARTICLE_GENERATION);
+      console.log(`[Cost] Article generation: ${formatCost(API_PRICING.GEMINI_ARTICLE_GENERATION)}`);
+
       // Update status to image generation
       setStatusModalIcon('🖼️');
-      setStatusModalMessage('Generating featured image...');
+      setStatusModalMessage('Searching for stock photos...');
 
-      // Try to generate image
+      // Try to get article image using hybrid strategy (stock photos first, then AI)
       let imageUrl = '';
-      if (settings?.openaiApiKey) {
+      let imageAttribution = '';
+
+      try {
+        // STEP 1: Try stock photos first (Unsplash → Pexels)
+        const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
+        // Extract keywords from both title AND content for better relevance
+        const keywords = extractPhotoKeywords(suggestion.title, content);
+
+        const pexelsApiKey = settings?.pexelsApiKey as string;
+        console.log(`[Image] Searching with keywords: "${keywords}"`);
+        const stockPhoto = await findStockPhoto(keywords, undefined, pexelsApiKey);
+
+        if (stockPhoto) {
+          console.log(`[Image] Using ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
+          setStatusModalMessage(`Found ${stockPhoto.source} photo by ${stockPhoto.photographer}...`);
+
+          // Persist stock photo to Firebase Storage
+          imageUrl = await storageService.uploadAssetFromUrl(stockPhoto.url);
+          imageAttribution = stockPhoto.attribution;
+
+          // Track stock photo cost ($0 for free tier)
+          articleCosts = addCost(articleCosts, 'stockPhotoSearch', stockPhoto.cost);
+          console.log(`[Cost] Stock photo: ${formatCost(stockPhoto.cost)}`);
+        }
+      } catch (error) {
+        console.error('[Image] Stock photo search failed:', error);
+      }
+
+      // STEP 2: Fall back to AI generation if no stock photos found
+      if (!imageUrl && settings?.openaiApiKey) {
         try {
-          const imagePrompt = `A photorealistic news photograph depicting: ${suggestion.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+          setStatusModalMessage('No stock photos found, generating with AI...');
+
+          // Extract visual elements from content for better image generation
+          let visualElements: string | null = null;
+          if (settings?.geminiApiKey && content) {
+            const { extractVisualElements } = await import('@/lib/imageGeneration');
+            visualElements = await extractVisualElements(suggestion.title, content, categoryName, settings.geminiApiKey as string);
+            if (visualElements) {
+              console.log(`[Image] Visual elements extracted: ${visualElements}`);
+              // Track visual extraction cost
+              articleCosts = addCost(articleCosts, 'visualExtraction', API_PRICING.GEMINI_VISUAL_EXTRACTION);
+              console.log(`[Cost] Visual extraction: ${formatCost(API_PRICING.GEMINI_VISUAL_EXTRACTION)}`);
+            }
+          }
+
+          // Build detailed prompt with AP-style guidelines
+          const { buildDetailedImagePrompt } = await import('@/lib/imageGeneration');
+          const imagePrompt = buildDetailedImagePrompt(suggestion.title, visualElements || undefined, categoryName);
+
           const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
             headers: {
@@ -2067,20 +2264,29 @@ Example structure:
               prompt: imagePrompt.substring(0, 1000),
               n: 1,
               size: settings?.dalleSize || '1792x1024',
-              quality: settings?.dalleQuality || 'standard',
+              quality: settings?.dalleQuality || 'hd',
               style: settings?.dalleStyle || 'natural'
             })
           });
+
           const imageData = await imageResponse.json();
           const tempImageUrl = imageData.data?.[0]?.url || '';
 
-          // Persist image to Firebase Storage before it expires
+          // Persist AI image to Firebase Storage before it expires
           if (tempImageUrl) {
-            setStatusModalMessage('Saving image to permanent storage...');
+            setStatusModalMessage('Saving AI-generated image to permanent storage...');
             imageUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
+            imageAttribution = 'AI-generated image';
+
+            // Track AI image generation cost
+            const imageQuality = settings?.dalleQuality || 'hd';
+            const imageCost = imageQuality === 'hd' ? API_PRICING.DALLE_3_HD : API_PRICING.DALLE_3_STANDARD;
+            articleCosts = addCost(articleCosts, 'imageGeneration', imageCost);
+            console.log(`[Cost] AI image (${imageQuality}): ${formatCost(imageCost)}`);
           }
-        } catch {
-          // Image generation failed, continue without image
+        } catch (error) {
+          console.error('[Image] AI image generation failed:', error);
+          // Continue without image
         }
       }
 
@@ -2102,9 +2308,15 @@ Example structure:
         createdAt: new Date().toISOString(),
         imageUrl,
         featuredImage: imageUrl,
+        imageAttribution,
         isFeatured: false,
         isBreakingNews: false,
+        generationCosts: articleCosts,
       };
+
+      // Log total article generation cost
+      console.log(`[Cost] Total article cost: ${formatCost(articleCosts.total)}`);
+      console.log(`[Cost] Breakdown:`, articleCosts.breakdown);
 
       setAgentArticle(newArticle);
       setAgentTab('settings');
@@ -3905,6 +4117,70 @@ Example structure:
                     <li><strong>HD:</strong> 2× standard price</li>
                     <li>Images are generated on-demand, URLs valid for 1 hour</li>
                   </ul>
+                </CardContent>
+              </Card>
+
+              {/* Stock Photo APIs */}
+              <Card className="bg-green-50/50 border-green-200 mt-6">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-green-900">
+                    <ImageIcon size={18} /> Stock Photo Integration
+                  </CardTitle>
+                  <CardDescription>
+                    Use free stock photos from Pexels before falling back to AI generation. Reduces costs and provides real photography.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pexelsKey">Pexels API Key (Optional)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="pexelsKey"
+                        type="password"
+                        value={settings.pexelsApiKey || ''}
+                        onChange={(e) => {
+                          setSettings({ ...settings, pexelsApiKey: e.target.value });
+                        }}
+                        placeholder="Enter Pexels API key..."
+                        className="font-mono flex-1"
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={async () => {
+                          if (!settings.pexelsApiKey) {
+                            showMessage('error', 'Please enter an API key first');
+                            return;
+                          }
+                          try {
+                            const response = await fetch('https://api.pexels.com/v1/search?query=news&per_page=1', {
+                              headers: { 'Authorization': settings.pexelsApiKey }
+                            });
+                            if (response.ok) {
+                              showMessage('success', 'API Key Valid! Pexels stock photos are ready.');
+                            } else {
+                              showMessage('error', 'API Key Invalid. Please check your key.');
+                            }
+                          } catch {
+                            showMessage('error', 'API Key Test Failed');
+                          }
+                        }}
+                      >
+                        Test Key
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Free tier: 200 requests/hour. <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Get your API key here</a>
+                    </p>
+                  </div>
+
+                  <div className="bg-white/50 border border-green-300 rounded-lg p-4">
+                    <h4 className="font-semibold text-sm text-green-900 mb-2">💡 Hybrid Image Strategy</h4>
+                    <ul className="text-sm text-green-800 space-y-1 list-disc list-inside">
+                      <li><strong>Step 1:</strong> Try Pexels stock photos (free, real photography)</li>
+                      <li><strong>Step 2:</strong> Fall back to DALL-E AI generation if no match</li>
+                      <li><strong>Savings:</strong> ~80% cost reduction on images with stock photos</li>
+                    </ul>
+                  </div>
                 </CardContent>
               </Card>
             </CardContent>
@@ -5945,6 +6221,72 @@ Return ONLY the JSON object, no other text.`;
             />
           </div>
           <div className="flex gap-3 shrink-0">
+            {/* Fact Check Button with Mode Selector */}
+            <div className="relative fact-check-mode-selector">
+              <div className="flex">
+                <button
+                  onClick={() => handleFactCheck(factCheckMode)}
+                  disabled={isFactChecking || !agentArticle?.title || !agentArticle?.content}
+                  className="px-5 py-2.5 bg-blue-500 text-white font-medium rounded-l-xl hover:bg-blue-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isFactChecking ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      {factCheckMode === 'quick' ? 'Quick Check' : 'Detailed Check'}
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowFactCheckModeMenu(!showFactCheckModeMenu)}
+                  disabled={isFactChecking}
+                  className="px-3 py-2.5 bg-blue-500 text-white font-medium rounded-r-xl hover:bg-blue-600 transition-all duration-200 border-l border-blue-400/50 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </div>
+
+              {/* Mode Selector Dropdown */}
+              {showFactCheckModeMenu && (
+                <div className="absolute top-full mt-2 right-0 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50 w-64">
+                  <button
+                    onClick={() => {
+                      setFactCheckMode('quick');
+                      setShowFactCheckModeMenu(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${factCheckMode === 'quick' ? 'bg-blue-50' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Zap size={16} className={factCheckMode === 'quick' ? 'text-blue-500' : 'text-slate-400'} />
+                      <div>
+                        <div className="font-medium text-sm">Quick Check</div>
+                        <div className="text-xs text-slate-500">Fast confidence score only</div>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFactCheckMode('detailed');
+                      setShowFactCheckModeMenu(false);
+                    }}
+                    className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors ${factCheckMode === 'detailed' ? 'bg-blue-50' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileSearch size={16} className={factCheckMode === 'detailed' ? 'text-blue-500' : 'text-slate-400'} />
+                      <div>
+                        <div className="font-medium text-sm">Detailed Check</div>
+                        <div className="text-xs text-slate-500">Full claim-by-claim analysis</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={async () => {
                 if (agentArticle.status === 'draft') {
@@ -6038,6 +6380,130 @@ Return ONLY the JSON object, no other text.`;
           </div>
         </div>
 
+        {/* Cost Tracking Panel */}
+        {agentArticle?.generationCosts && agentArticle.generationCosts.total > 0 && (
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-8 py-3">
+            <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign size={18} className="text-slate-600" />
+                  <span className="text-sm font-semibold text-slate-700">Generation Cost:</span>
+                  <span className="text-lg font-bold text-slate-900">{formatCost(agentArticle.generationCosts.total)}</span>
+                </div>
+                {agentArticle.generationCosts.breakdown && (
+                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                    {agentArticle.generationCosts.breakdown.articleGeneration && (
+                      <span>Content: {formatCost(agentArticle.generationCosts.breakdown.articleGeneration)}</span>
+                    )}
+                    {agentArticle.generationCosts.breakdown.imageGeneration && (
+                      <span>AI Image: {formatCost(agentArticle.generationCosts.breakdown.imageGeneration)}</span>
+                    )}
+                    {agentArticle.generationCosts.breakdown.stockPhotoSearch !== undefined && (
+                      <span>Stock Photo: {formatCost(agentArticle.generationCosts.breakdown.stockPhotoSearch)}</span>
+                    )}
+                    {agentArticle.generationCosts.breakdown.factCheck && (
+                      <span>Fact-Check: {formatCost(agentArticle.generationCosts.breakdown.factCheck)}</span>
+                    )}
+                    {agentArticle.generationCosts.breakdown.visualExtraction && (
+                      <span>Visual Extract: {formatCost(agentArticle.generationCosts.breakdown.visualExtraction)}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-xs text-slate-500">
+                Last updated: {new Date(agentArticle.generationCosts.lastUpdated).toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fact-Check Results Panel */}
+        {factCheckResult && (
+          <div className="bg-white border-b border-slate-200 px-8 py-4">
+            <div className="max-w-4xl mx-auto">
+              <div className={`rounded-xl border-2 p-6 ${
+                factCheckResult.status === 'passed' ? 'bg-green-50 border-green-300' :
+                factCheckResult.status === 'review_recommended' ? 'bg-blue-50 border-blue-300' :
+                factCheckResult.status === 'caution' ? 'bg-yellow-50 border-yellow-300' :
+                'bg-red-50 border-red-300'
+              }`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      factCheckResult.status === 'passed' ? 'bg-green-500 text-white' :
+                      factCheckResult.status === 'review_recommended' ? 'bg-blue-500 text-white' :
+                      factCheckResult.status === 'caution' ? 'bg-yellow-500 text-white' :
+                      'bg-red-500 text-white'
+                    }`}>
+                      {factCheckResult.status.toUpperCase().replace('_', ' ')}
+                    </div>
+                    <div className="text-3xl font-bold">
+                      <span className={
+                        factCheckResult.confidence >= 80 ? 'text-green-600' :
+                        factCheckResult.confidence >= 60 ? 'text-blue-600' :
+                        factCheckResult.confidence >= 40 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }>
+                        {factCheckResult.confidence}%
+                      </span>
+                      <span className="text-sm text-slate-500 ml-2">confidence</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setFactCheckResult(null)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-slate-700 leading-relaxed">{factCheckResult.summary}</p>
+                </div>
+
+                {factCheckResult.mode === 'detailed' && factCheckResult.recommendations && factCheckResult.recommendations.length > 0 && (
+                  <div className="mb-4 bg-white/50 rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <AlertCircle size={16} /> Recommendations:
+                    </h4>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
+                      {factCheckResult.recommendations.map((rec, idx) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {factCheckResult.mode === 'detailed' && factCheckResult.claims && factCheckResult.claims.length > 0 && (
+                  <div className="bg-white/50 rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                      <CheckCircle size={16} /> Claims Analysis:
+                    </h4>
+                    <div className="space-y-2">
+                      {factCheckResult.claims.map((claim, idx) => (
+                        <div key={idx} className="flex items-start gap-3 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${
+                            claim.status === 'verified' ? 'bg-green-100 text-green-700' :
+                            claim.status === 'unverified' ? 'bg-yellow-100 text-yellow-700' :
+                            claim.status === 'disputed' ? 'bg-red-100 text-red-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {claim.status.toUpperCase()}
+                          </span>
+                          <div className="flex-1">
+                            <p className="font-medium text-slate-800">&quot;{claim.text}&quot;</p>
+                            <p className="text-slate-600 mt-1">{claim.explanation}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content Area */}
         <div className="flex flex-grow overflow-hidden bg-slate-50">
           {/* Left: Editor */}
@@ -6050,8 +6516,29 @@ Return ONLY the JSON object, no other text.`;
                   {agentArticle.imageUrl ? (
                     <div className="relative group">
                       <img src={agentArticle.imageUrl} alt="Featured" className="w-full h-64 object-cover rounded-xl border border-slate-200" />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <button onClick={() => setAgentArticle({...agentArticle, imageUrl: '', featuredImage: ''})} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-xl flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+                        <button
+                          onClick={handleRegenerateImage}
+                          disabled={isRegeneratingImage}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRegeneratingImage ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" />
+                              Regenerating...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw size={16} />
+                              Regenerate
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setAgentArticle({...agentArticle, imageUrl: '', featuredImage: ''})}
+                          disabled={isRegeneratingImage}
+                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                           Remove Image
                         </button>
                       </div>
