@@ -8,6 +8,7 @@ import {
   FactCheckClaim,
   ClaimStatus
 } from '@/types/factCheck';
+import { API_PRICING } from '@/lib/costs';
 
 export const dynamic = 'force-dynamic';
 
@@ -214,6 +215,7 @@ function parseQuickResponse(responseText: string): FactCheckResult {
     summary,
     confidence: Math.min(100, Math.max(0, confidence)),
     checkedAt: new Date().toISOString(),
+    cost: API_PRICING.GEMINI_FACT_CHECK_QUICK,
   };
 }
 
@@ -270,5 +272,6 @@ function parseDetailedResponse(responseText: string): FactCheckResult {
     claims,
     recommendations,
     checkedAt: new Date().toISOString(),
+    cost: API_PRICING.GEMINI_FACT_CHECK_DETAILED,
   };
 }

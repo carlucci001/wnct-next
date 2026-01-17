@@ -389,7 +389,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         <div>
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Bot className="text-blue-600" size={28} />
-            AI Journalists
+            Agent Manager
           </h2>
           <p className="text-slate-500 mt-1">Create and manage AI journalist personas for article bylines</p>
         </div>
@@ -398,7 +398,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus size={18} />
-          Add AI Journalist
+          Add Agent
         </button>
       </div>
 
@@ -406,8 +406,8 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
       {journalists.length === 0 && (
         <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-12 text-center">
           <Bot className="mx-auto text-slate-400 mb-4" size={48} />
-          <h3 className="text-lg font-semibold text-slate-700 mb-2">No AI Journalists Yet</h3>
-          <p className="text-slate-500 mb-4">Create your first AI journalist to use as an article author</p>
+          <h3 className="text-lg font-semibold text-slate-700 mb-2">No Agents Yet</h3>
+          <p className="text-slate-500 mb-4">Create your first agent to use as an article author</p>
           <button
             onClick={openAddModal}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -581,7 +581,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex justify-between items-center sticky top-0">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Bot size={20} />
-                {modal.mode === 'add' ? 'Add AI Journalist' : 'Edit AI Journalist'}
+                {modal.mode === 'add' ? 'Add Agent' : 'Edit Agent'}
               </h2>
               <button onClick={closeModal} className="text-white/80 hover:text-white">
                 <X size={24} />

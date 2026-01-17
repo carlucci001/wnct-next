@@ -29,6 +29,7 @@ import FactCheckBadge from './FactCheckBadge';
 import FactCheckPanel from './FactCheckPanel';
 import { FactCheckResult, FactCheckStatus } from '@/types/factCheck';
 import { DataTable, ColumnDef, BatchAction } from '@/components/ui/data-table';
+import { formatCost } from '@/lib/costs';
 
 type StatusFilter = 'all' | 'draft' | 'review' | 'published' | 'archived';
 type FactCheckFilter = 'all' | 'passed' | 'review_recommended' | 'caution' | 'high_risk' | 'not_checked';
@@ -268,6 +269,22 @@ export default function ArticlesAdmin() {
       ),
     },
     {
+      header: 'Cost',
+      accessorKey: 'generationCosts.total',
+      sortable: true,
+      cell: (article) => (
+        <div className="text-sm">
+          {article.generationCosts && article.generationCosts.total > 0 ? (
+            <span className="font-medium text-slate-700">
+              {formatCost(article.generationCosts.total)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
       header: 'Date',
       accessorKey: 'publishedAt',
       sortable: true,
@@ -289,7 +306,7 @@ export default function ArticlesAdmin() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => window.open(`/admin/articles/new?id=${article.id}`, '_blank')}>
+              <DropdownMenuItem onClick={() => window.location.href = `/admin?action=edit-article&id=${article.id}`}>
                 <Edit className="h-4 w-4 mr-2" /> Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => window.open(`/article/${article.slug}`, '_blank')}>
@@ -369,7 +386,7 @@ export default function ArticlesAdmin() {
             </CardTitle>
             <CardDescription>Manage news articles and content</CardDescription>
           </div>
-          <Button onClick={() => window.open('/admin/articles/new', '_blank')}>
+          <Button onClick={() => window.location.href = '/admin?action=new-article'}>
             <Plus className="h-4 w-4 mr-2" /> New Article
           </Button>
         </div>
@@ -432,7 +449,7 @@ export default function ArticlesAdmin() {
           batchActions={batchActions}
           isLoading={loading}
           onRowClick={(article) => {
-            window.open(`/admin/articles/new?id=${article.id}`, '_blank');
+            window.location.href = `/admin?action=edit-article&id=${article.id}`;
           }}
         />
       </CardContent>

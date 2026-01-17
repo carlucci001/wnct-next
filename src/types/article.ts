@@ -60,6 +60,23 @@ export interface Article {
     generationApproach?: 'gemini-only' | 'perplexity+gemini';  // Which approach was used
   };
 
+  // Cost Tracking - Tracks all API costs for this article
+  generationCosts?: {
+    total: number;                     // Total cost in USD
+    breakdown: {
+      articleGeneration?: number;      // Cost of generating article content (Gemini)
+      imageGeneration?: number;        // Cost of AI image generation (DALL-E)
+      stockPhotoSearch?: number;       // Cost of stock photo search (usually $0)
+      factCheck?: number;              // Cost of fact-checking (Gemini)
+      visualExtraction?: number;       // Cost of extracting visual elements (Gemini)
+      other?: Array<{                  // Other miscellaneous costs
+        label: string;
+        cost: number;
+      }>;
+    };
+    lastUpdated: string;               // ISO timestamp of last cost update
+  };
+
   // SEO & Social Metadata (auto-generated)
   metaDescription?: string;    // SEO meta description (max 160 chars)
   imageAltText?: string;       // Alt text for featured image

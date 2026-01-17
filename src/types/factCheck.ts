@@ -28,6 +28,7 @@ export interface QuickFactCheckResult {
   summary: string;
   confidence: number;
   checkedAt: string;
+  cost?: number; // API cost in USD
 }
 
 /**
@@ -41,6 +42,7 @@ export interface DetailedFactCheckResult {
   claims: FactCheckClaim[];
   recommendations: string[];
   checkedAt: string;
+  cost?: number; // API cost in USD
 }
 
 /**

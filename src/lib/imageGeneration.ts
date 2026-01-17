@@ -4,6 +4,7 @@
  */
 
 import { storageService } from '@/lib/storage';
+import { API_PRICING } from '@/lib/costs';
 
 export interface ImageGenerationOptions {
   openaiApiKey: string;
@@ -17,6 +18,8 @@ export interface ImageGenerationResult {
   success: boolean;
   imageUrl?: string;
   error?: string;
+  cost?: number; // Cost in USD
+  source?: 'dalle' | 'unsplash' | 'pexels'; // Where the image came from
   metadata?: {
     generatedAt: string;
     model: string;
@@ -111,9 +114,14 @@ export async function generateArticleImage(
     console.log('[ImageGen] ✅ AI image generated and persisted successfully');
     console.log('[ImageGen] URL:', persistedUrl.substring(0, 80) + '...');
 
+    // Calculate cost based on quality
+    const imageCost = quality === 'hd' ? API_PRICING.DALLE_3_HD : API_PRICING.DALLE_3_STANDARD;
+
     return {
       success: true,
       imageUrl: persistedUrl,
+      cost: imageCost,
+      source: 'dalle',
       metadata: {
         generatedAt: new Date().toISOString(),
         model: 'dall-e-3',

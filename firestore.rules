@@ -423,5 +423,16 @@ service cloud.firestore {
       // Only admins can delete media
       allow delete: if isAdmin();
     }
+
+    // ============================================
+    // AGENT PROMPTS (AI agent instructions)
+    // ============================================
+    match /agentPrompts/{promptId} {
+      // Allow read for server-side rendering and admin panel
+      allow read: if true;
+
+      // Only admins can modify agent prompts
+      allow write: if isAdmin();
+    }
   }
 }

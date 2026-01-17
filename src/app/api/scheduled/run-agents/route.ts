@@ -31,7 +31,8 @@ async function generateArticleImage(
     const keywords = extractPhotoKeywords(title);
     console.log(`[Image] Searching stock photos for: "${keywords}"`);
 
-    const stockPhoto = await findStockPhoto(keywords, category);
+    const pexelsApiKey = settings?.pexelsApiKey as string;
+    const stockPhoto = await findStockPhoto(keywords, category, pexelsApiKey);
     if (stockPhoto) {
       console.log(`[Image] ✓ Using ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
 
