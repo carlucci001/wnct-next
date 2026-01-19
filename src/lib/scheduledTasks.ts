@@ -30,7 +30,10 @@ const COLLECTION_NAME = 'scheduledTasks';
 export async function createScheduledTask(data: ScheduledTaskInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
+    // Use Admin SDK for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    const docRef = await getAdminFirestore().collection(COLLECTION_NAME).add({
       ...data,
       retryCount: 0,
       createdAt: now,
@@ -166,7 +169,6 @@ export async function updateTaskStatus(
   result?: TaskResult
 ): Promise<void> {
   try {
-    const docRef = doc(getDb(), COLLECTION_NAME, id);
     const now = new Date().toISOString();
 
     const updateData: Record<string, unknown> = {
@@ -186,7 +188,10 @@ export async function updateTaskStatus(
       updateData.result = result;
     }
 
-    await updateDoc(docRef, updateData);
+    // Use Admin SDK for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    await getAdminFirestore().collection(COLLECTION_NAME).doc(id).update(updateData);
   } catch (error) {
     console.error('Error updating task status:', error);
     throw error;
@@ -204,8 +209,10 @@ export async function incrementRetryCount(id: string): Promise<boolean> {
     const newRetryCount = task.retryCount + 1;
     const shouldFail = newRetryCount >= task.maxRetries;
 
-    const docRef = doc(getDb(), COLLECTION_NAME, id);
-    await updateDoc(docRef, {
+    // Use Admin SDK for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    await getAdminFirestore().collection(COLLECTION_NAME).doc(id).update({
       retryCount: newRetryCount,
       status: shouldFail ? 'failed' : 'pending',
       updatedAt: new Date().toISOString(),
@@ -246,8 +253,10 @@ export async function cancelTask(id: string): Promise<void> {
  */
 export async function deleteTask(id: string): Promise<void> {
   try {
-    const docRef = doc(getDb(), COLLECTION_NAME, id);
-    await deleteDoc(docRef);
+    // Use Admin SDK for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    await getAdminFirestore().collection(COLLECTION_NAME).doc(id).delete();
   } catch (error) {
     console.error('Error deleting task:', error);
     throw error;
@@ -273,9 +282,13 @@ export async function cleanupOldTasks(daysOld: number = 30): Promise<number> {
 
     if (tasksToDelete.length === 0) return 0;
 
-    const batch = writeBatch(getDb());
+    // Use Admin SDK batch for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    const db = getAdminFirestore();
+    const batch = db.batch();
     tasksToDelete.forEach((task) => {
-      const docRef = doc(getDb(), COLLECTION_NAME, task.id);
+      const docRef = db.collection(COLLECTION_NAME).doc(task.id);
       batch.delete(docRef);
     });
 

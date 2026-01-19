@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
-import { getDueScheduledAgents, updateAgentAfterRun, getAIJournalist } from '@/lib/aiJournalists';
+import { getDueScheduledAgents, getAIJournalist } from '@/lib/aiJournalists';
+import { updateAgentAfterRun } from '@/lib/aiJournalists.server';
 import { getCategoryBySlug, getCategory } from '@/lib/categories';
-import { getUnprocessedItems, markItemProcessed } from '@/lib/contentSources';
-import { createScheduledTask, updateTaskStatus } from '@/lib/scheduledTasks';
+import { getUnprocessedItems } from '@/lib/contentSources';
+import { markItemProcessed } from '@/lib/contentSources.server';
+import { createScheduledTask, updateTaskStatus } from '@/lib/scheduledTasks.server';
 import { formatArticleContent, formatExcerpt } from '@/lib/articles';
 import { AIJournalist } from '@/types/aiJournalist';
 import { Category } from '@/types/category';
@@ -491,8 +493,10 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // NORMAL MODE: Save article to Firestore
-        const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
+        // NORMAL MODE: Save article to Firestore using Admin SDK (bypasses auth requirements)
+        // Dynamic import to avoid bundling Admin SDK in client code
+        const { getAdminFirestore } = await import('@/lib/firebase-admin');
+        const articleRef = await getAdminFirestore().collection('articles').add(articleData);
 
         // Mark content item as processed
         await markItemProcessed(selectedItem.id, articleRef.id);
@@ -986,7 +990,10 @@ export async function GET(request: NextRequest) {
             })(),
           };
 
-          const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);
+          // Use Admin SDK for server-side operations (bypasses auth requirements)
+          // Dynamic import to avoid bundling Admin SDK in client code
+          const { getAdminFirestore } = await import('@/lib/firebase-admin');
+          const articleRef = await getAdminFirestore().collection('articles').add(articleData);
           await markItemProcessed(selectedItem.id, articleRef.id);
 
           const generationTime = Date.now() - agentStartTime;

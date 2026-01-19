@@ -278,8 +278,10 @@ export async function getUnprocessedItems(
  */
 export async function markItemProcessed(itemId: string, articleId?: string): Promise<void> {
   try {
-    const docRef = doc(getDb(), ITEMS_COLLECTION, itemId);
-    await updateDoc(docRef, {
+    // Use Admin SDK for server-side operations (bypasses auth requirements)
+    // Dynamic import to avoid bundling Admin SDK in client code
+    const { getAdminFirestore } = await import('./firebase-admin');
+    await getAdminFirestore().collection(ITEMS_COLLECTION).doc(itemId).update({
       isProcessed: true,
       processedAt: new Date().toISOString(),
       articleId: articleId || null,

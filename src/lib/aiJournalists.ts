@@ -263,64 +263,6 @@ export async function getScheduledAgents(): Promise<AIJournalist[]> {
 }
 
 /**
- * Update agent's last run time and calculate next run
- */
-export async function updateAgentAfterRun(
-  id: string,
-  success: boolean,
-  generationTime?: number
-): Promise<void> {
-  try {
-    const journalist = await getAIJournalist(id);
-    if (!journalist) throw new Error('Agent not found');
-
-    const now = new Date().toISOString();
-    const docRef = doc(getDb(), COLLECTION_NAME, id);
-
-    const currentMetrics = journalist.metrics || {
-      totalArticlesGenerated: 0,
-      totalPostsCreated: 0,
-      successfulRuns: 0,
-      failedRuns: 0,
-      averageGenerationTime: 0,
-    };
-
-    const newMetrics = {
-      ...currentMetrics,
-      successfulRuns: success ? currentMetrics.successfulRuns + 1 : currentMetrics.successfulRuns,
-      failedRuns: success ? currentMetrics.failedRuns : currentMetrics.failedRuns + 1,
-      totalArticlesGenerated: success
-        ? currentMetrics.totalArticlesGenerated + 1
-        : currentMetrics.totalArticlesGenerated,
-      lastSuccessfulRun: success ? now : currentMetrics.lastSuccessfulRun,
-    };
-
-    // Update average generation time
-    if (generationTime && success) {
-      const totalRuns = newMetrics.successfulRuns;
-      const oldAvg = currentMetrics.averageGenerationTime;
-      newMetrics.averageGenerationTime = oldAvg + (generationTime - oldAvg) / totalRuns;
-    }
-
-    const updateData: Record<string, unknown> = {
-      lastRunAt: now,
-      metrics: newMetrics,
-      updatedAt: now,
-    };
-
-    // Calculate next run if schedule is enabled
-    if (journalist.schedule?.isEnabled) {
-      updateData.nextRunAt = calculateNextRunTime(journalist.schedule);
-    }
-
-    await updateDoc(docRef, updateData);
-  } catch (error) {
-    console.error('Error updating agent after run:', error);
-    throw error;
-  }
-}
-
-/**
  * Calculate the next run time based on schedule configuration
  */
 export function calculateNextRunTime(schedule: AgentSchedule): string {

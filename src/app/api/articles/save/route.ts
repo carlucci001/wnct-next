@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { markItemProcessed } from '@/lib/contentSources';
-import { updateAgentAfterRun } from '@/lib/aiJournalists';
+import { updateAgentAfterRun } from '@/lib/aiJournalists.server';
 
 export const dynamic = 'force-dynamic';
 
