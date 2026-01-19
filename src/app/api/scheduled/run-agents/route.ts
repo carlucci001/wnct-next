@@ -561,7 +561,14 @@ async function generateArticle(
         ],
         generationConfig: {
           maxOutputTokens: 2000,
-          temperature: 0.3, // Lowered from 0.7 to reduce hallucinations
+          temperature: 0.1,  // PHASE 2: Further lowered from 0.3 to 0.1 for maximum factual accuracy
+          topP: 0.8,         // Limit token sampling diversity
+          topK: 20,          // Further constrain output choices
+        },
+        systemInstruction: {
+          parts: [{
+            text: "You are a factual news writing assistant. You NEVER fabricate information. You ONLY write about facts explicitly stated in provided sources. You MUST attribute every claim to sources. If information is missing, you acknowledge gaps rather than inventing details. Accuracy is more important than article length. You follow AP style guidelines strictly."
+          }]
         },
       }),
     }
@@ -634,33 +641,79 @@ function buildArticlePrompt(
     }
   }
 
-  prompt += `\nCRITICAL INSTRUCTIONS - ANTI-HALLUCINATION RULES:
-1. ❌ DO NOT add names, job titles, or organizational affiliations NOT in the source material${webSearchResults ? ' or verified web search results' : ''}
-2. ❌ DO NOT invent quotes or statements
-3. ❌ DO NOT assume current employment or positions unless explicitly stated in sources
-4. ✅ ONLY include facts explicitly stated in source material${webSearchResults ? ' or verified web search results' : ''}
-5. ✅ If a detail is uncertain, use phrases like "according to ${sourceItem.sourceName}" or "as reported by [source]"
-6. ✅ When mentioning people, ONLY use information from the sources - NO assumed titles or current roles
-7. ✅ If source lacks critical details, acknowledge the limitation or omit rather than guess
+  prompt += `\n
+MANDATORY ANTI-FABRICATION PROTOCOL (PHASE 2 ENHANCED):
+
+You MUST follow these HARD CONSTRAINTS (violations will block publication):
+
+1. SOURCE-ONLY FACTS:
+   - You can ONLY state facts that appear in the source material above${webSearchResults ? ' or verified web search results' : ''}
+   - If a detail is not explicitly in the source, you CANNOT mention it
+   - Do not expand, infer, or assume anything beyond what's written
+   - EVERY sentence must be traceable to source material
+
+2. MANDATORY ATTRIBUTION:
+   - EVERY paragraph must include source attribution
+   - Use: "According to ${sourceItem.sourceName}..."
+   - Or: "As reported by ${sourceItem.sourceName}..."
+   - Or: "${sourceItem.sourceName} reports that..."
+   ${webSearchResults ? '- For web search info: "According to recent reports..." or cite specific sources' : ''}
+   - Minimum: One clear attribution per paragraph
+
+3. STRICTLY PROHIBITED:
+   - ❌ Adding names not in source
+   - ❌ Adding job titles/positions not in source
+   - ❌ Creating or paraphrasing quotes not in source
+   - ❌ Inventing statistics, numbers, or data
+   - ❌ Making predictions or speculation
+   - ❌ Adding background information not in source
+   - ❌ Assuming current events or context not mentioned in source
+
+4. LENGTH CONSTRAINT:
+   - Write ONLY what the source supports
+   - Target 3-5 paragraphs (300-500 words)
+   - If source is brief (under 200 words), write 2-3 paragraphs maximum
+   - DO NOT pad with filler or unsupported background
+
+5. WHEN INFORMATION IS MISSING:
+   - If source lacks critical details (who, what, when, where), ACKNOWLEDGE IT
+   - Use: "Details about [X] were not provided in the report"
+   - Use: "Further information was not available"
+   - It is BETTER to admit gaps than to fabricate
+
+6. VERIFICATION STATUS:
+${webSearchResults
+  ? `   - You have VERIFIED CURRENT INFORMATION from web search
+   - Cross-reference against web search results
+   - If conflict exists, DEFER to web search citations
+   - Include web search citations: "according to recent reports..."`
+  : `   - You DO NOT have real-time verification
+   - You CANNOT verify current information
+   - Stick strictly to source material provided
+   - Do not reference current events or recent context`}
 
 TASK: Write a factual news article based STRICTLY on the source material above${webSearchResults ? ' and verified web search results' : ''}.
 
 FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS:
 
-TITLE: [Your headline here]
+TITLE: [Factual headline directly from source material]
 
 CONTENT:
-[Your article content here - use multiple paragraphs, each separated by blank lines]
+[First paragraph - MUST start with "According to ${sourceItem.sourceName}..." or similar attribution]
 
-TAGS: [comma-separated tags]
+[Second paragraph - continue with source attribution]
+
+[Additional paragraphs ONLY if source material supports them - each with attribution]
+
+TAGS: [keywords extracted from source only]
 
 Article Requirements:
-- 3-5 paragraphs
+- 3-5 paragraphs (or 2-3 if source is brief)
 - Journalistic tone appropriate for local news
-- Include relevant local context when possible
-- Attribute ALL facts to sources (use "according to..." or "as reported by...")
-- Use direct quotes ONLY if they appear in source material
-- When in doubt, stick to what's verifiable
+- Include relevant local context ONLY if mentioned in sources
+- Attribute ALL facts to sources (mandatory in every paragraph)
+- Use direct quotes ONLY if they appear verbatim in source material
+- When in doubt, stick to what's verifiable - accuracy over length
 - ${webSearchResults ? 'Include citations from web search when using that information' : 'Cite the original source for all claims'}`;
 
   return prompt;

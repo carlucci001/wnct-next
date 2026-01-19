@@ -2124,34 +2124,75 @@ Angle: ${suggestion.angle}
 Category: ${categoryName}
 Location: ${settings.serviceArea || 'Western North Carolina'}
 
-Write in AP style, 400-600 words. Include:
-- Strong lede paragraph
-- Supporting quotes (attributed to plausible local sources)
-- Background context
-- Forward-looking closing
+MANDATORY ANTI-FABRICATION PROTOCOL:
+
+You MUST follow these HARD CONSTRAINTS (violations will be flagged):
+
+1. FACTUAL BASIS ONLY:
+   - Write ONLY what is directly supported by the Title, Summary, and Angle provided above
+   - Do NOT add specific names of people, organizations, or places unless they are in the source material
+   - Do NOT invent statistics, dates, times, or specific details
+   - Do NOT create or paraphrase quotes from anyone
+   - If the source material is vague, your article must also be general
+
+2. STRICTLY PROHIBITED:
+   - ❌ Creating quotes or statements attributed to people
+   - ❌ Adding names not in source (no "John Smith said" or "according to Jane Doe")
+   - ❌ Adding job titles or positions not in source
+   - ❌ Inventing statistics, numbers, or data points
+   - ❌ Making predictions or speculation beyond what's implied in the angle
+   - ❌ Adding background information not derivable from the source
+
+3. WHEN INFORMATION IS MISSING:
+   - Use general phrasing: "Community members expressed concerns..."
+   - Use passive voice: "The project has been proposed..."
+   - Acknowledge gaps: "Specific details were not provided"
+   - It is BETTER to be brief and factual than long and speculative
+
+4. ARTICLE LENGTH:
+   - Write 300-500 words maximum
+   - Quality over quantity - do not pad with unsupported content
+   - If source is brief, article should be brief
+
+5. TONE AND STYLE:
+   - AP style, professional journalism tone
+   - Strong lede paragraph summarizing the angle
+   - Context and background (only if derivable from source)
+   - Forward-looking or community impact closing
 
 CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
 1. Each paragraph MUST be wrapped in its own <p></p> tags
-2. Use <h2></h2> for section subheadings
-3. Use <blockquote></blockquote> for direct quotes
-4. Use <strong></strong> for emphasis on key terms
-5. NEVER put the entire article in a single <p> tag - break it into multiple paragraphs
-6. Each new thought or topic should be a separate <p> paragraph
-7. Do NOT include the article title
-8. Do NOT use markdown formatting
-9. Return ONLY valid HTML tags, nothing else
+2. Use <h2></h2> for section subheadings (sparingly)
+3. Use <strong></strong> for emphasis on key terms only
+4. NEVER put the entire article in a single <p> tag - break it into multiple paragraphs
+5. Each new thought or topic should be a separate <p> paragraph
+6. Do NOT include the article title
+7. Do NOT use markdown formatting
+8. Return ONLY valid HTML tags, nothing else
 
 Example structure:
 <p>First paragraph with the lede...</p>
-<h2>Section heading</h2>
-<p>Next paragraph...</p>
-<blockquote>"Quote from source," said Name, title.</blockquote>
-<p>More content...</p>`;
+<p>Second paragraph with context...</p>
+<p>Third paragraph with implications...</p>
+<p>Closing paragraph...</p>`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 2000,
+            temperature: 0.1,  // LOWERED from default for more factual output
+            topP: 0.8,         // Limit token sampling diversity
+            topK: 20,          // Further constrain output choices
+          },
+          systemInstruction: {
+            parts: [{
+              text: "You are a factual news writing assistant. You NEVER fabricate information. You ONLY write about facts explicitly stated in provided sources. You NEVER create quotes, names, or specific details not in the source. If information is missing, you acknowledge gaps rather than inventing details. Accuracy is more important than article length. You follow AP style guidelines strictly."
+            }]
+          }
+        })
       });
 
       // Update status to formatting
@@ -2226,6 +2267,74 @@ Example structure:
       // Track article generation cost
       articleCosts = addCost(articleCosts, 'articleGeneration', API_PRICING.GEMINI_ARTICLE_GENERATION);
       console.log(`[Cost] Article generation: ${formatCost(API_PRICING.GEMINI_ARTICLE_GENERATION)}`);
+
+      // MANDATORY FACT-CHECK before proceeding
+      setStatusModalIcon('🔍');
+      setStatusModalMessage('Running fact-check analysis...');
+
+      let factCheckResult = null;
+      try {
+        const factCheckResponse = await fetch('/api/fact-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'quick',
+            title: suggestion.title,
+            content: content,
+            sourceTitle: suggestion.title,
+            sourceSummary: suggestion.summary,
+            sourceUrl: '', // No source URL for manual creation
+          }),
+        });
+
+        if (factCheckResponse.ok) {
+          factCheckResult = await factCheckResponse.json();
+          console.log(`[Fact-check] Status: ${factCheckResult.status}, Confidence: ${factCheckResult.confidence}%`);
+
+          // Track fact-check cost
+          articleCosts = addCost(articleCosts, 'factCheck', API_PRICING.GEMINI_FACT_CHECK_QUICK);
+
+          // CRITICAL: Block high-risk articles
+          if (factCheckResult.status === 'high_risk') {
+            setShowStatusModal(false);
+            setChatHistory(prev => [
+              ...prev,
+              { role: 'model', text: `❌ **Article Blocked - High Risk**\n\n**Fact-Check Summary:**\n${factCheckResult.summary}\n\n**Confidence:** ${factCheckResult.confidence}%\n\n**Action Required:** This article contains potentially fabricated information and cannot be created. Please provide more specific source material or revise the topic.` }
+            ]);
+            throw new Error(`Article blocked due to high-risk fact-check: ${factCheckResult.summary}`);
+          }
+
+          // Warn about caution/review_recommended
+          if (factCheckResult.status === 'caution' || factCheckResult.status === 'review_recommended') {
+            setChatHistory(prev => [
+              ...prev,
+              { role: 'model', text: `⚠️ **Fact-Check Warning**\n\n${factCheckResult.summary}\n\n**Confidence:** ${factCheckResult.confidence}%\n\nArticle will be created as DRAFT for manual review before publication.` }
+            ]);
+          } else if (factCheckResult.status === 'passed') {
+            setChatHistory(prev => [
+              ...prev,
+              { role: 'model', text: `✅ **Fact-Check Passed** (Confidence: ${factCheckResult.confidence}%)` }
+            ]);
+          }
+        } else {
+          console.error('[Fact-check] API call failed - proceeding with caution');
+          setChatHistory(prev => [
+            ...prev,
+            { role: 'model', text: `⚠️ **Fact-check unavailable** - article will be created as DRAFT for manual review.` }
+          ]);
+        }
+      } catch (fcError) {
+        console.error('[Fact-check] Error:', fcError);
+        // If fact-check throws (high_risk block), re-throw to stop article creation
+        if (fcError instanceof Error && fcError.message.includes('high-risk')) {
+          throw fcError;
+        }
+        // Otherwise log warning and continue
+        setChatHistory(prev => [
+          ...prev,
+          { role: 'model', text: `⚠️ **Fact-check error** - article will be created as DRAFT for manual review.` }
+        ]);
+      }
 
       // Update status to image generation
       setStatusModalIcon('🖼️');
@@ -2342,6 +2451,11 @@ Example structure:
         isFeatured: false,
         isBreakingNews: false,
         generationCosts: articleCosts,
+        // Fact-check results
+        factCheckStatus: factCheckResult?.status,
+        factCheckSummary: factCheckResult?.summary,
+        factCheckConfidence: factCheckResult?.confidence,
+        factCheckedAt: factCheckResult ? new Date().toISOString() : null,
       };
 
       // Log total article generation cost

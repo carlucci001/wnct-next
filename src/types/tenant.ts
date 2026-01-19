@@ -1,5 +1,7 @@
 // Tenant and SaaS Types
 
+import type { AdvertiserPricingConfig } from '@/config/revenueStreams';
+
 export type TenantStatus = 'trial' | 'active' | 'suspended' | 'cancelled';
 export type TenantPlan = 'starter' | 'growth' | 'professional' | 'enterprise';
 
@@ -12,6 +14,12 @@ export interface TenantSettings {
   customDomain?: string;
 }
 
+export interface TenantFeatures {
+  advertisingEnabled: boolean;
+  directoryEnabled: boolean;
+  newsletterEnabled: boolean;
+}
+
 export interface Tenant {
   id: string;
   name: string;
@@ -21,15 +29,29 @@ export interface Tenant {
   status: TenantStatus;
   plan: TenantPlan;
 
-  // Dual Credit Pool System
+  // Dual Credit Pool System (for platform features)
   subscriptionCredits: number;      // Monthly allocation (resets each billing cycle)
   topOffCredits: number;            // Purchased credits (never expire, carry over)
 
-  // Billing Information
+  // Billing Information (for platform subscription)
   currentBillingStart?: Date;       // Start of current billing cycle
   nextBillingDate?: Date;           // When subscription renews
   stripeCustomerId?: string;        // Stripe customer ID
   stripeSubscriptionId?: string;    // Stripe subscription ID
+
+  // Revenue Tracking (Payment Proxy Model)
+  revenueBalance: number;           // Accumulated revenue to disburse to tenant
+  lastDisbursementDate?: Date;      // When revenue was last disbursed
+
+  // Future: Stripe Connect
+  stripeConnectedAccountId?: string;     // Stripe Connected Account ID
+  stripeConnectedOnboarded?: boolean;    // Whether Stripe Connect onboarding is complete
+
+  // Advertiser Pricing Configuration
+  advertiserPricing?: AdvertiserPricingConfig;
+
+  // Feature Flags
+  features?: TenantFeatures;
 
   createdAt: Date;
   updatedAt: Date;
@@ -109,37 +131,57 @@ export interface TopOffPack {
 
 // Advertiser Types
 
-export type AdvertiserStatus = 'pending' | 'active' | 'paused' | 'cancelled';
+export type AdvertiserStatus = 'pending_payment' | 'pending_review' | 'active' | 'paused' | 'cancelled';
 export type AdvertiserTier = 'basic' | 'featured' | 'premium';
 
 export interface Advertiser {
   id: string;
   tenantId: string;
+  userId: string;              // Firebase user ID who owns this advertiser account
   businessName: string;
-  businessId?: string;         // Link to Business in directory
+  businessId?: string;         // Link to Business in directory (if exists)
+  businessUrl?: string;        // Business website URL
   tier: AdvertiserTier;
-  monthlyRate: number;         // What subscriber charges advertiser
+  monthlyRate: number;         // What subscriber charges advertiser (deprecated - use pricing config)
   status: AdvertiserStatus;
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
   notes?: string;
+
+  // Payment tracking
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   lastPaymentDate?: Date;
   nextBillingDate?: Date;
   totalRevenue: number;        // Lifetime revenue from this advertiser
+
+  // Pricing tracking (for CPC/CPM models)
+  currentPeriodImpressions?: number;  // Impressions in current billing period
+  currentPeriodClicks?: number;       // Clicks in current billing period
+  currentPeriodSpend?: number;        // Amount owed for current period (cents)
+
+  // AI-generated banner
+  bannerUrl?: string;                 // Firebase Storage URL for generated banner
+  bannerPrompt?: string;              // Gemini prompt used to generate the banner
+
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface AdvertiserCreate {
   tenantId: string;
+  userId: string;
   businessName: string;
   businessId?: string;
+  businessUrl?: string;
   tier?: AdvertiserTier;
-  monthlyRate: number;
+  monthlyRate?: number;        // Optional - can be calculated from pricing config
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  bannerUrl?: string;
+  bannerPrompt?: string;
   notes?: string;
 }
 
