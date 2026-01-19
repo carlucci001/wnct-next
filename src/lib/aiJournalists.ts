@@ -32,6 +32,10 @@ export async function getAllAIJournalists(activeOnly: boolean = false): Promise<
         nextRunAt: data.nextRunAt || undefined,
         // Metrics
         metrics: data.metrics || undefined,
+        // Agent configuration
+        personaId: data.personaId || undefined,
+        useWebSearch: data.useWebSearch ?? false,
+        useFullArticleContent: data.useFullArticleContent ?? true,
       } as AIJournalist;
     });
 
@@ -77,6 +81,10 @@ export async function getAIJournalist(id: string): Promise<AIJournalist | null> 
       nextRunAt: data.nextRunAt || undefined,
       // Metrics
       metrics: data.metrics || undefined,
+      // Agent configuration
+      personaId: data.personaId || undefined,
+      useWebSearch: data.useWebSearch ?? false,
+      useFullArticleContent: data.useFullArticleContent ?? true,
     } as AIJournalist;
   } catch (error) {
     console.error('Error fetching AI journalist:', error);
