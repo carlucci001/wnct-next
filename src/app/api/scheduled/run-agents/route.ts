@@ -256,6 +256,26 @@ export async function POST(request: NextRequest) {
           console.log(`[${agent.name}] Web search disabled - using Gemini-only approach`);
         }
 
+        // MANDATORY SAFETY CHECKS for auto-published articles
+        if (agent.taskConfig?.autoPublish) {
+          if (!agent.useFullArticleContent) {
+            throw new Error(`[${agent.name}] BLOCKED: Auto-publish requires useFullArticleContent=true`);
+          }
+          if (!agent.useWebSearch) {
+            console.warn(`[${agent.name}] WARNING: Auto-publish without web search - accuracy may be reduced`);
+          }
+        }
+
+        // Validate source material quality
+        const validation = validateSourceMaterial(selectedItem, agent.name);
+
+        if (!validation.valid) {
+          console.error(`[${agent.name}] ${validation.reason}`);
+          throw new Error(`Source validation failed: ${validation.reason}`);
+        }
+
+        console.log(`[${agent.name}] Source material validated: ${validation.wordCount} words available`);
+
         // Generate article using Gemini (with optional web search results)
         const article = await generateArticle(
           geminiApiKey,
@@ -275,6 +295,57 @@ export async function POST(request: NextRequest) {
           geminiApiKey,
           settings
         );
+
+        // MANDATORY fact-check for auto-published articles
+        let factCheckResult = null;
+
+        if (agent.taskConfig?.autoPublish) {
+          console.log(`[${agent.name}] Running mandatory fact-check before publication...`);
+
+          try {
+            const factCheckResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fact-check`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mode: 'quick',
+                  title: article.title,
+                  content: article.content,
+                  sourceTitle: selectedItem.title,
+                  sourceSummary: selectedItem.description,
+                  sourceUrl: selectedItem.url,
+                }),
+              }
+            );
+
+            if (factCheckResponse.ok) {
+              factCheckResult = await factCheckResponse.json();
+
+              // BLOCK publication if high-risk
+              if (factCheckResult.status === 'high_risk') {
+                console.error(`[${agent.name}] BLOCKED: High-risk fact-check - ${factCheckResult.summary}`);
+                throw new Error(`Article blocked due to high-risk fact-check: ${factCheckResult.summary}`);
+              }
+
+              // FORCE DRAFT if caution or review recommended
+              if (factCheckResult.status === 'caution' ||
+                  factCheckResult.status === 'review_recommended') {
+                console.log(`[${agent.name}] Fact-check flagged issues - forcing DRAFT status`);
+                agent.taskConfig.autoPublish = false; // Override to draft
+              }
+
+              console.log(`[${agent.name}] Fact-check: ${factCheckResult.status} (confidence: ${factCheckResult.confidence}%)`);
+
+            } else {
+              console.error(`[${agent.name}] Fact-check API failed - forcing DRAFT mode for safety`);
+              agent.taskConfig.autoPublish = false;
+            }
+          } catch (fcError) {
+            console.error(`[${agent.name}] Fact-check error - forcing DRAFT mode for safety:`, fcError);
+            agent.taskConfig.autoPublish = false;
+          }
+        }
 
         // Prepare article data
         const formattedContent = formatArticleContent(article.content);
@@ -307,6 +378,11 @@ export async function POST(request: NextRequest) {
           sourceSummary: selectedItem.description,
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
+          // Fact-check results
+          factCheckStatus: factCheckResult?.status,
+          factCheckSummary: factCheckResult?.summary,
+          factCheckConfidence: factCheckResult?.confidence,
+          factCheckedAt: factCheckResult ? new Date().toISOString() : null,
           // A/B Testing metadata
           metadata: {
             usedWebSearch: agent.useWebSearch || false,
@@ -420,6 +496,40 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Validate that source material is sufficient for article generation
+ */
+function validateSourceMaterial(
+  sourceItem: ContentItem,
+  agentName: string
+): { valid: boolean; reason?: string; wordCount: number } {
+
+  // Calculate total available content
+  const sourceText = [
+    sourceItem.title || '',
+    sourceItem.description || '',
+    sourceItem.fullContent || ''
+  ].join(' ');
+
+  const wordCount = sourceText.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+  // MINIMUM: 100 words for ANY generation
+  if (wordCount < 100) {
+    return {
+      valid: false,
+      reason: `Insufficient source material (${wordCount} words, need 100+ minimum)`,
+      wordCount
+    };
+  }
+
+  // RECOMMENDED: 300+ words for quality articles
+  if (wordCount < 300) {
+    console.warn(`[${agentName}] Low source material (${wordCount} words) - article may be brief`);
+  }
+
+  return { valid: true, wordCount };
 }
 
 /**
