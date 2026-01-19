@@ -20,6 +20,8 @@ export interface AgentTaskConfig {
   categoryId?: string;        // Specific category to write for
   isFeatured?: boolean;       // Automatically mark articles as featured
   isBreakingNews?: boolean;   // Automatically mark articles as breaking news
+  autopilotMode?: boolean;    // NEW: Enable "vacation mode" - auto-publish even with caution/review_recommended if confidence >= threshold
+  autopilotConfidenceThreshold?: number; // NEW: Minimum fact-check confidence % for autopilot publishing (default: 70)
 }
 
 /**

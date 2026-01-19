@@ -328,11 +328,27 @@ export async function POST(request: NextRequest) {
                 throw new Error(`Article blocked due to high-risk fact-check: ${factCheckResult.summary}`);
               }
 
-              // FORCE DRAFT if caution or review recommended
+              // FORCE DRAFT if caution or review recommended (unless autopilot mode with high confidence)
               if (factCheckResult.status === 'caution' ||
                   factCheckResult.status === 'review_recommended') {
-                console.log(`[${agent.name}] Fact-check flagged issues - forcing DRAFT status`);
-                agent.taskConfig.autoPublish = false; // Override to draft
+
+                // Check if autopilot mode is enabled with confidence threshold
+                if (agent.taskConfig?.autopilotMode) {
+                  const threshold = agent.taskConfig.autopilotConfidenceThreshold || 70;
+
+                  if (factCheckResult.confidence >= threshold) {
+                    console.log(`[${agent.name}] ✈️ AUTOPILOT: Publishing despite ${factCheckResult.status} status (confidence ${factCheckResult.confidence}% >= threshold ${threshold}%)`);
+                    // Keep autoPublish=true, continue to publication
+
+                  } else {
+                    console.log(`[${agent.name}] ⚠️ AUTOPILOT: Confidence too low (${factCheckResult.confidence}% < ${threshold}%) - saving as DRAFT for review`);
+                    agent.taskConfig.autoPublish = false; // Force draft
+                  }
+                } else {
+                  // Standard mode - force draft (current behavior)
+                  console.log(`[${agent.name}] Fact-check flagged issues - forcing DRAFT status`);
+                  agent.taskConfig.autoPublish = false;
+                }
               }
 
               console.log(`[${agent.name}] Fact-check: ${factCheckResult.status} (confidence: ${factCheckResult.confidence}%)`);
@@ -389,6 +405,18 @@ export async function POST(request: NextRequest) {
             usedFullContent: !!selectedItem.fullContent,
             generationApproach: agent.useWebSearch ? 'perplexity+gemini' : 'gemini-only',
             imageMethod: imageResult.method,
+            // Quality metrics
+            sourceWordCount: validation.wordCount,
+            articleWordCount: article.content.split(/\s+/).length,
+            expansionRatio: article.content.split(/\s+/).length / validation.wordCount,
+            // Fact-check integration
+            wasAutoPublished: agent.taskConfig?.autoPublish || false,
+            blockedByFactCheck: factCheckResult?.status === 'high_risk',
+            // Autopilot tracking
+            autopilotMode: agent.taskConfig?.autopilotMode || false,
+            autopilotOverride: agent.taskConfig?.autopilotMode &&
+                               (factCheckResult?.status === 'caution' || factCheckResult?.status === 'review_recommended') &&
+                               (factCheckResult?.confidence >= (agent.taskConfig?.autopilotConfidenceThreshold || 70)),
           },
         };
 

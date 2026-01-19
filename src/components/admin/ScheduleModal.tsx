@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Clock, Calendar, Check, AlertCircle, Zap } from 'lucide-react';
+import { X, Clock, Calendar, Check, AlertCircle, Zap, Plane } from 'lucide-react';
 import {
   AIJournalist,
   AgentSchedule,
@@ -35,6 +35,8 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
   const [categoryId, setCategoryId] = useState(journalist.taskConfig?.categoryId ?? '');
   const [isFeatured, setIsFeatured] = useState(journalist.taskConfig?.isFeatured ?? false);
   const [isBreakingNews, setIsBreakingNews] = useState(journalist.taskConfig?.isBreakingNews ?? false);
+  const [autopilotMode, setAutopilotMode] = useState(journalist.taskConfig?.autopilotMode ?? false);
+  const [autopilotConfidenceThreshold, setAutopilotConfidenceThreshold] = useState(journalist.taskConfig?.autopilotConfidenceThreshold ?? 70);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,8 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
         maxArticlesPerRun,
         isFeatured,
         isBreakingNews,
+        autopilotMode,
+        autopilotConfidenceThreshold,
       };
 
       if (categoryId) {
@@ -350,6 +354,68 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
                     />
                   </button>
                 </div>
+
+                {/* Autopilot Mode (Vacation Mode) - Only show when auto-publish is enabled */}
+                {autoPublish && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Plane className="text-blue-600 dark:text-blue-400 mt-0.5" size={20} />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                          Autopilot Mode (Vacation Mode) ✈️
+                        </h4>
+                        <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
+                          Enable to allow publication even when fact-check returns "caution" or "review recommended",
+                          as long as confidence is above threshold. Perfect for unattended operation.
+                        </p>
+
+                        {/* Autopilot Toggle */}
+                        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={autopilotMode}
+                            onChange={(e) => setAutopilotMode(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-blue-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                            Enable Autopilot Mode
+                          </span>
+                        </label>
+
+                        {/* Confidence Threshold Slider */}
+                        {autopilotMode && (
+                          <div className="mt-3 p-3 bg-white dark:bg-slate-800 rounded border border-blue-200 dark:border-blue-700">
+                            <label className="block text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
+                              Minimum Confidence Threshold: {autopilotConfidenceThreshold}%
+                            </label>
+                            <input
+                              type="range"
+                              min="50"
+                              max="95"
+                              value={autopilotConfidenceThreshold}
+                              onChange={(e) => setAutopilotConfidenceThreshold(parseInt(e.target.value))}
+                              className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer dark:bg-blue-700"
+                            />
+                            <div className="flex justify-between text-xs text-blue-600 dark:text-blue-400 mt-1">
+                              <span>50%</span>
+                              <span>70% (recommended)</span>
+                              <span>95%</span>
+                            </div>
+                            <p className="text-xs text-blue-700 dark:text-blue-400 mt-2">
+                              Articles with confidence ≥ {autopilotConfidenceThreshold}%
+                              will publish automatically, even with caution flags.
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-3 text-xs text-blue-700 dark:text-blue-400 flex items-start gap-1">
+                          <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+                          <span><strong>Note:</strong> "High risk" articles will ALWAYS be blocked, regardless of autopilot mode.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Featured Toggle */}
                 <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
