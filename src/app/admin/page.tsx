@@ -19,7 +19,7 @@ import {
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
   Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2,
-  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin, Code
+  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin, Code, Wand2
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
@@ -27,6 +27,7 @@ import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, PERMISSION_LABELS, Us
 import { storageService } from '@/lib/storage';
 import { batchFormatArticles, batchMigrateImages, formatArticleContent, batchAssignArticlesToUser, getArticleBySlug } from '@/lib/articles';
 import { addCost, formatCost, getCategoryLabel, API_PRICING } from '@/lib/costs';
+import { searchWithPerplexity, PerplexitySearchResult } from '@/lib/perplexitySearch';
 import { AddUserModal } from '@/components/admin/modals/AddUserModal';
 import { EditUserModal } from '@/components/admin/modals/EditUserModal';
 import { createUser, updateUser, getUsers, deleteUser, seedTestUsers, deleteTestUsers } from '@/lib/users';
@@ -308,6 +309,7 @@ interface SiteSettings {
   openaiApiKey?: string;
   geminiApiKey?: string;
   perplexityApiKey?: string; // For real-time web search and fact-checking
+  usePerplexityForManualCreation?: boolean; // Enable web search for manual article creation
   pexelsApiKey?: string; // For stock photo search (free tier: 200 requests/hour)
   weatherApiKey?: string;
   defaultLocation?: string;
@@ -2109,8 +2111,36 @@ Return ONLY valid JSON array with no markdown:
 
       setChatHistory(prev => [...prev, { role: 'model', text: '🔍 **Researching and gathering sources...**' }]);
 
+      // OPTIONAL: Web search with Perplexity (if enabled)
+      let webSearchResults: PerplexitySearchResult | undefined;
+      if (settings?.usePerplexityForManualCreation && settings?.perplexityApiKey) {
+        try {
+          setStatusModalIcon('🌐');
+          setStatusModalMessage('Searching web for current information...');
+
+          const searchQuery = `Latest information about: ${suggestion.title}`;
+          webSearchResults = await searchWithPerplexity(
+            searchQuery,
+            suggestion.summary,
+            settings.perplexityApiKey
+          );
+
+          console.log('[Manual Article] Web search completed - confidence:', webSearchResults.confidence);
+          setChatHistory(prev => [...prev, {
+            role: 'model',
+            text: `✅ **Web search completed** (confidence: ${webSearchResults.confidence}%)`
+          }]);
+        } catch (error) {
+          console.error('[Manual Article] Web search failed:', error);
+          setChatHistory(prev => [...prev, {
+            role: 'model',
+            text: '⚠️ **Web search failed** - proceeding with basic information only'
+          }]);
+        }
+      }
+
       // Simulate research phase
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 500));
       setStatusModalIcon('📝');
       setStatusModalMessage('Compiling article structure...');
 
@@ -2123,17 +2153,23 @@ Summary: ${suggestion.summary}
 Angle: ${suggestion.angle}
 Category: ${categoryName}
 Location: ${settings.serviceArea || 'Western North Carolina'}
-
+${webSearchResults ? `
+VERIFIED WEB SEARCH RESULTS (Real-time information):
+${webSearchResults.answer}
+${webSearchResults.sources?.length ? `
+Sources: ${webSearchResults.sources.join(', ')}
+` : ''}
+` : ''}
 MANDATORY ANTI-FABRICATION PROTOCOL:
 
 You MUST follow these HARD CONSTRAINTS (violations will be flagged):
 
 1. FACTUAL BASIS ONLY:
-   - Write ONLY what is directly supported by the Title, Summary, and Angle provided above
-   - Do NOT add specific names of people, organizations, or places unless they are in the source material
+   - Write ONLY what is directly supported by the Title, Summary, Angle${webSearchResults ? ', and VERIFIED WEB SEARCH RESULTS' : ''} provided above
+   - Do NOT add specific names of people, organizations, or places unless they are in the source material${webSearchResults ? ' or web search results' : ''}
    - Do NOT invent statistics, dates, times, or specific details
    - Do NOT create or paraphrase quotes from anyone
-   - If the source material is vague, your article must also be general
+   - If the source material is vague, your article must also be general${webSearchResults ? ' (but you may use verified web information to add context)' : ''}
 
 2. STRICTLY PROHIBITED:
    - ❌ Creating quotes or statements attributed to people
@@ -4703,6 +4739,38 @@ Example structure:
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Manual Article Creation Setting */}
+              {settings.perplexityApiKey && (
+                <Card className="bg-blue-50/50 border-blue-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+                      <Wand2 size={18} /> Manual Article Creation
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="usePerplexityManual"
+                        checked={settings.usePerplexityForManualCreation || false}
+                        onChange={(e) => setSettings({ ...settings, usePerplexityForManualCreation: e.target.checked })}
+                        className="mt-1 w-4 h-4 text-blue-600 border-blue-300 rounded focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="usePerplexityManual" className="font-medium text-sm text-blue-900 cursor-pointer">
+                          Use Web Search for Manual Articles
+                        </label>
+                        <p className="text-sm text-blue-700 mt-1">
+                          When enabled, manually created articles (via Admin → Create Article) will query Perplexity
+                          for real-time web verification before generating content. This helps reduce fabrication and
+                          provides more current, factual information.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
