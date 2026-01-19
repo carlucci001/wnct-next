@@ -58,3 +58,4 @@ git_status_*.txt
 
 .vercel
 .env*.local
+scripts.zip
