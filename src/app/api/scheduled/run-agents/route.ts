@@ -9,6 +9,7 @@ import { formatArticleContent, formatExcerpt } from '@/lib/articles';
 import { AIJournalist } from '@/types/aiJournalist';
 import { Category } from '@/types/category';
 import { searchWithPerplexity, PerplexitySearchResult } from '@/lib/perplexitySearch';
+import { initializeArticleCosts, addCost, API_PRICING } from '@/lib/costs';
 
 export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
@@ -418,6 +419,32 @@ export async function POST(request: NextRequest) {
                                (factCheckResult?.status === 'caution' || factCheckResult?.status === 'review_recommended') &&
                                (factCheckResult?.confidence >= (agent.taskConfig?.autopilotConfidenceThreshold || 70)),
           },
+          // Cost tracking
+          generationCosts: (() => {
+            let costs = initializeArticleCosts();
+
+            // Article generation cost (Gemini)
+            costs = addCost(costs, 'articleGeneration', API_PRICING.GEMINI_ARTICLE_GENERATION);
+
+            // Perplexity web search cost (if used)
+            if (webSearchResults) {
+              costs = addCost(costs, 'other', API_PRICING.PERPLEXITY_SEARCH, 'Perplexity Web Search');
+            }
+
+            // Image generation cost
+            if (imageResult.method === 'ai') {
+              costs = addCost(costs, 'imageGeneration', API_PRICING.DALLE_3_STANDARD);
+            } else if (imageResult.method === 'stock') {
+              costs = addCost(costs, 'stockPhotoSearch', 0);
+            }
+
+            // Fact-check cost
+            if (factCheckResult) {
+              costs = addCost(costs, 'factCheck', API_PRICING.GEMINI_FACT_CHECK_QUICK);
+            }
+
+            return costs;
+          })(),
         };
 
         // PREVIEW MODE: Run fact-check and return data without saving
@@ -938,6 +965,25 @@ export async function GET(request: NextRequest) {
               usedFullContent: !!selectedItem.fullContent,
               generationApproach: agent.useWebSearch ? 'perplexity+gemini' : 'gemini-only',
             },
+            // Cost tracking
+            generationCosts: (() => {
+              let costs = initializeArticleCosts();
+
+              // Article generation cost (Gemini)
+              costs = addCost(costs, 'articleGeneration', API_PRICING.GEMINI_ARTICLE_GENERATION);
+
+              // Perplexity web search cost (if used)
+              if (webSearchResults) {
+                costs = addCost(costs, 'other', API_PRICING.PERPLEXITY_SEARCH, 'Perplexity Web Search');
+              }
+
+              // Image generation cost (AI only in cron mode)
+              if (persistedImageUrl) {
+                costs = addCost(costs, 'imageGeneration', API_PRICING.DALLE_3_STANDARD);
+              }
+
+              return costs;
+            })(),
           };
 
           const articleRef = await addDoc(collection(getDb(), 'articles'), articleData);

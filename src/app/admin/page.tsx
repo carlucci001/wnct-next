@@ -2304,6 +2304,12 @@ Example structure:
       articleCosts = addCost(articleCosts, 'articleGeneration', API_PRICING.GEMINI_ARTICLE_GENERATION);
       console.log(`[Cost] Article generation: ${formatCost(API_PRICING.GEMINI_ARTICLE_GENERATION)}`);
 
+      // Track Perplexity web search cost (if used)
+      if (webSearchResults) {
+        articleCosts = addCost(articleCosts, 'other', API_PRICING.PERPLEXITY_SEARCH, 'Perplexity Web Search');
+        console.log(`[Cost] Perplexity web search: ${formatCost(API_PRICING.PERPLEXITY_SEARCH)}`);
+      }
+
       // MANDATORY FACT-CHECK before proceeding
       setStatusModalIcon('🔍');
       setStatusModalMessage('Running fact-check analysis...');
