@@ -90,11 +90,12 @@ export async function getAIJournalist(id: string): Promise<AIJournalist | null> 
 export async function createAIJournalist(data: AIJournalistInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), {
+    const cleanData = removeUndefined({
       ...data,
       createdAt: now,
       updatedAt: now,
     });
+    const docRef = await addDoc(collection(getDb(), COLLECTION_NAME), cleanData);
     return docRef.id;
   } catch (error) {
     console.error('Error creating AI journalist:', error);
@@ -108,10 +109,11 @@ export async function createAIJournalist(data: AIJournalistInput): Promise<strin
 export async function updateAIJournalist(id: string, data: Partial<AIJournalistInput>): Promise<void> {
   try {
     const docRef = doc(getDb(), COLLECTION_NAME, id);
-    await updateDoc(docRef, {
+    const cleanData = removeUndefined({
       ...data,
       updatedAt: new Date().toISOString(),
     });
+    await updateDoc(docRef, cleanData);
   } catch (error) {
     console.error('Error updating AI journalist:', error);
     throw error;
