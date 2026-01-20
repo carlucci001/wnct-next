@@ -174,11 +174,11 @@ export async function findStockPhoto(
  * Extract keywords from article title and content for stock photo search
  * @param title - Article title
  * @param content - Article content (optional, for better context)
- * @returns Clean search query with specific visual terms
+ * @returns Clean search query with specific visual terms (1-2 core concepts)
  */
 export function extractPhotoKeywords(title: string, content?: string): string {
-  // Common words to filter out
-  const stopWords = [
+  // Words to completely ignore
+  const stopWords = new Set([
     'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but',
     'says', 'after', 'new', 'will', 'has', 'have', 'been', 'was', 'were', 'is',
     'are', 'this', 'that', 'these', 'those', 'their', 'them', 'they', 'from',
@@ -186,51 +186,62 @@ export function extractPhotoKeywords(title: string, content?: string): string {
     'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here',
     'there', 'when', 'where', 'why', 'how', 'all', 'both', 'each', 'more',
     'most', 'other', 'some', 'such', 'than', 'too', 'very', 'can', 'just',
-    'should', 'now', 'news', 'editorial', 'article', 'story', 'report'
-  ];
+    'should', 'now'
+  ]);
 
-  // Collect all words from title and content
-  const allText = content
-    ? `${title} ${content.replace(/<[^>]*>/g, '')}` // Strip HTML tags
-    : title;
+  // Non-visual words that add no value to image search
+  const abstractWords = new Set([
+    'news', 'breaking', 'editorial', 'article', 'story', 'report', 'announces',
+    'announced', 'announcement', 'update', 'updated', 'latest', 'recent',
+    'according', 'officials', 'says', 'said', 'local', 'area', 'county',
+    'community', 'impact', 'impacts', 'issues', 'concerns', 'residents'
+  ]);
 
-  // Extract all meaningful words (nouns, proper nouns, visual terms)
-  const words = allText
-    .toLowerCase()
-    .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
+  // Highly visual terms that make good search keywords
+  const visualTerms = new Set([
+    'mountain', 'mountains', 'building', 'house', 'school', 'hospital', 'park',
+    'river', 'lake', 'forest', 'storm', 'snow', 'rain', 'flood', 'fire',
+    'road', 'street', 'bridge', 'downtown', 'business', 'restaurant', 'shop',
+    'stadium', 'field', 'court', 'sports', 'game', 'team', 'player',
+    'construction', 'development', 'landscape', 'sunset', 'sunrise', 'weather'
+  ]);
+
+  // Process title only (content is too noisy)
+  const titleLower = title.toLowerCase();
+
+  // Extract all words from title
+  const words = titleLower
+    .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter(word =>
       word.length > 3 &&
-      !stopWords.includes(word) &&
-      !/^\d+$/.test(word) // Filter out pure numbers
+      !stopWords.has(word) &&
+      !abstractWords.has(word) &&
+      !/^\d+$/.test(word)
     );
 
-  // Count word frequency to find most important terms
-  const wordFreq = new Map<string, number>();
-  words.forEach(word => {
-    wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
-  });
+  // Prioritize highly visual terms
+  const visualKeywords = words.filter(word => visualTerms.has(word));
 
-  // Prioritize words that appear in the title
-  const titleWords = new Set(
-    title.toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !stopWords.includes(w))
-  );
+  // If we found good visual terms, use them (max 2)
+  if (visualKeywords.length > 0) {
+    return visualKeywords.slice(0, 2).join(' ');
+  }
 
-  // Sort by: title words first, then by frequency
-  const sortedWords = Array.from(wordFreq.entries())
-    .sort((a, b) => {
-      const aInTitle = titleWords.has(a[0]) ? 1000 : 0;
-      const bInTitle = titleWords.has(b[0]) ? 1000 : 0;
-      return (bInTitle + b[1]) - (aInTitle + a[1]);
-    })
-    .map(([word]) => word);
+  // Otherwise, take first 1-2 meaningful nouns from title
+  // (Nouns are usually more specific than adjectives)
+  const meaningfulWords = words.slice(0, 2);
 
-  // Take top 4-5 most relevant keywords
-  const keywords = sortedWords.slice(0, 5).join(' ');
+  if (meaningfulWords.length > 0) {
+    return meaningfulWords.join(' ');
+  }
 
-  // Fallback to just title words if extraction failed
-  return keywords || title.split(' ').slice(0, 3).join(' ');
+  // Last resort: use first 2 words of title (even if generic)
+  const fallback = title
+    .split(' ')
+    .filter(w => w.length > 2)
+    .slice(0, 2)
+    .join(' ');
+
+  return fallback || 'news';
 }
