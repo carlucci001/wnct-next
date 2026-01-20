@@ -885,7 +885,30 @@ TASK: Write a factual news article based STRICTLY on the source material above${
 
 FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS:
 
-TITLE: [Factual, compelling headline directly from source material]
+TITLE: [Write a SPECIFIC news headline that answers "What happened?" - NOT generic phrases]
+
+HEADLINE REQUIREMENTS - MANDATORY:
+✅ DO: Identify the SPECIFIC news event from the source
+✅ DO: Use active voice and concrete details
+✅ DO: Make it answer "What happened?" in under 12 words
+✅ DO: Include key facts (who, what, where if available)
+
+❌ DON'T: Use generic words like "Breaking", "News", "Update", "Alert"
+❌ DON'T: Use redundant phrases like "News News" or "Breaking News Article"
+❌ DON'T: Use vague phrases like "Major Development" or "Important Announcement"
+❌ DON'T: Start with "Local" unless it's specifically about local government
+
+GOOD EXAMPLES:
+- "Winter Storm Warning Issued for Buncombe County Through Thursday"
+- "New Restaurant Opens on Main Street in Downtown Asheville"
+- "City Council Approves $2M Budget for Road Repairs"
+- "High School Basketball Team Wins Regional Championship"
+
+BAD EXAMPLES (NEVER DO THIS):
+- "Breaking: News News in Western North Carolina" ❌
+- "Local Update: Weather Information" ❌
+- "Important Business News for the Area" ❌
+- "Major Development in Western NC" ❌
 
 CONTENT:
 ${sourceItem.sourceName === 'News Reports'
