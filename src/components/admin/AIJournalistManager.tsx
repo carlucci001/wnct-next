@@ -271,13 +271,13 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
 
     setRunningAgentId(journalist.id);
     try {
-      // Use preview mode to get article + fact-check without saving
+      // Run agent and let API save article automatically based on autoPublish setting
       const response = await fetch('/api/scheduled/run-agents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ agentId: journalist.id, force: true, preview: true }),
+        body: JSON.stringify({ agentId: journalist.id, force: true }), // Removed preview: true
       });
 
       const result = await response.json();
@@ -286,31 +286,15 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         throw new Error(result.error || 'Failed to run agent');
       }
 
-      if (result.preview && result.article) {
-        // Show review modal with generated article and fact-check results
-        setReviewModal({
-          isOpen: true,
-          article: {
-            title: result.article.title,
-            content: result.article.content,
-            excerpt: result.article.excerpt,
-            category: result.article.category,
-            categoryId: result.article.categoryId,
-            tags: result.article.tags || [],
-            imageUrl: result.article.imageUrl || result.article.featuredImage,
-            sourceTitle: result.sourceItem?.title,
-            sourceSummary: result.sourceItem?.summary,
-            sourceUrl: result.sourceItem?.url,
-          },
-          factCheck: result.factCheck,
-          journalist,
-          sourceItemId: result.sourceItem?.id || null,
-        });
-      } else if (result.results?.[0]?.success) {
-        alert(`Article generated successfully by ${journalist.name}!`);
-        await loadJournalists();
+      // Article is now automatically saved by the API
+      if (result.results?.[0]?.success) {
+        const articleId = result.results[0].articleId;
+        const status = result.results[0].status || 'unknown';
+
+        alert(`✅ Article ${status === 'published' ? 'published' : 'saved as draft'} successfully by ${journalist.name}!`);
+        await loadJournalists(); // Refresh stats
       } else if (result.results?.[0]?.error) {
-        alert(`Error: ${result.results[0].error}`);
+        alert(`❌ Error: ${result.results[0].error}`);
       } else {
         alert(result.message || 'Agent run completed');
       }
