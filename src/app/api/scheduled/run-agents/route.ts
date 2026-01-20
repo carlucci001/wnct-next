@@ -485,10 +485,10 @@ export async function POST(request: NextRequest) {
           sourceSummary: selectedItem.description,
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
-          // Fact-check results
-          factCheckStatus: factCheckResult?.status || null,
-          factCheckSummary: factCheckResult?.summary || null,
-          factCheckConfidence: factCheckResult?.confidence || null,
+          // Fact-check results (explicit null checks to prevent undefined values)
+          factCheckStatus: (factCheckResult?.status) ? factCheckResult.status : null,
+          factCheckSummary: (factCheckResult?.summary) ? factCheckResult.summary : null,
+          factCheckConfidence: (factCheckResult?.confidence !== undefined) ? factCheckResult.confidence : null,
           factCheckedAt: factCheckResult ? new Date().toISOString() : null,
           // A/B Testing metadata
           metadata: {
