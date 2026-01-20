@@ -74,39 +74,53 @@ export default function ArticleClient({ slug }: { slug: string }) {
 
   useEffect(() => {
     async function fetchData() {
-      if (!slug) return;
-
-      const fetchedArticle = await getArticleBySlug(slug);
-      setArticle(fetchedArticle);
-
-      // Fetch site configuration for social links
       try {
-        const configResponse = await fetch('/api/site-config');
-        if (configResponse.ok) {
-          const configData = await configResponse.json();
-          setSiteConfig(configData);
+        if (!slug) return;
+
+        const fetchedArticle = await getArticleBySlug(slug);
+        setArticle(fetchedArticle);
+
+        // Fetch site configuration for social links
+        try {
+          const configResponse = await fetch('/api/site-config');
+          if (configResponse.ok) {
+            const configData = await configResponse.json();
+            setSiteConfig(configData);
+          }
+        } catch (error) {
+          console.error('Failed to load site config:', error);
+        }
+
+        if (fetchedArticle?.category) {
+          try {
+            const categoryData = await getCategoryByName(fetchedArticle.category);
+            if (categoryData?.color) {
+              setCategoryColor(categoryData.color);
+            } else {
+              setCategoryColor(getFallbackColor(fetchedArticle.category));
+            }
+          } catch (error) {
+            console.error('Failed to load category data:', error);
+            setCategoryColor(getFallbackColor(fetchedArticle.category));
+          }
+
+          try {
+            const categoryArticles = await getArticlesByCategory(fetchedArticle.category);
+            setRelatedArticles(
+              categoryArticles
+                .filter(a => a.id !== fetchedArticle.id)
+                .slice(0, 4)
+            );
+          } catch (error) {
+            console.error('Failed to load related articles:', error);
+          }
         }
       } catch (error) {
-        console.error('Failed to load site config:', error);
+        console.error('Failed to load article:', error);
+        setArticle(null); // This will show "Article Not Found" page
+      } finally {
+        setLoading(false); // ALWAYS stop loading, even if there's an error
       }
-
-      if (fetchedArticle?.category) {
-        const categoryData = await getCategoryByName(fetchedArticle.category);
-        if (categoryData?.color) {
-          setCategoryColor(categoryData.color);
-        } else {
-          setCategoryColor(getFallbackColor(fetchedArticle.category));
-        }
-
-        const categoryArticles = await getArticlesByCategory(fetchedArticle.category);
-        setRelatedArticles(
-          categoryArticles
-            .filter(a => a.id !== fetchedArticle.id)
-            .slice(0, 4)
-        );
-      }
-
-      setLoading(false);
     }
     fetchData();
   }, [slug]);
