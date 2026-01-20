@@ -1659,11 +1659,11 @@ Return ONLY valid JSON array with no markdown:
     try {
       const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
       // Extract keywords from both title AND content for better relevance
-      const keywords = extractPhotoKeywords(agentArticle.title, agentArticle.content);
+      const keywords = extractPhotoKeywords(agentArticle.title, agentArticle.content, agentArticle.category);
       const pexelsApiKey = settings?.pexelsApiKey as string;
 
       console.log(`[Image] Regenerating stock photo with keywords: "${keywords}"`);
-      const stockPhoto = await findStockPhoto(keywords, undefined, pexelsApiKey);
+      const stockPhoto = await findStockPhoto(keywords, agentArticle.category, pexelsApiKey);
 
       if (stockPhoto) {
         console.log(`[Image] Found ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
@@ -2390,7 +2390,7 @@ Example structure:
         // STEP 1: Try stock photos first (Unsplash → Pexels)
         const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
         // Extract keywords from both title AND content for better relevance
-        const keywords = extractPhotoKeywords(suggestion.title, content);
+        const keywords = extractPhotoKeywords(suggestion.title, content, undefined);
 
         const pexelsApiKey = settings?.pexelsApiKey as string;
         console.log(`[Image] Searching with keywords: "${keywords}"`);

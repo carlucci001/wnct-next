@@ -174,9 +174,10 @@ export async function findStockPhoto(
  * Extract keywords from article title and content for stock photo search
  * @param title - Article title
  * @param content - Article content (optional, for better context)
+ * @param category - Article category (for fallback)
  * @returns Clean search query with specific visual terms (1-2 core concepts)
  */
-export function extractPhotoKeywords(title: string, content?: string): string {
+export function extractPhotoKeywords(title: string, content?: string, category?: string): string {
   // Words to completely ignore
   const stopWords = new Set([
     'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but',
@@ -197,13 +198,39 @@ export function extractPhotoKeywords(title: string, content?: string): string {
     'community', 'impact', 'impacts', 'issues', 'concerns', 'residents'
   ]);
 
-  // Highly visual terms that make good search keywords
+  // Highly visual terms that make good search keywords (expanded for news coverage)
   const visualTerms = new Set([
-    'mountain', 'mountains', 'building', 'house', 'school', 'hospital', 'park',
-    'river', 'lake', 'forest', 'storm', 'snow', 'rain', 'flood', 'fire',
-    'road', 'street', 'bridge', 'downtown', 'business', 'restaurant', 'shop',
-    'stadium', 'field', 'court', 'sports', 'game', 'team', 'player',
-    'construction', 'development', 'landscape', 'sunset', 'sunrise', 'weather'
+    // Nature & Weather
+    'mountain', 'mountains', 'river', 'lake', 'forest', 'landscape', 'sunset', 'sunrise',
+    'storm', 'snow', 'rain', 'flood', 'fire', 'weather', 'winter', 'summer', 'autumn', 'spring',
+    'clouds', 'lightning', 'tornado', 'hurricane', 'drought', 'wildfire',
+
+    // Buildings & Infrastructure
+    'building', 'house', 'school', 'hospital', 'church', 'courthouse', 'library',
+    'road', 'street', 'bridge', 'highway', 'railroad', 'airport', 'station',
+    'downtown', 'town', 'city', 'village', 'neighborhood',
+
+    // Business & Commerce
+    'business', 'restaurant', 'shop', 'store', 'market', 'factory', 'warehouse',
+    'office', 'workplace', 'manufacturing', 'retail', 'cafe', 'brewery', 'farm',
+
+    // Sports & Recreation
+    'stadium', 'field', 'court', 'sports', 'game', 'team', 'player', 'athlete',
+    'golf', 'tennis', 'basketball', 'football', 'baseball', 'soccer', 'hockey',
+    'park', 'playground', 'trail', 'hiking', 'camping', 'fishing', 'hunting',
+
+    // Construction & Development
+    'construction', 'development', 'renovation', 'demolition', 'crane', 'workers',
+
+    // Emergency & Safety
+    'police', 'firefighters', 'ambulance', 'rescue', 'emergency', 'accident',
+
+    // Education & Community
+    'classroom', 'students', 'teachers', 'graduation', 'university', 'college',
+    'community', 'volunteers', 'charity', 'festival', 'celebration', 'parade',
+
+    // Transportation
+    'traffic', 'cars', 'trucks', 'buses', 'trains', 'planes', 'vehicles'
   ]);
 
   // Process title only (content is too noisy)
@@ -236,6 +263,26 @@ export function extractPhotoKeywords(title: string, content?: string): string {
     return meaningfulWords.join(' ');
   }
 
+  // Category-based fallback (better than generic title words)
+  const categoryFallbacks: Record<string, string> = {
+    'news': 'newspaper',
+    'politics': 'government capitol',
+    'sports': 'stadium sports',
+    'business': 'office business',
+    'entertainment': 'theater stage',
+    'lifestyle': 'coffee lifestyle',
+    'outdoors': 'mountains nature',
+    'weather': 'clouds weather',
+    'education': 'school classroom',
+    'health': 'hospital medical',
+    'technology': 'computers tech',
+    'crime': 'police emergency'
+  };
+
+  if (category && categoryFallbacks[category.toLowerCase()]) {
+    return categoryFallbacks[category.toLowerCase()];
+  }
+
   // Last resort: use first 2 words of title (even if generic)
   const fallback = title
     .split(' ')
@@ -243,5 +290,5 @@ export function extractPhotoKeywords(title: string, content?: string): string {
     .slice(0, 2)
     .join(' ');
 
-  return fallback || 'news';
+  return fallback || 'newspaper';
 }

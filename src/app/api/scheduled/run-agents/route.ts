@@ -62,7 +62,7 @@ async function generateArticleImage(
   // STEP 1: Try stock photos first (Unsplash → Pexels)
   try {
     const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
-    const keywords = extractPhotoKeywords(title);
+    const keywords = extractPhotoKeywords(title, content, category);
     console.log(`[Image] Searching stock photos for: "${keywords}"`);
 
     const pexelsApiKey = settings?.pexelsApiKey as string;
