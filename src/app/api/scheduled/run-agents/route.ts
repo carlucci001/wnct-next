@@ -291,16 +291,45 @@ export async function POST(request: NextRequest) {
           console.log(`[${agent.name}] Created article from web search: "${selectedItem.title}"`);
 
         } else {
-          // RSS MODE: Traditional RSS feed approach
-          console.log(`[${agent.name}] RSS mode - checking for unprocessed content items`);
+          // RSS MODE: HYBRID selection - rate multiple articles and pick the best
+          console.log(`[${agent.name}] Hybrid RSS mode - rating multiple articles for quality`);
           const contentItems = await getUnprocessedItems(categorySlug, 5);
 
           if (contentItems.length === 0) {
             throw new Error('No RSS content items available and web search is disabled');
           }
 
-          selectedItem = contentItems[0];
-          console.log(`[${agent.name}] Using RSS item: "${selectedItem.title}"`);
+          // HYBRID LOGIC: Rate each article and pick the best one
+          if (contentItems.length > 1) {
+            console.log(`[${agent.name}] Found ${contentItems.length} RSS articles - rating for quality...`);
+
+            const ratings = await Promise.all(
+              contentItems.map(async (item) => {
+                const score = await rateArticleQuality(
+                  item,
+                  agent.beat,
+                  category?.editorialDirective,
+                  geminiApiKey
+                );
+                return { item, score };
+              })
+            );
+
+            // Sort by score (highest first) and pick the best
+            ratings.sort((a, b) => b.score - a.score);
+
+            console.log(`[${agent.name}] Article ratings:`);
+            ratings.forEach((r, i) => {
+              console.log(`  ${i + 1}. [${r.score}/10] ${r.item.title.substring(0, 60)}...`);
+            });
+
+            selectedItem = ratings[0].item;
+            console.log(`[${agent.name}] ✅ Selected highest-rated article (${ratings[0].score}/10): "${selectedItem.title}"`);
+          } else {
+            // Only one item available
+            selectedItem = contentItems[0];
+            console.log(`[${agent.name}] Using only available RSS item: "${selectedItem.title}"`);
+          }
 
           // Try to fetch full article content if enabled
           if (agent.useFullArticleContent && selectedItem.url && !selectedItem.fullContent) {
@@ -680,6 +709,78 @@ function validateSourceMaterial(
   }
 
   return { valid: true, wordCount };
+}
+
+/**
+ * Rate an RSS article for quality and relevance using Gemini AI
+ * Returns a score from 1-10 based on relevance, quality, and newsworthiness
+ */
+async function rateArticleQuality(
+  item: ContentItem,
+  beat: string,
+  editorialDirective: string | undefined,
+  geminiApiKey: string
+): Promise<number> {
+  const model = 'gemini-2.0-flash-exp';
+
+  const prompt = `You are a news editor evaluating articles for a ${beat} journalist.
+
+ARTICLE TO RATE:
+Title: ${item.title}
+Description: ${item.description || 'No description'}
+Source: ${item.sourceName || 'Unknown'}
+
+EVALUATION CRITERIA:
+1. Relevance to ${beat} beat (40 points)
+2. Quality and depth of content (30 points)
+3. Newsworthiness and timeliness (20 points)
+4. Editorial fit: ${editorialDirective || 'General interest local news'} (10 points)
+
+Rate this article from 1-10 where:
+- 9-10: Excellent fit, high quality, very newsworthy
+- 7-8: Good fit, solid quality
+- 5-6: Moderate fit, acceptable quality
+- 3-4: Weak fit or quality issues
+- 1-2: Poor fit or low quality
+
+Respond ONLY with a single number from 1-10. No explanation needed.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2, // Low temperature for consistent scoring
+            maxOutputTokens: 10,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`Failed to rate article: ${response.statusText}`);
+      return 5; // Default middle score if rating fails
+    }
+
+    const data = await response.json();
+    const scoreText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const score = parseInt(scoreText || '5', 10);
+
+    // Validate score is between 1-10
+    if (isNaN(score) || score < 1 || score > 10) {
+      console.warn(`Invalid score "${scoreText}" for article, defaulting to 5`);
+      return 5;
+    }
+
+    return score;
+  } catch (error) {
+    console.error(`Error rating article:`, error);
+    return 5; // Default middle score on error
+  }
 }
 
 /**
