@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
     // If articleId provided, update the article with fact-check results
     if (articleId) {
       try {
-        const articleRef = doc(getDb(), 'articles', articleId);
+        // Use Admin SDK to bypass authentication requirements (for server-side updates)
+        const { getAdminFirestore } = await import('@/lib/firebase-admin');
         const updateData: Record<string, unknown> = {
           factCheckStatus: result.status,
           factCheckSummary: result.summary,
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
           updateData.factCheckRecommendations = result.recommendations;
         }
 
-        await updateDoc(articleRef, updateData);
+        await getAdminFirestore().collection('articles').doc(articleId).update(updateData);
       } catch (updateError) {
         console.error('Failed to update article with fact-check results:', updateError);
         // Continue - return results even if update fails

@@ -17,6 +17,37 @@ export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
+ * Generate intelligent search query based on agent's beat and location
+ */
+function generateSearchQuery(beat: string, agentName: string): string {
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  // Base location (could be made configurable per agent)
+  const location = 'Western North Carolina';
+
+  // Customize query based on beat
+  const beatQueries: Record<string, string> = {
+    'news': `latest breaking news in ${location} today ${today}`,
+    'local': `local ${location} news and community stories ${today}`,
+    'sports': `${location} sports news and high school athletics ${today}`,
+    'business': `${location} business news, economic development, and local commerce ${today}`,
+    'politics': `${location} politics, government decisions, and policy news ${today}`,
+    'education': `${location} schools, colleges, and education news ${today}`,
+    'weather': `${location} weather forecast, severe weather alerts ${today}`,
+    'arts': `${location} arts, culture, and entertainment events ${today}`,
+    'health': `${location} health care, medical news, and wellness ${today}`,
+    'environment': `${location} environmental news, conservation, outdoor recreation ${today}`,
+  };
+
+  return beatQueries[beat.toLowerCase()] || `${location} ${beat} news ${today}`;
+}
+
+/**
  * Generate article image using hybrid strategy: Stock photos first, then AI
  * This ensures we use high-quality, relevant images while avoiding copyrighted news photos
  */
@@ -207,36 +238,91 @@ export async function POST(request: NextRequest) {
 
         const category = categorySlug ? await getCategoryBySlug(categorySlug) : null;
 
-        // Get unprocessed content items for this category
-        const contentItems = await getUnprocessedItems(categorySlug, 5);
+        let selectedItem: ContentItem;
+        let isWebSearchGenerated = false;
 
-        if (contentItems.length === 0) {
-          throw new Error('No content items available for article generation');
-        }
+        // PRIMARY SOURCE SELECTION: Web search if enabled, otherwise RSS
+        if (agent.useWebSearch) {
+          // WEB SEARCH PRIMARY MODE: Skip RSS entirely, use Perplexity to find current news
+          console.log(`[${agent.name}] Web search mode enabled - using Perplexity as primary source (skipping RSS)`);
 
-        // Pick the most relevant item
-        const selectedItem = contentItems[0];
+          const perplexityApiKey = settings?.perplexityApiKey as string;
+          if (!perplexityApiKey) {
+            throw new Error('Web search mode enabled but Perplexity API key not configured');
+          }
 
-        // Optional: Fetch full article content if enabled for this journalist
-        if (agent.useFullArticleContent && selectedItem.url && !selectedItem.fullContent) {
-          try {
-            console.log(`[${agent.name}] Fetching full article content from ${selectedItem.url}`);
-            const { fetchFullArticle } = await import('@/lib/contentSources');
-            const fullContent = await fetchFullArticle(selectedItem.url);
-            if (fullContent) {
-              selectedItem.fullContent = fullContent;
-              console.log(`[${agent.name}] Full article content fetched: ${fullContent.length} characters`);
-            } else {
-              console.log(`[${agent.name}] Could not extract full content, will use description only`);
+          // Generate search query based on agent's beat and location
+          const searchQuery = generateSearchQuery(agent.beat, agent.name);
+          console.log(`[${agent.name}] Web search query: "${searchQuery}"`);
+
+          // Build search instruction - incorporate category editorial directive if available
+          let searchInstruction = 'Find the most newsworthy and current story to report on';
+          if (category?.editorialDirective) {
+            searchInstruction = `Find the most newsworthy and current story to report on. ${category.editorialDirective}`;
+            console.log(`[${agent.name}] Using editorial directive: "${category.editorialDirective}"`);
+          }
+
+          // Search for current news
+          const searchResults = await searchWithPerplexity(
+            searchQuery,
+            searchInstruction,
+            perplexityApiKey
+          );
+
+          // Strip citation markers [1], [2], etc. from Perplexity response
+          const cleanAnswer = (searchResults.answer || '').replace(/\[\d+\]/g, '').trim();
+
+          // Create content item from web search results
+          selectedItem = {
+            id: `web-search-${Date.now()}`,
+            title: `Breaking: ${agent.beat.charAt(0).toUpperCase() + agent.beat.slice(1)} News in Western North Carolina`,
+            description: cleanAnswer.substring(0, 200) || 'Current news report.',
+            url: searchResults.citations?.[0] || '',
+            sourceName: 'News Reports',
+            sourceUrl: searchResults.citations?.[0] || '',
+            category: categorySlug || agent.beat,
+            publishedAt: new Date().toISOString(),
+            fetchedAt: new Date().toISOString(),
+            isProcessed: false,
+            fullContent: cleanAnswer,
+          };
+
+          isWebSearchGenerated = true;
+          console.log(`[${agent.name}] Created article from web search: "${selectedItem.title}"`);
+
+        } else {
+          // RSS MODE: Traditional RSS feed approach
+          console.log(`[${agent.name}] RSS mode - checking for unprocessed content items`);
+          const contentItems = await getUnprocessedItems(categorySlug, 5);
+
+          if (contentItems.length === 0) {
+            throw new Error('No RSS content items available and web search is disabled');
+          }
+
+          selectedItem = contentItems[0];
+          console.log(`[${agent.name}] Using RSS item: "${selectedItem.title}"`);
+
+          // Try to fetch full article content if enabled
+          if (agent.useFullArticleContent && selectedItem.url && !selectedItem.fullContent) {
+            try {
+              console.log(`[${agent.name}] Fetching full article content from ${selectedItem.url}`);
+              const { fetchFullArticle } = await import('@/lib/contentSources');
+              const fullContent = await fetchFullArticle(selectedItem.url);
+              if (fullContent) {
+                selectedItem.fullContent = fullContent;
+                console.log(`[${agent.name}] Full article content fetched: ${fullContent.length} characters`);
+              } else {
+                console.log(`[${agent.name}] Could not extract full content, will use description only`);
+              }
+            } catch (error) {
+              console.error(`[${agent.name}] Failed to fetch full content:`, error);
             }
-          } catch (error) {
-            console.error(`[${agent.name}] Failed to fetch full content:`, error);
           }
         }
 
-        // Optional: Perform web search if enabled for this journalist
+        // Optional: Perform web search verification (ONLY for RSS mode, not for web search primary mode)
         let webSearchResults: PerplexitySearchResult | undefined;
-        if (agent.useWebSearch) {
+        if (agent.useWebSearch && !isWebSearchGenerated) {
           try {
             console.log(`[${agent.name}] Web search enabled - fetching current information via Perplexity`);
             const perplexityApiKey = settings?.perplexityApiKey as string;
@@ -306,8 +392,10 @@ export async function POST(request: NextRequest) {
           console.log(`[${agent.name}] Running mandatory fact-check before publication...`);
 
           try {
+            // Use request origin to construct proper URL (works in both local and production)
+            const baseUrl = new URL(request.url).origin;
             const factCheckResponse = await fetch(
-              `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/fact-check`,
+              `${baseUrl}/api/fact-check`,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -386,7 +474,7 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date().toISOString(),
           featuredImage: imageResult.url,
           imageUrl: imageResult.url,
-          imageAttribution: imageResult.attribution,
+          imageAttribution: imageResult.attribution || null,
           isFeatured: agent.taskConfig?.isFeatured ?? false,
           isBreakingNews: agent.taskConfig?.isBreakingNews ?? false,
           breakingNewsTimestamp: agent.taskConfig?.isBreakingNews ? new Date().toISOString() : null,
@@ -398,9 +486,9 @@ export async function POST(request: NextRequest) {
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
           // Fact-check results
-          factCheckStatus: factCheckResult?.status,
-          factCheckSummary: factCheckResult?.summary,
-          factCheckConfidence: factCheckResult?.confidence,
+          factCheckStatus: factCheckResult?.status || null,
+          factCheckSummary: factCheckResult?.summary || null,
+          factCheckConfidence: factCheckResult?.confidence || null,
           factCheckedAt: factCheckResult ? new Date().toISOString() : null,
           // A/B Testing metadata
           metadata: {
@@ -498,8 +586,10 @@ export async function POST(request: NextRequest) {
         const { getAdminFirestore } = await import('@/lib/firebase-admin');
         const articleRef = await getAdminFirestore().collection('articles').add(articleData);
 
-        // Mark content item as processed
-        await markItemProcessed(selectedItem.id, articleRef.id);
+        // Mark content item as processed (skip for web-search-generated items)
+        if (!isWebSearchGenerated) {
+          await markItemProcessed(selectedItem.id, articleRef.id);
+        }
 
         // Update task status
         const generationTime = Date.now() - agentStartTime;
@@ -692,11 +782,11 @@ function buildArticlePrompt(
 
   prompt += `\nSource URL: ${sourceItem.url}\n`;
 
-  // Add web search results if available
+  // Add web search results if available (for RSS verification mode only)
   if (webSearchResults) {
-    prompt += `\nVERIFIED CURRENT INFORMATION (from real-time web search):\n${webSearchResults.answer}\n`;
+    prompt += `\nADDITIONAL VERIFIED INFORMATION:\n${webSearchResults.answer}\n`;
     if (webSearchResults.citations.length > 0) {
-      prompt += `\nSOURCES TO CITE:\n${webSearchResults.citations.join('\n')}\n`;
+      prompt += `\nAdditional sources for verification:\n${webSearchResults.citations.join('\n')}\n`;
     }
   }
 
@@ -711,13 +801,18 @@ You MUST follow these HARD CONSTRAINTS (violations will block publication):
    - Do not expand, infer, or assume anything beyond what's written
    - EVERY sentence must be traceable to source material
 
-2. MANDATORY ATTRIBUTION:
-   - EVERY paragraph must include source attribution
+2. ATTRIBUTION REQUIREMENTS:
+   ${sourceItem.sourceName === 'News Reports'
+     ? `- Write in professional journalistic style WITHOUT forced attribution phrases
+   - DO NOT write "According to sources" or "sources say" - write directly and naturally
+   - Present facts as reported news, using active voice and clear statements
+   - Attribution is IMPLIED through professional news writing style
+   - Example: "A major winter storm warning was issued for..." NOT "According to reports, a major winter storm..."`
+     : `- EVERY paragraph must include source attribution
    - Use: "According to ${sourceItem.sourceName}..."
    - Or: "As reported by ${sourceItem.sourceName}..."
    - Or: "${sourceItem.sourceName} reports that..."
-   ${webSearchResults ? '- For web search info: "According to recent reports..." or cite specific sources' : ''}
-   - Minimum: One clear attribution per paragraph
+   - Minimum: One clear attribution per paragraph`}
 
 3. STRICTLY PROHIBITED:
    - ❌ Adding names not in source
@@ -755,25 +850,35 @@ TASK: Write a factual news article based STRICTLY on the source material above${
 
 FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS:
 
-TITLE: [Factual headline directly from source material]
+TITLE: [Factual, compelling headline directly from source material]
 
 CONTENT:
-[First paragraph - MUST start with "According to ${sourceItem.sourceName}..." or similar attribution]
+${sourceItem.sourceName === 'News Reports'
+  ? `[First paragraph - Strong lead with the most important facts, written in active voice]
+
+[Second paragraph - Supporting details and context from source material]
+
+[Additional paragraphs ONLY if source material supports them]`
+  : `[First paragraph - MUST start with "According to ${sourceItem.sourceName}..." or similar attribution]
 
 [Second paragraph - continue with source attribution]
 
-[Additional paragraphs ONLY if source material supports them - each with attribution]
+[Additional paragraphs ONLY if source material supports them - each with attribution]`}
 
 TAGS: [keywords extracted from source only]
 
 Article Requirements:
 - 3-5 paragraphs (or 2-3 if source is brief)
-- Journalistic tone appropriate for local news
+- Professional journalistic tone appropriate for local news
 - Include relevant local context ONLY if mentioned in sources
-- Attribute ALL facts to sources (mandatory in every paragraph)
+${sourceItem.sourceName === 'News Reports'
+  ? `- Write in active, engaging news style WITHOUT repetitive attribution phrases
+- Present facts directly and confidently as verified reporting
+- Use varied sentence structures and natural transitions`
+  : `- Attribute ALL facts to sources (mandatory in every paragraph)
+- Cite the original source for all claims`}
 - Use direct quotes ONLY if they appear verbatim in source material
-- When in doubt, stick to what's verifiable - accuracy over length
-- ${webSearchResults ? 'Include citations from web search when using that information' : 'Cite the original source for all claims'}`;
+- When in doubt, stick to what's verifiable - accuracy over length`;
 
   return prompt;
 }
@@ -902,17 +1007,72 @@ export async function GET(request: NextRequest) {
             : agent.beat;
 
           const category = categorySlug ? await getCategoryBySlug(categorySlug) : null;
-          const contentItems = await getUnprocessedItems(categorySlug, 5);
 
-          if (contentItems.length === 0) {
-            throw new Error('No content items available for article generation');
+          let selectedItem: ContentItem;
+          let isWebSearchGenerated = false;
+
+          // PRIMARY SOURCE SELECTION: Web search if enabled, otherwise RSS
+          if (agent.useWebSearch) {
+            // WEB SEARCH PRIMARY MODE: Skip RSS entirely, use Perplexity to find current news
+            console.log(`[Cron][${agent.name}] Web search mode enabled - using Perplexity as primary source (skipping RSS)`);
+
+            const perplexityApiKey = settings?.perplexityApiKey as string;
+            if (!perplexityApiKey) {
+              throw new Error('Web search mode enabled but Perplexity API key not configured');
+            }
+
+            // Generate search query based on agent's beat and location
+            const searchQuery = generateSearchQuery(agent.beat, agent.name);
+            console.log(`[Cron][${agent.name}] Web search query: "${searchQuery}"`);
+
+            // Build search instruction - incorporate category editorial directive if available
+            let searchInstruction = 'Find the most newsworthy and current story to report on';
+            if (category?.editorialDirective) {
+              searchInstruction = `Find the most newsworthy and current story to report on. ${category.editorialDirective}`;
+              console.log(`[Cron][${agent.name}] Using editorial directive: "${category.editorialDirective}"`);
+            }
+
+            // Search for current news
+            const searchResults = await searchWithPerplexity(
+              searchQuery,
+              searchInstruction,
+              perplexityApiKey
+            );
+
+            // Create content item from web search results
+            selectedItem = {
+              id: `web-search-${Date.now()}`,
+              title: `Breaking: ${agent.beat.charAt(0).toUpperCase() + agent.beat.slice(1)} News in Western North Carolina`,
+              description: searchResults.answer?.substring(0, 200) || 'Current news report.',
+              url: searchResults.citations?.[0] || '',
+              sourceName: 'News Reports',
+              sourceUrl: searchResults.citations?.[0] || '',
+              category: categorySlug || agent.beat,
+              publishedAt: new Date().toISOString(),
+              fetchedAt: new Date().toISOString(),
+              isProcessed: false,
+              fullContent: searchResults.answer || '',
+            };
+
+            isWebSearchGenerated = true;
+            console.log(`[Cron][${agent.name}] Created article from web search: "${selectedItem.title}"`);
+
+          } else {
+            // RSS MODE: Traditional RSS feed approach
+            console.log(`[Cron][${agent.name}] RSS mode - checking for unprocessed content items`);
+            const contentItems = await getUnprocessedItems(categorySlug, 5);
+
+            if (contentItems.length === 0) {
+              throw new Error('No RSS content items available and web search is disabled');
+            }
+
+            selectedItem = contentItems[0];
+            console.log(`[Cron][${agent.name}] Using RSS item: "${selectedItem.title}"`);
           }
 
-          const selectedItem = contentItems[0];
-
-          // Optional: Perform web search if enabled for this journalist (same as POST)
+          // Optional: Perform web search verification (ONLY for RSS mode, not for web search primary mode)
           let webSearchResults: PerplexitySearchResult | undefined;
-          if (agent.useWebSearch) {
+          if (agent.useWebSearch && !isWebSearchGenerated) {
             try {
               console.log(`[Cron][${agent.name}] Web search enabled - fetching current information via Perplexity`);
               const perplexityApiKey = settings?.perplexityApiKey as string;
@@ -994,7 +1154,11 @@ export async function GET(request: NextRequest) {
           // Dynamic import to avoid bundling Admin SDK in client code
           const { getAdminFirestore } = await import('@/lib/firebase-admin');
           const articleRef = await getAdminFirestore().collection('articles').add(articleData);
-          await markItemProcessed(selectedItem.id, articleRef.id);
+
+          // Mark content item as processed (skip for web-search-generated items)
+          if (!isWebSearchGenerated) {
+            await markItemProcessed(selectedItem.id, articleRef.id);
+          }
 
           const generationTime = Date.now() - agentStartTime;
           await updateTaskStatus(taskId, 'completed', {
