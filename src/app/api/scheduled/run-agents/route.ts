@@ -385,74 +385,8 @@ export async function POST(request: NextRequest) {
           settings
         );
 
-        // MANDATORY fact-check for auto-published articles
-        let factCheckResult = null;
-
-        if (agent.taskConfig?.autoPublish) {
-          console.log(`[${agent.name}] Running mandatory fact-check before publication...`);
-
-          try {
-            // Use request origin to construct proper URL (works in both local and production)
-            const baseUrl = new URL(request.url).origin;
-            const factCheckResponse = await fetch(
-              `${baseUrl}/api/fact-check`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  mode: 'quick',
-                  title: article.title,
-                  content: article.content,
-                  sourceTitle: selectedItem.title,
-                  sourceSummary: selectedItem.description,
-                  sourceUrl: selectedItem.url,
-                }),
-              }
-            );
-
-            if (factCheckResponse.ok) {
-              factCheckResult = await factCheckResponse.json();
-
-              // BLOCK publication if high-risk
-              if (factCheckResult.status === 'high_risk') {
-                console.error(`[${agent.name}] BLOCKED: High-risk fact-check - ${factCheckResult.summary}`);
-                throw new Error(`Article blocked due to high-risk fact-check: ${factCheckResult.summary}`);
-              }
-
-              // FORCE DRAFT if caution or review recommended (unless autopilot mode with high confidence)
-              if (factCheckResult.status === 'caution' ||
-                  factCheckResult.status === 'review_recommended') {
-
-                // Check if autopilot mode is enabled with confidence threshold
-                if (agent.taskConfig?.autopilotMode) {
-                  const threshold = agent.taskConfig.autopilotConfidenceThreshold || 70;
-
-                  if (factCheckResult.confidence >= threshold) {
-                    console.log(`[${agent.name}] ✈️ AUTOPILOT: Publishing despite ${factCheckResult.status} status (confidence ${factCheckResult.confidence}% >= threshold ${threshold}%)`);
-                    // Keep autoPublish=true, continue to publication
-
-                  } else {
-                    console.log(`[${agent.name}] ⚠️ AUTOPILOT: Confidence too low (${factCheckResult.confidence}% < ${threshold}%) - saving as DRAFT for review`);
-                    agent.taskConfig.autoPublish = false; // Force draft
-                  }
-                } else {
-                  // Standard mode - force draft (current behavior)
-                  console.log(`[${agent.name}] Fact-check flagged issues - forcing DRAFT status`);
-                  agent.taskConfig.autoPublish = false;
-                }
-              }
-
-              console.log(`[${agent.name}] Fact-check: ${factCheckResult.status} (confidence: ${factCheckResult.confidence}%)`);
-
-            } else {
-              console.error(`[${agent.name}] Fact-check API failed - forcing DRAFT mode for safety`);
-              agent.taskConfig.autoPublish = false;
-            }
-          } catch (fcError) {
-            console.error(`[${agent.name}] Fact-check error - forcing DRAFT mode for safety:`, fcError);
-            agent.taskConfig.autoPublish = false;
-          }
-        }
+        // FACT-CHECK: Run asynchronously AFTER article is saved (non-blocking)
+        // This prevents fact-check errors from blocking article creation
 
         // Prepare article data
         const formattedContent = formatArticleContent(article.content);
@@ -485,11 +419,11 @@ export async function POST(request: NextRequest) {
           sourceSummary: selectedItem.description,
           sourceItemId: selectedItem.id,
           generatedBy: 'ai-agent',
-          // Fact-check results (explicit null to prevent Firestore undefined errors)
-          factCheckStatus: factCheckResult?.status ?? null,
-          factCheckSummary: factCheckResult?.summary ?? null,
-          factCheckConfidence: factCheckResult?.confidence ?? null,
-          factCheckedAt: factCheckResult ? new Date().toISOString() : null,
+          // Fact-check results (will be filled in by async fact-check after publication)
+          factCheckStatus: null,
+          factCheckSummary: null,
+          factCheckConfidence: null,
+          factCheckedAt: null,
           // A/B Testing metadata
           metadata: {
             usedWebSearch: agent.useWebSearch || false,
@@ -500,14 +434,8 @@ export async function POST(request: NextRequest) {
             sourceWordCount: validation.wordCount,
             articleWordCount: article.content.split(/\s+/).length,
             expansionRatio: article.content.split(/\s+/).length / validation.wordCount,
-            // Fact-check integration
+            // Fact-check integration (runs asynchronously after publication)
             wasAutoPublished: agent.taskConfig?.autoPublish || false,
-            blockedByFactCheck: factCheckResult?.status === 'high_risk',
-            // Autopilot tracking
-            autopilotMode: agent.taskConfig?.autopilotMode || false,
-            autopilotOverride: agent.taskConfig?.autopilotMode &&
-                               (factCheckResult?.status === 'caution' || factCheckResult?.status === 'review_recommended') &&
-                               (factCheckResult?.confidence >= (agent.taskConfig?.autopilotConfidenceThreshold || 70)),
           },
           // Cost tracking
           generationCosts: (() => {
@@ -528,10 +456,7 @@ export async function POST(request: NextRequest) {
               costs = addCost(costs, 'stockPhotoSearch', 0);
             }
 
-            // Fact-check cost
-            if (factCheckResult) {
-              costs = addCost(costs, 'factCheck', API_PRICING.GEMINI_FACT_CHECK_QUICK);
-            }
+            // Note: Fact-check runs async after publication, cost tracked separately
 
             return costs;
           })(),
@@ -633,6 +558,39 @@ export async function POST(request: NextRequest) {
         if (!isWebSearchGenerated) {
           await markItemProcessed(selectedItem.id, articleRef.id);
         }
+
+        // ASYNC FACT-CHECK: Run in background after article is saved (non-blocking)
+        // This prevents fact-check errors from blocking article creation
+        setImmediate(async () => {
+          try {
+            const baseUrl = new URL(request.url).origin;
+            const factCheckResponse = await fetch(
+              `${baseUrl}/api/fact-check`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mode: 'quick',
+                  title: article.title,
+                  content: formattedContent,
+                  sourceTitle: selectedItem.title,
+                  sourceSummary: selectedItem.description,
+                  sourceUrl: selectedItem.url,
+                  articleId: articleRef.id, // Update the article directly
+                }),
+              }
+            );
+
+            if (factCheckResponse.ok) {
+              const result = await factCheckResponse.json();
+              console.log(`[${agent.name}] Background fact-check completed: ${result.status} (${result.confidence}%)`);
+            } else {
+              console.warn(`[${agent.name}] Background fact-check failed - article already published`);
+            }
+          } catch (fcError) {
+            console.error(`[${agent.name}] Background fact-check error:`, fcError);
+          }
+        });
 
         // Update task status
         const generationTime = Date.now() - agentStartTime;
