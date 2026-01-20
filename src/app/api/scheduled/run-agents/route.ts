@@ -581,19 +581,25 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // DUPLICATE DETECTION: Check if article with same title already exists
+        // DUPLICATE DETECTION: Check if article from same source URL was created recently
         const { getAdminFirestore } = await import('@/lib/firebase-admin');
         const db = getAdminFirestore();
 
-        // Query for articles with the exact same title
+        // Check for articles from the same source URL created within last 24 hours
+        // This is more reliable than title matching since Gemini creates variations
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
         const duplicateCheck = await db.collection('articles')
-          .where('title', '==', article.title)
+          .where('sourceUrl', '==', selectedItem.url)
+          .where('createdAt', '>=', twentyFourHoursAgo)
           .limit(1)
           .get();
 
         if (!duplicateCheck.empty) {
           const existingArticle = duplicateCheck.docs[0];
-          console.log(`[${agent.name}] ⚠️ DUPLICATE DETECTED: Article with title "${article.title}" already exists (ID: ${existingArticle.id})`);
+          const existingData = existingArticle.data();
+          console.log(`[${agent.name}] ⚠️ DUPLICATE DETECTED: Article from source "${selectedItem.url}" already exists (ID: ${existingArticle.id})`);
+          console.log(`[${agent.name}] Existing article: "${existingData.title}" (created ${existingData.createdAt})`);
 
           // Update task status
           await updateTaskStatus(taskId, 'completed', {
@@ -611,12 +617,14 @@ export async function POST(request: NextRequest) {
             success: true,
             articleId: existingArticle.id,
             status: 'duplicate',
-            message: `Skipped duplicate article: "${article.title}"`,
+            message: `Skipped duplicate: Already published article from this source within 24 hours`,
           });
 
           console.log(`[${agent.name}] ✅ Skipped duplicate article, returning existing article ID`);
           continue; // Skip to next agent
         }
+
+        console.log(`[${agent.name}] ✅ No duplicate found - proceeding with article creation`);
 
         // NORMAL MODE: Save article to Firestore using Admin SDK (bypasses auth requirements)
         const articleRef = await db.collection('articles').add(articleData);
