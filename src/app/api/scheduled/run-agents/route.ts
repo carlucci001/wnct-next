@@ -581,10 +581,45 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // NORMAL MODE: Save article to Firestore using Admin SDK (bypasses auth requirements)
-        // Dynamic import to avoid bundling Admin SDK in client code
+        // DUPLICATE DETECTION: Check if article with same title already exists
         const { getAdminFirestore } = await import('@/lib/firebase-admin');
-        const articleRef = await getAdminFirestore().collection('articles').add(articleData);
+        const db = getAdminFirestore();
+
+        // Query for articles with the exact same title
+        const duplicateCheck = await db.collection('articles')
+          .where('title', '==', article.title)
+          .limit(1)
+          .get();
+
+        if (!duplicateCheck.empty) {
+          const existingArticle = duplicateCheck.docs[0];
+          console.log(`[${agent.name}] ⚠️ DUPLICATE DETECTED: Article with title "${article.title}" already exists (ID: ${existingArticle.id})`);
+
+          // Update task status
+          await updateTaskStatus(taskId, 'completed', {
+            articleId: existingArticle.id,
+            wasDuplicate: true,
+            generationTime: Date.now() - agentStartTime,
+          });
+
+          // Update agent metrics (count as success but note duplicate)
+          await updateAgentAfterRun(agent.id, true, Date.now() - agentStartTime);
+
+          results.push({
+            agentId: agent.id,
+            agentName: agent.name,
+            success: true,
+            articleId: existingArticle.id,
+            status: 'duplicate',
+            message: `Skipped duplicate article: "${article.title}"`,
+          });
+
+          console.log(`[${agent.name}] ✅ Skipped duplicate article, returning existing article ID`);
+          continue; // Skip to next agent
+        }
+
+        // NORMAL MODE: Save article to Firestore using Admin SDK (bypasses auth requirements)
+        const articleRef = await db.collection('articles').add(articleData);
 
         // Mark content item as processed (skip for web-search-generated items)
         if (!isWebSearchGenerated) {

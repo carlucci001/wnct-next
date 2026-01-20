@@ -291,7 +291,15 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
         const articleId = result.results[0].articleId;
         const status = result.results[0].status || 'unknown';
 
-        alert(`✅ Article ${status === 'published' ? 'published' : 'saved as draft'} successfully by ${journalist.name}!`);
+        // Handle different statuses
+        if (status === 'duplicate') {
+          alert(`⚠️ Duplicate article detected!\n\n${journalist.name} tried to create an article that already exists.\n\nThis prevents the same article from being published multiple times.`);
+        } else if (status === 'published') {
+          alert(`✅ Article published successfully by ${journalist.name}!`);
+        } else {
+          alert(`✅ Article saved as draft successfully by ${journalist.name}!`);
+        }
+
         await loadJournalists(); // Refresh stats
       } else if (result.results?.[0]?.error) {
         alert(`❌ Error: ${result.results[0].error}`);
