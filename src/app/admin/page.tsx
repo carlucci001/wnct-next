@@ -653,8 +653,12 @@ export default function AdminDashboard() {
         .sort((a, b) => a.displayName.localeCompare(b.displayName));
       setAuthorOptions(authors);
 
-      // Auto-select current user if no author set in agentArticle
-      if (agentArticle && !agentArticle.author && currentUser) {
+      // Auto-select current user ONLY for NEW articles that have no author set
+      // This prevents overwriting author info when editing existing articles
+      // A new article has either empty id ('') or temporary id (starts with 'art-')
+      const isNewArticle = agentArticle?.id === '' || agentArticle?.id?.startsWith('art-');
+      const isNewArticleWithoutAuthor = isNewArticle && !agentArticle.authorId && !agentArticle.author;
+      if (agentArticle && isNewArticleWithoutAuthor && currentUser) {
         const currentAuthor = authors.find(a => a.id === currentUser.uid);
         if (currentAuthor) {
           setAgentArticle({
@@ -2824,6 +2828,8 @@ Example structure:
                     content: '',
                     excerpt: '',
                     author: currentUser?.displayName || currentUser?.email || 'Staff Writer',
+                    authorId: currentUser?.uid || '',
+                    authorPhotoURL: userProfile?.photoURL || currentUser?.photoURL || '',
                     category: 'News',
                     status: 'draft',
                     featuredImage: '',
