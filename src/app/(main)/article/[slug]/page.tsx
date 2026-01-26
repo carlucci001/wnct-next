@@ -17,12 +17,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const title = `${article.title} | WNC Times`;
-  const description = article.excerpt || article.content?.substring(0, 160).replace(/<[^>]+>/g, '') || '';
+  // Use auto-generated metaDescription if available, otherwise fall back to excerpt
+  const description = article.metaDescription || article.excerpt || article.content?.substring(0, 160).replace(/<[^>]+>/g, '') || '';
   const imageUrl = article.featuredImage || article.imageUrl || 'https://wnctimes.com/placeholder.jpg';
+  // Use auto-generated imageAltText if available
+  const imageAlt = article.imageAltText || article.title;
+  // Combine keywords and tags for better SEO coverage
+  const allKeywords = [...(article.keywords || []), ...(article.tags || [])];
 
   return {
     title,
     description,
+    keywords: allKeywords.length > 0 ? allKeywords.join(', ') : undefined,
     openGraph: {
       title,
       description,
@@ -33,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           url: imageUrl,
           width: 1200,
           height: 630,
-          alt: article.title,
+          alt: imageAlt,
         },
       ],
       publishedTime: article.publishedAt || article.createdAt,
@@ -50,6 +56,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: {
       canonical: `https://wnctimes.com/article/${slug}`,
     },
+    other: {
+      // GEO metadata for local SEO
+      ...(article.geoTags && article.geoTags.length > 0 && {
+        'geo.region': 'US-NC',
+        'geo.placename': article.geoTags[0],
+      }),
+    },
   };
 }
 
@@ -57,29 +70,56 @@ export default async function Page({ params }: Props) {
   const { slug } = await params;
   const article = await getArticleBySlug(slug);
 
-  // Structured Data (JSON-LD) for NewsArticle
-  const jsonLd = article ? {
-    '@context': 'https://schema.org',
-    '@type': 'NewsArticle',
-    'headline': article.title,
-    'description': article.excerpt,
-    'image': article.featuredImage || article.imageUrl || 'https://wnctimes.com/placeholder.jpg',
-    'datePublished': article.publishedAt || article.createdAt,
-    'dateModified': article.updatedAt || article.publishedAt || article.createdAt,
-    'author': [{
-      '@type': 'Person',
-      'name': article.author || 'WNC Times Staff',
-      'url': 'https://wnctimes.com'
-    }],
-    'publisher': {
-      '@type': 'Organization',
-      'name': 'WNC Times',
-      'logo': {
-        '@type': 'ImageObject',
-        'url': 'https://wnctimes.com/favicon.ico'
+  // Use pre-generated schema if available, otherwise build default
+  let jsonLd = null;
+  if (article) {
+    if (article.schema) {
+      // Use AI-generated schema (stored as JSON string)
+      try {
+        jsonLd = JSON.parse(article.schema);
+        // Ensure image URL is current
+        jsonLd.image = article.featuredImage || article.imageUrl || 'https://wnctimes.com/placeholder.jpg';
+      } catch {
+        // Fall back to default if schema parsing fails
+        jsonLd = null;
       }
     }
-  } : null;
+
+    // Default schema if no pre-generated schema or parsing failed
+    if (!jsonLd) {
+      jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'NewsArticle',
+        'headline': article.title,
+        'description': article.metaDescription || article.excerpt,
+        'image': article.featuredImage || article.imageUrl || 'https://wnctimes.com/placeholder.jpg',
+        'datePublished': article.publishedAt || article.createdAt,
+        'dateModified': article.updatedAt || article.publishedAt || article.createdAt,
+        'keywords': article.keywords?.join(', ') || article.tags?.join(', '),
+        'author': [{
+          '@type': 'Person',
+          'name': article.author || 'WNC Times Staff',
+          'url': 'https://wnctimes.com'
+        }],
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'WNC Times',
+          'logo': {
+            '@type': 'ImageObject',
+            'url': 'https://wnctimes.com/favicon.ico'
+          }
+        },
+        'articleSection': article.category,
+        // Add location data for local SEO
+        ...(article.geoTags && article.geoTags.length > 0 && {
+          'contentLocation': {
+            '@type': 'Place',
+            'name': article.geoTags.join(', ')
+          }
+        })
+      };
+    }
+  }
 
   return (
     <>

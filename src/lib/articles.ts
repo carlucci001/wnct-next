@@ -59,6 +59,24 @@ const convertDocToArticle = (doc: QueryDocumentSnapshot<DocumentData, DocumentDa
     isBreakingNews: data.isBreakingNews || false,
     breakingNewsTimestamp: getDateString(data.breakingNewsTimestamp),
     views: data.views || 0,
+    // SEO & Social Metadata
+    metaDescription: data.metaDescription || '',
+    keywords: data.keywords || [],
+    hashtags: data.hashtags || [],
+    localKeywords: data.localKeywords || [],
+    geoTags: data.geoTags || [],
+    entities: data.entities || { people: [], organizations: [], locations: [], topics: [] },
+    imageAltText: data.imageAltText || '',
+    schema: data.schema || '',
+    // Additional metadata
+    imageAttribution: data.imageAttribution || '',
+    sourceUrl: data.sourceUrl || '',
+    sourceTitle: data.sourceTitle || '',
+    generationCosts: data.generationCosts || null,
+    factCheckStatus: data.factCheckStatus || null,
+    factCheckSummary: data.factCheckSummary || '',
+    factCheckConfidence: data.factCheckConfidence || null,
+    factCheckedAt: getDateString(data.factCheckedAt),
   } as Article;
 };
 

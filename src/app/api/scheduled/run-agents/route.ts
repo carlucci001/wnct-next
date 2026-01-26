@@ -17,6 +17,25 @@ export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
 
 /**
+ * SEO Metadata interface for auto-generated article SEO fields
+ */
+interface SEOMetadata {
+  metaDescription: string;
+  keywords: string[];
+  hashtags: string[];
+  localKeywords: string[];
+  geoTags: string[];
+  entities: {
+    people: string[];
+    organizations: string[];
+    locations: string[];
+    topics: string[];
+  };
+  imageAltText: string;
+  schema: string;
+}
+
+/**
  * Generate intelligent search query based on agent's beat and location
  */
 function generateSearchQuery(beat: string, agentName: string): string {
@@ -414,6 +433,20 @@ export async function POST(request: NextRequest) {
           settings
         );
 
+        // Generate SEO metadata (auto-generates all SEO fields)
+        const publishedAtDate = agent.taskConfig?.autoPublish ? new Date().toISOString() : new Date().toISOString();
+        console.log(`[${agent.name}] Generating SEO metadata...`);
+        const seoMetadata = await generateSEOMetadata(
+          geminiApiKey,
+          article.title,
+          article.content,
+          category?.name || agent.beat || 'News',
+          article.tags || [],
+          agent.name,
+          publishedAtDate
+        );
+        console.log(`[${agent.name}] SEO metadata generated: ${seoMetadata.keywords.length} keywords, ${seoMetadata.hashtags.length} hashtags`);
+
         // FACT-CHECK: Run asynchronously AFTER article is saved (non-blocking)
         // This prevents fact-check errors from blocking article creation
 
@@ -453,6 +486,15 @@ export async function POST(request: NextRequest) {
           factCheckSummary: null,
           factCheckConfidence: null,
           factCheckedAt: null,
+          // SEO & Social Metadata (auto-generated)
+          metaDescription: seoMetadata.metaDescription,
+          keywords: seoMetadata.keywords,
+          hashtags: seoMetadata.hashtags,
+          localKeywords: seoMetadata.localKeywords,
+          geoTags: seoMetadata.geoTags,
+          entities: seoMetadata.entities,
+          imageAltText: seoMetadata.imageAltText,
+          schema: seoMetadata.schema,
           // A/B Testing metadata
           metadata: {
             usedWebSearch: agent.useWebSearch || false,
@@ -484,6 +526,9 @@ export async function POST(request: NextRequest) {
             } else if (imageResult.method === 'stock') {
               costs = addCost(costs, 'stockPhotoSearch', 0);
             }
+
+            // SEO metadata generation cost (Gemini ~1000 output tokens)
+            costs = addCost(costs, 'other', 0.001, 'SEO Metadata Generation');
 
             // Note: Fact-check runs async after publication, cost tracked separately
 
@@ -781,6 +826,221 @@ Respond ONLY with a single number from 1-10. No explanation needed.`;
     console.error(`Error rating article:`, error);
     return 5; // Default middle score on error
   }
+}
+
+/**
+ * Generate SEO metadata for an article using Gemini AI
+ * Generates all SEO fields in a single API call for efficiency
+ */
+async function generateSEOMetadata(
+  apiKey: string,
+  title: string,
+  content: string,
+  category: string,
+  tags: string[],
+  authorName: string,
+  publishedAt: string
+): Promise<SEOMetadata> {
+  const model = 'gemini-2.0-flash';
+
+  // Strip HTML from content for analysis
+  const plainContent = content.replace(/<[^>]+>/g, '').trim();
+  const truncatedContent = plainContent.length > 2000
+    ? plainContent.substring(0, 2000) + '...'
+    : plainContent;
+
+  const prompt = `You are an SEO expert. Analyze this news article and generate comprehensive SEO metadata.
+
+ARTICLE TITLE: ${title}
+CATEGORY: ${category}
+EXISTING TAGS: ${tags.join(', ')}
+
+ARTICLE CONTENT:
+${truncatedContent}
+
+Generate SEO metadata in EXACTLY this JSON format (no markdown, just raw JSON):
+
+{
+  "metaDescription": "A compelling 150-155 character description that summarizes the article and encourages clicks. Do not exceed 155 characters.",
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "hashtags": ["#Hashtag1", "#Hashtag2", "#Hashtag3", "#Hashtag4", "#Hashtag5"],
+  "localKeywords": ["Western North Carolina", "Asheville area", "WNC"],
+  "geoTags": ["Asheville", "Buncombe County", "NC"],
+  "entities": {
+    "people": ["Names of people mentioned in article"],
+    "organizations": ["Companies, agencies, schools mentioned"],
+    "locations": ["Specific places, addresses, landmarks mentioned"],
+    "topics": ["Main subject topics covered"]
+  },
+  "imageAltText": "Descriptive alt text for the article's featured image (max 125 chars)",
+  "schema": {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    "headline": "${title}",
+    "description": "Same as metaDescription",
+    "keywords": "keyword1, keyword2, keyword3",
+    "articleSection": "${category}",
+    "author": {
+      "@type": "Person",
+      "name": "${authorName}"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "WNC Times",
+      "url": "https://wnctimes.com"
+    },
+    "datePublished": "${publishedAt}",
+    "dateModified": "${publishedAt}"
+  }
+}
+
+REQUIREMENTS:
+- metaDescription: MUST be under 155 characters, compelling and click-worthy
+- keywords: 5-8 SEO focus keywords relevant to the article content
+- hashtags: 5-8 social media hashtags with # prefix, mix of specific and trending
+- localKeywords: Geographic terms specific to Western North Carolina region
+- geoTags: Specific cities, counties, or regions mentioned or relevant
+- entities: Extract ONLY names/places actually mentioned in the article (empty arrays if none)
+- imageAltText: Describe what the image likely shows based on article context (max 125 chars)
+- schema: Valid NewsArticle schema.org JSON-LD
+
+Return ONLY the JSON object, no explanation or markdown.`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1000,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`[SEO] Gemini API error: ${response.statusText}`);
+      return getDefaultSEOMetadata(title, category, tags, authorName, publishedAt);
+    }
+
+    const data = await response.json();
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!responseText) {
+      console.error('[SEO] Empty response from Gemini');
+      return getDefaultSEOMetadata(title, category, tags, authorName, publishedAt);
+    }
+
+    // Parse JSON response (handle potential markdown code blocks)
+    let jsonText = responseText;
+
+    // Handle various markdown code block formats
+    if (jsonText.includes('```')) {
+      // Extract content between code blocks
+      const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonText = codeBlockMatch[1].trim();
+      } else {
+        // Fallback: remove all backticks
+        jsonText = jsonText.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+      }
+    }
+
+    // Try to find JSON object if there's other text
+    if (!jsonText.startsWith('{')) {
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+    }
+
+    console.log('[SEO] Parsing JSON response, length:', jsonText.length);
+    const parsed = JSON.parse(jsonText);
+    console.log('[SEO] Successfully parsed SEO metadata');
+
+    // Validate and sanitize the response
+    return {
+      metaDescription: (parsed.metaDescription || '').substring(0, 155),
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 8) : [],
+      hashtags: Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.slice(0, 8).map((h: string) => h.startsWith('#') ? h : `#${h}`)
+        : [],
+      localKeywords: Array.isArray(parsed.localKeywords) ? parsed.localKeywords : ['Western North Carolina'],
+      geoTags: Array.isArray(parsed.geoTags) ? parsed.geoTags : [],
+      entities: {
+        people: Array.isArray(parsed.entities?.people) ? parsed.entities.people : [],
+        organizations: Array.isArray(parsed.entities?.organizations) ? parsed.entities.organizations : [],
+        locations: Array.isArray(parsed.entities?.locations) ? parsed.entities.locations : [],
+        topics: Array.isArray(parsed.entities?.topics) ? parsed.entities.topics : [],
+      },
+      imageAltText: (parsed.imageAltText || '').substring(0, 125),
+      schema: typeof parsed.schema === 'object' ? JSON.stringify(parsed.schema) : '',
+    };
+  } catch (error) {
+    console.error('[SEO] Error generating SEO metadata:', error);
+    return getDefaultSEOMetadata(title, category, tags, authorName, publishedAt);
+  }
+}
+
+/**
+ * Returns default SEO metadata when generation fails
+ */
+function getDefaultSEOMetadata(
+  title: string,
+  category: string,
+  tags: string[],
+  authorName: string,
+  publishedAt: string
+): SEOMetadata {
+  // Create a basic meta description from the title
+  const metaDescription = `${title} - Read the latest ${category} news from Western North Carolina on WNC Times.`.substring(0, 155);
+
+  // Extract keywords from title if tags are empty
+  const titleWords = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3);
+
+  // Use tags if available, otherwise use title words + category
+  const keywords = tags.length > 0
+    ? tags.slice(0, 8)
+    : [...new Set([category.toLowerCase(), ...titleWords])].slice(0, 8);
+
+  // Generate hashtags from keywords
+  const hashtags = keywords.slice(0, 5).map(t => `#${t.replace(/\s+/g, '')}`);
+
+  console.log('[SEO] Using default metadata - keywords:', keywords.length, 'hashtags:', hashtags.length);
+
+  return {
+    metaDescription,
+    keywords,
+    hashtags: hashtags.length > 0 ? hashtags : [`#${category.replace(/\s+/g, '')}`, '#WNCNews', '#LocalNews'],
+    localKeywords: ['Western North Carolina', 'WNC', 'Asheville area'],
+    geoTags: ['Western North Carolina'],
+    entities: {
+      people: [],
+      organizations: [],
+      locations: [],
+      topics: [category],
+    },
+    imageAltText: `${category} news from Western North Carolina`,
+    schema: JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: title,
+      description: metaDescription,
+      articleSection: category,
+      author: { '@type': 'Person', name: authorName },
+      publisher: { '@type': 'Organization', name: 'WNC Times', url: 'https://wnctimes.com' },
+      datePublished: publishedAt,
+      dateModified: publishedAt,
+    }),
+  };
 }
 
 /**

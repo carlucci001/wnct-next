@@ -1705,6 +1705,15 @@ Return ONLY valid JSON array with no markdown:
     // Use the override article if provided, otherwise use agentArticle state
     const articleData = articleOverride || agentArticle;
 
+    // DEBUG: Log what's in articleData when save is called
+    console.log('[DEBUG] handleSaveAgentArticle - articleData SEO fields:', {
+      metaDescription: articleData?.metaDescription,
+      keywords: articleData?.keywords,
+      hashtags: articleData?.hashtags,
+      localKeywords: articleData?.localKeywords,
+      source: articleOverride ? 'articleOverride' : 'agentArticle state',
+    });
+
     if (!articleData?.title) {
       showMessage('error', 'Please enter an article title');
       return;
@@ -1727,15 +1736,32 @@ Return ONLY valid JSON array with no markdown:
         imageUrl: articleData.imageUrl || articleData.featuredImage || '',
         content: formattedContent,
         excerpt: articleData.excerpt || (formattedContent ? formattedContent.replace(/<[^>]+>/g, '').substring(0, 150) + '...' : ''),
-        authorId: currentUser?.uid || articleData.authorId || '',
-        authorPhotoURL: currentUser?.photoURL || articleData.authorPhotoURL || '',
+        // Preserve original author info - only use current user for NEW articles
+        authorId: articleData.authorId || currentUser?.uid || '',
+        authorPhotoURL: articleData.authorPhotoURL || currentUser?.photoURL || '',
         // Set breaking news timestamp when isBreakingNews is true
         breakingNewsTimestamp: articleData.isBreakingNews ? new Date().toISOString() : null,
+        // SEO & Social Metadata - explicitly preserve these fields
+        metaDescription: articleData.metaDescription || '',
+        keywords: articleData.keywords || [],
+        hashtags: articleData.hashtags || [],
+        localKeywords: articleData.localKeywords || [],
+        geoTags: articleData.geoTags || [],
+        entities: articleData.entities || { people: [], organizations: [], locations: [], topics: [] },
+        imageAltText: articleData.imageAltText || '',
+        schema: articleData.schema || '',
       };
 
       // Save to Firestore
+      console.log('[Save] Saving article with SEO:', {
+        id: articleToSave.id,
+        keywords: articleToSave.keywords,
+        hashtags: articleToSave.hashtags,
+        metaDescription: articleToSave.metaDescription?.substring(0, 50) + '...',
+      });
       const articleRef = doc(getDb(), 'articles', articleToSave.id);
       await setDoc(articleRef, articleToSave);
+      console.log('[Save] Article saved to Firestore successfully');
 
       // Update local state
       const existingIndex = articles.findIndex(a => a.id === articleToSave.id);
@@ -2471,6 +2497,76 @@ Example structure:
         }
       }
 
+      // Generate SEO metadata
+      setStatusModalIcon('🔍');
+      setStatusModalMessage('Generating SEO metadata...');
+
+      let seoMetadata: {
+        metaDescription?: string;
+        keywords?: string[];
+        hashtags?: string[];
+        localKeywords?: string[];
+        geoTags?: string[];
+        entities?: { people: string[]; organizations: string[]; locations: string[]; topics: string[] };
+        imageAltText?: string;
+        schema?: string;
+      } = {};
+
+      try {
+        console.log('[SEO] Calling generate-metadata API...');
+        const seoResponse = await fetch('/api/articles/generate-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: suggestion.title,
+            content,
+            category: categoryName,
+            authorName: currentUser?.displayName || 'Staff Writer',
+            generateTypes: ['all'],
+          }),
+        });
+
+        if (seoResponse.ok) {
+          const seoData = await seoResponse.json();
+          seoMetadata = seoData.metadata || {};
+          console.log('[SEO] Generated:', seoMetadata.keywords?.length || 0, 'keywords,', seoMetadata.hashtags?.length || 0, 'hashtags');
+          console.log('[SEO] Full metadata:', JSON.stringify(seoMetadata, null, 2));
+
+          // Track SEO generation cost
+          articleCosts = addCost(articleCosts, 'other', 0.001, 'SEO Metadata Generation');
+        } else {
+          const errorText = await seoResponse.text();
+          console.error('[SEO] Failed to generate metadata. Status:', seoResponse.status, 'Error:', errorText);
+        }
+      } catch (seoError) {
+        console.error('[SEO] Error:', seoError);
+      }
+
+      // Ensure SEO fields have default values if generation failed
+      const titleWords = suggestion.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter((w: string) => w.length > 3);
+      if (!seoMetadata.metaDescription) {
+        seoMetadata.metaDescription = `${suggestion.title} - Read the latest ${categoryName} news from Western North Carolina.`.substring(0, 155);
+      }
+      if (!seoMetadata.keywords || seoMetadata.keywords.length === 0) {
+        seoMetadata.keywords = [...new Set([categoryName.toLowerCase(), ...titleWords])].slice(0, 8);
+      }
+      if (!seoMetadata.hashtags || seoMetadata.hashtags.length === 0) {
+        seoMetadata.hashtags = seoMetadata.keywords.slice(0, 5).map(k => `#${k.replace(/\s+/g, '')}`);
+      }
+      if (!seoMetadata.localKeywords) {
+        seoMetadata.localKeywords = ['Western North Carolina', 'WNC', 'Asheville area'];
+      }
+      if (!seoMetadata.geoTags) {
+        seoMetadata.geoTags = ['Western North Carolina'];
+      }
+      if (!seoMetadata.entities) {
+        seoMetadata.entities = { people: [], organizations: [], locations: [], topics: [categoryName] };
+      }
+      if (!seoMetadata.imageAltText) {
+        seoMetadata.imageAltText = `${categoryName} news from Western North Carolina`;
+      }
+      console.log('[SEO] Final metadata (with defaults):', seoMetadata.keywords?.length, 'keywords,', seoMetadata.hashtags?.length, 'hashtags');
+
       // Final check status
       setStatusModalIcon('✅');
       setStatusModalMessage('Finalizing article...');
@@ -2498,11 +2594,30 @@ Example structure:
         factCheckSummary: factCheckResult?.summary,
         factCheckConfidence: factCheckResult?.confidence,
         factCheckedAt: factCheckResult ? new Date().toISOString() : null,
+        // SEO & Social Metadata (auto-generated)
+        metaDescription: seoMetadata.metaDescription,
+        keywords: seoMetadata.keywords,
+        hashtags: seoMetadata.hashtags,
+        localKeywords: seoMetadata.localKeywords,
+        geoTags: seoMetadata.geoTags,
+        entities: seoMetadata.entities,
+        imageAltText: seoMetadata.imageAltText,
+        schema: seoMetadata.schema,
       };
 
       // Log total article generation cost
       console.log(`[Cost] Total article cost: ${formatCost(articleCosts.total)}`);
       console.log(`[Cost] Breakdown:`, articleCosts.breakdown);
+
+      // DEBUG: Log article SEO fields before setting state
+      console.log('[DEBUG] newArticle SEO fields:', {
+        metaDescription: newArticle.metaDescription,
+        keywords: newArticle.keywords,
+        hashtags: newArticle.hashtags,
+        localKeywords: newArticle.localKeywords,
+        geoTags: newArticle.geoTags,
+        imageAltText: newArticle.imageAltText,
+      });
 
       setAgentArticle(newArticle);
       setAgentTab('settings');
