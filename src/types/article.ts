@@ -50,6 +50,10 @@ export interface Article {
   sourceSummary?: string;
   sourceItemId?: string;
 
+  // Editor workflow
+  editorFeedback?: string;  // Notes from editor when sending article back for revision
+  editorialReviewResults?: string;  // Results from grammar/style editorial review
+
   // Image attribution (for stock photos)
   imageAttribution?: string;   // Attribution text for stock photos (e.g., "Photo by John Doe on Unsplash")
 

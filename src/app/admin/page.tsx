@@ -19,7 +19,7 @@ import {
   Send, Lightbulb, Folder, FolderPlus, Upload, Sliders, Terminal, ArrowRight, Volume2,
   CheckSquare, Square, MinusSquare, ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
   Mail, UserCheck, UserX, Filter, Phone, Calendar, ChevronsLeft, ChevronsRight, AlertTriangle, Building2,
-  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin, Code, Wand2
+  UserCog, MoreHorizontal, Wrench, Menu, GripVertical, ToggleLeft, ToggleRight, Hash, Type, FileSearch, Globe, Copy, BarChart, Target, Key, Heading, Link2, Twitter, Facebook, Instagram, Linkedin, Code, Wand2, RotateCcw
 } from 'lucide-react';
 import { AGENT_PROMPTS, AgentType } from '@/data/prompts';
 import { getAgentPrompt, AgentPromptData } from '@/lib/agentPrompts';
@@ -2065,6 +2065,13 @@ Return ONLY valid JSON array with no markdown:
       const data = await response.json();
       const feedback = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Review complete.';
       setChatHistory(prev => [...prev, { role: 'model', text: `📝 **Editorial Review Complete**\n\n${feedback}` }]);
+
+      // Store review results on article for use when sending back to author
+      await updateDoc(doc(getDb(), 'articles', article.id), {
+        editorialReviewResults: feedback,
+        updatedAt: new Date().toISOString()
+      });
+      setArticles(prev => prev.map(a => a.id === article.id ? {...a, editorialReviewResults: feedback} : a));
     } catch (err) {
       setChatHistory(prev => [...prev, { role: 'model', text: `❌ Review failed: ${(err as Error).message}` }]);
     } finally {
@@ -6933,7 +6940,7 @@ Return ONLY the JSON object, no other text.`;
             <button
               onClick={async () => {
                 if (agentArticle.status === 'draft') {
-                  const updatedArticle = {...agentArticle, status: 'review' as const};
+                  const updatedArticle = {...agentArticle, status: 'review' as const, editorFeedback: undefined};
                   // Pass the updated article directly to avoid state timing issues
                   await handleSaveAgentArticle(false, updatedArticle);
                   // Show confirmation toast
@@ -6953,6 +6960,38 @@ Return ONLY the JSON object, no other text.`;
             >
               <AlertCircle size={16} /> Send to Editor
             </button>
+            {/* Send Back to Author button - only for review articles */}
+            {agentArticle.status === 'review' && (
+              <button
+                onClick={async () => {
+                  const customFeedback = prompt('Additional feedback for the author (or leave blank):');
+                  // Combine editorial review results with custom feedback
+                  const feedbackParts = [];
+                  if (agentArticle.editorialReviewResults) {
+                    feedbackParts.push(`📝 Editorial Review:\n${agentArticle.editorialReviewResults}`);
+                  }
+                  if (customFeedback) {
+                    feedbackParts.push(`💬 Editor Notes:\n${customFeedback}`);
+                  }
+                  const fullFeedback = feedbackParts.join('\n\n') || undefined;
+
+                  const updatedArticle = {
+                    ...agentArticle,
+                    status: 'draft' as const,
+                    editorFeedback: fullFeedback,
+                    editorialReviewResults: undefined  // Clear after sending back
+                  };
+                  await handleSaveAgentArticle(false, updatedArticle);
+                  showMessage('info', `📝 "${agentArticle.title}" sent back to author for revisions`);
+                  setChatHistory(prev => [...prev, { role: 'model', text: `📝 **Sent Back!** "${agentArticle.title}" returned to draft for revisions.` }]);
+                  setAgentArticle(null);
+                  setActiveTab('articles');
+                }}
+                className="px-5 py-2.5 bg-orange-500 text-white font-medium rounded-xl hover:bg-orange-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+              >
+                <RotateCcw size={16} /> Send Back to Author
+              </button>
+            )}
             <button
               onClick={async () => {
                 await handleSaveAgentArticle(true);
@@ -7072,6 +7111,19 @@ Return ONLY the JSON object, no other text.`;
               </div>
               <div className="text-xs text-slate-500">
                 Last updated: {new Date(agentArticle.generationCosts.lastUpdated).toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Editor Feedback Notice - shown when article was sent back for revisions */}
+        {agentArticle.editorFeedback && agentArticle.status === 'draft' && (
+          <div className="bg-orange-50 border-b border-orange-200 px-8 py-4">
+            <div className="max-w-4xl mx-auto flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-semibold text-orange-800">Editor Feedback</h4>
+                <p className="text-sm text-orange-700 mt-1">{agentArticle.editorFeedback}</p>
               </div>
             </div>
           </div>
