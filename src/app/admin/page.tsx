@@ -6940,7 +6940,7 @@ Return ONLY the JSON object, no other text.`;
             <button
               onClick={async () => {
                 if (agentArticle.status === 'draft') {
-                  const updatedArticle = {...agentArticle, status: 'review' as const, editorFeedback: undefined};
+                  const updatedArticle = {...agentArticle, status: 'review' as const, editorFeedback: null};
                   // Pass the updated article directly to avoid state timing issues
                   await handleSaveAgentArticle(false, updatedArticle);
                   // Show confirmation toast
@@ -6973,13 +6973,13 @@ Return ONLY the JSON object, no other text.`;
                   if (customFeedback) {
                     feedbackParts.push(`💬 Editor Notes:\n${customFeedback}`);
                   }
-                  const fullFeedback = feedbackParts.join('\n\n') || undefined;
+                  const fullFeedback = feedbackParts.join('\n\n') || null;
 
                   const updatedArticle = {
                     ...agentArticle,
                     status: 'draft' as const,
                     editorFeedback: fullFeedback,
-                    editorialReviewResults: undefined  // Clear after sending back
+                    editorialReviewResults: null  // Clear after sending back
                   };
                   await handleSaveAgentArticle(false, updatedArticle);
                   showMessage('info', `📝 "${agentArticle.title}" sent back to author for revisions`);
