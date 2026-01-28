@@ -6936,8 +6936,12 @@ Return ONLY the JSON object, no other text.`;
                   const updatedArticle = {...agentArticle, status: 'review' as const};
                   // Pass the updated article directly to avoid state timing issues
                   await handleSaveAgentArticle(false, updatedArticle);
+                  // Show confirmation toast
+                  showMessage('success', `📨 "${agentArticle.title}" sent to editor for review!`);
                   setChatHistory(prev => [...prev, { role: 'model', text: `📨 **Sent to Editor!** "${agentArticle.title}" is now in Review status.` }]);
                   setAgentArticle(null);
+                  // Navigate to articles list
+                  setActiveTab('articles');
                 }
               }}
               className="px-5 py-2.5 bg-amber-500 text-white font-medium rounded-xl hover:bg-amber-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
@@ -6945,7 +6949,12 @@ Return ONLY the JSON object, no other text.`;
               <AlertCircle size={16} /> Send to Editor
             </button>
             <button
-              onClick={() => handleSaveAgentArticle(true)}
+              onClick={async () => {
+                await handleSaveAgentArticle(true);
+                // After save, close editor and navigate to articles list
+                setAgentArticle(null);
+                setActiveTab('articles');
+              }}
               disabled={!agentArticle?.title}
               className="px-6 py-2.5 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
