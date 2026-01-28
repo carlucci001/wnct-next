@@ -841,7 +841,7 @@ async function generateSEOMetadata(
   authorName: string,
   publishedAt: string
 ): Promise<SEOMetadata> {
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-2.5-flash';
 
   // Strip HTML from content for analysis
   const plainContent = content.replace(/<[^>]+>/g, '').trim();
@@ -1053,7 +1053,7 @@ async function generateArticle(
   sourceItem: ContentItem,
   webSearchResults?: PerplexitySearchResult
 ): Promise<{ title: string; content: string; tags: string[] }> {
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-2.5-flash';
 
   // Build the prompt with category directive, source material, and optional web search results
   const prompt = buildArticlePrompt(agent, category, sourceItem, webSearchResults);
