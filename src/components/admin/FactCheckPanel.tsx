@@ -52,6 +52,7 @@ const FactCheckPanel: React.FC<FactCheckPanelProps> = ({
   const [mode, setMode] = useState<FactCheckMode>(initialResult?.mode || 'quick');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [usePerplexity, setUsePerplexity] = useState(false); // Enable live web search
 
   const runFactCheck = async (checkMode: FactCheckMode) => {
     setIsLoading(true);
@@ -70,6 +71,7 @@ const FactCheckPanel: React.FC<FactCheckPanelProps> = ({
           sourceTitle,
           sourceSummary,
           sourceUrl,
+          usePerplexity, // Enable live web search verification
         }),
       });
 
@@ -173,6 +175,20 @@ const FactCheckPanel: React.FC<FactCheckPanelProps> = ({
           {/* Mode Selection (if no result yet) */}
           {!result && !isLoading && (
             <div className="space-y-3">
+              {/* Perplexity Toggle */}
+              <label className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={usePerplexity}
+                  onChange={(e) => setUsePerplexity(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">Use Perplexity for live web verification</span>
+                  <p className="text-xs text-gray-500">Searches the web for current facts before analysis (~$0.003 extra)</p>
+                </div>
+              </label>
+
               <p className="text-sm text-gray-600">Choose fact-check type:</p>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -285,6 +301,38 @@ const FactCheckPanel: React.FC<FactCheckPanelProps> = ({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* Citations from Perplexity */}
+              {result.usedPerplexity && result.citations && result.citations.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm text-gray-900 flex items-center gap-1">
+                    <Search className="w-4 h-4 text-blue-600" />
+                    Web Sources ({result.citations.length})
+                  </h4>
+                  <ul className="space-y-1 text-xs">
+                    {result.citations.map((citation, index) => (
+                      <li key={index}>
+                        <a
+                          href={citation}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate block"
+                        >
+                          {citation}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Perplexity indicator */}
+              {result.usedPerplexity && (
+                <div className="flex items-center gap-1 text-xs text-blue-600">
+                  <Search className="w-3 h-3" />
+                  <span>Verified with live web search (Perplexity)</span>
                 </div>
               )}
 
