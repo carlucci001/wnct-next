@@ -29,6 +29,8 @@ export interface QuickFactCheckResult {
   confidence: number;
   checkedAt: string;
   cost?: number; // API cost in USD
+  usedPerplexity?: boolean; // Whether Perplexity was used
+  citations?: string[]; // Source URLs from Perplexity
 }
 
 /**
@@ -43,6 +45,8 @@ export interface DetailedFactCheckResult {
   recommendations: string[];
   checkedAt: string;
   cost?: number; // API cost in USD
+  usedPerplexity?: boolean; // Whether Perplexity was used
+  citations?: string[]; // Source URLs from Perplexity
 }
 
 /**
@@ -61,6 +65,7 @@ export interface FactCheckRequest {
   sourceTitle?: string;
   sourceSummary?: string;
   sourceUrl?: string;
+  usePerplexity?: boolean; // Enable live web search verification
 }
 
 /**

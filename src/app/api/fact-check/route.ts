@@ -9,13 +9,14 @@ import {
   ClaimStatus
 } from '@/types/factCheck';
 import { API_PRICING } from '@/lib/costs';
+import { searchWithPerplexity } from '@/lib/perplexitySearch';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
     const body: FactCheckRequest = await request.json();
-    const { mode, articleId, title, content, sourceTitle, sourceSummary, sourceUrl } = body;
+    const { mode, articleId, title, content, sourceTitle, sourceSummary, sourceUrl, usePerplexity } = body;
 
     if (!title || !content) {
       return NextResponse.json(
@@ -24,26 +25,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get Gemini API key from settings
+    // Get API keys from settings
     const settingsDoc = await getDoc(doc(getDb(), 'settings', 'config'));
     const settings = settingsDoc.data();
-    const apiKey = settings?.geminiApiKey;
+    const geminiApiKey = settings?.geminiApiKey;
+    const perplexityApiKey = settings?.perplexityApiKey;
 
-    if (!apiKey) {
+    if (!geminiApiKey) {
       return NextResponse.json(
         { error: 'Fact-check service not configured. Please configure the Gemini API key in Admin settings.' },
         { status: 503 }
       );
     }
 
-    // Build the appropriate prompt based on mode
+    // If Perplexity is requested, gather live web research first
+    let perplexityResearch = '';
+    let citations: string[] = [];
+
+    if (usePerplexity) {
+      if (!perplexityApiKey) {
+        console.log('[FactCheck] Perplexity requested but API key not configured, falling back to Gemini-only');
+      } else {
+        try {
+          console.log('[FactCheck] Using Perplexity for live web verification');
+          const searchQuery = `Verify the facts in this news article. Article title: "${title}". Key claims to verify from the content.`;
+          const perplexityResult = await searchWithPerplexity(
+            searchQuery,
+            content.substring(0, 2000), // Limit context size
+            perplexityApiKey
+          );
+          perplexityResearch = perplexityResult.answer;
+          citations = perplexityResult.citations || [];
+          console.log('[FactCheck] Perplexity returned', citations.length, 'citations');
+        } catch (perplexityError) {
+          console.error('[FactCheck] Perplexity search failed, continuing with Gemini-only:', perplexityError);
+        }
+      }
+    }
+
+    // Build the appropriate prompt based on mode (now includes Perplexity research if available)
     const prompt = mode === 'detailed'
-      ? buildDetailedPrompt(title, content, sourceTitle, sourceSummary, sourceUrl)
-      : buildQuickPrompt(title, content, sourceTitle, sourceSummary, sourceUrl);
+      ? buildDetailedPrompt(title, content, sourceTitle, sourceSummary, sourceUrl, perplexityResearch)
+      : buildQuickPrompt(title, content, sourceTitle, sourceSummary, sourceUrl, perplexityResearch);
 
     // Call Gemini API
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,6 +107,12 @@ export async function POST(request: NextRequest) {
     const result: FactCheckResult = mode === 'detailed'
       ? parseDetailedResponse(responseText)
       : parseQuickResponse(responseText);
+
+    // Add Perplexity metadata if it was used
+    if (usePerplexity && perplexityResearch) {
+      result.usedPerplexity = true;
+      result.citations = citations;
+    }
 
     // If articleId provided, update the article with fact-check results
     if (articleId) {
@@ -122,7 +155,8 @@ function buildQuickPrompt(
   content: string,
   sourceTitle?: string,
   sourceSummary?: string,
-  sourceUrl?: string
+  sourceUrl?: string,
+  perplexityResearch?: string
 ): string {
   const sourceInfo = sourceTitle || sourceSummary
     ? `SOURCE MATERIAL:
@@ -131,9 +165,13 @@ Summary: ${sourceSummary || 'Not provided'}
 URL: ${sourceUrl || 'Not provided'}`
     : 'No source material provided - assess based on internal consistency and common knowledge.';
 
+  const webResearch = perplexityResearch
+    ? `\n\nLIVE WEB RESEARCH (from Perplexity):\n${perplexityResearch}`
+    : '';
+
   return `You are a fact-checker for a local news organization. Quickly assess this article for factual accuracy.
 
-${sourceInfo}
+${sourceInfo}${webResearch}
 
 ARTICLE TO CHECK:
 Title: ${title}
@@ -144,6 +182,7 @@ Evaluate whether the article:
 2. Doesn't make claims that seem fabricated or exaggerated
 3. Uses appropriate hedging for uncertain information
 4. Avoids sensationalism
+${perplexityResearch ? '5. Aligns with the live web research findings above' : ''}
 
 Respond in this EXACT format (no extra text):
 STATUS: [passed/review_recommended/caution/high_risk]
@@ -156,7 +195,8 @@ function buildDetailedPrompt(
   content: string,
   sourceTitle?: string,
   sourceSummary?: string,
-  sourceUrl?: string
+  sourceUrl?: string,
+  perplexityResearch?: string
 ): string {
   const sourceInfo = sourceTitle || sourceSummary
     ? `SOURCE MATERIAL:
@@ -165,9 +205,13 @@ Summary: ${sourceSummary || 'Not provided'}
 URL: ${sourceUrl || 'Not provided'}`
     : 'No source material provided - assess based on internal consistency and common knowledge.';
 
+  const webResearch = perplexityResearch
+    ? `\n\nLIVE WEB RESEARCH (from Perplexity - use this to verify current facts):\n${perplexityResearch}`
+    : '';
+
   return `You are a thorough fact-checker for a local news organization. Analyze this article claim by claim.
 
-${sourceInfo}
+${sourceInfo}${webResearch}
 
 ARTICLE TO CHECK:
 Title: ${title}
@@ -176,12 +220,12 @@ Content: ${content}
 Instructions:
 1. Extract each significant factual claim from the article
 2. For each claim, determine if it is:
-   - VERIFIED: Supported by source or widely known facts
+   - VERIFIED: Supported by source${perplexityResearch ? ', live web research,' : ''} or widely known facts
    - UNVERIFIED: Cannot be confirmed from available information
-   - DISPUTED: Contradicts source or known facts
+   - DISPUTED: Contradicts source${perplexityResearch ? ', live web research,' : ''} or known facts
    - OPINION: Editorial opinion, not a factual claim
 
-3. Provide specific explanations for each claim
+3. Provide specific explanations for each claim${perplexityResearch ? ' (reference the live web research when applicable)' : ''}
 4. Give actionable recommendations for the editor
 
 Respond in this EXACT format:
