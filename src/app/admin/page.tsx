@@ -6944,7 +6944,12 @@ Return ONLY the JSON object, no other text.`;
                   setActiveTab('articles');
                 }
               }}
-              className="px-5 py-2.5 bg-amber-500 text-white font-medium rounded-xl hover:bg-amber-600 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow"
+              disabled={agentArticle.status !== 'draft'}
+              className={`px-5 py-2.5 font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-sm ${
+                agentArticle.status === 'draft'
+                  ? 'bg-amber-500 text-white hover:bg-amber-600 hover:shadow'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
             >
               <AlertCircle size={16} /> Send to Editor
             </button>
