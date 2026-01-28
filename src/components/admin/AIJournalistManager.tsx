@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Bot, Plus, Edit2, Trash2, X, Camera, Check, Power, PowerOff, Clock, Calendar, Play, Pause, Zap, Loader2, UserCircle2 } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { getStorageInstance } from '@/lib/firebase';
 import { AIJournalist, AIJournalistInput } from '@/types/aiJournalist';
 import { CategoryData } from '@/types/article';
 import { Category } from '@/types/category';
@@ -187,7 +187,7 @@ export default function AIJournalistManager({ categories, currentUserId }: AIJou
     try {
       const timestamp = Date.now();
       // Upload to avatars folder which has write permissions in storage rules
-      const storageRef = ref(storage, `avatars/ai-journalists/${timestamp}_${file.name}`);
+      const storageRef = ref(getStorageInstance(), `avatars/ai-journalists/${timestamp}_${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setPhotoURL(url);

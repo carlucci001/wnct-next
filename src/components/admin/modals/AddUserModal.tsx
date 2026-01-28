@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { UserRole, AccountType } from '@/types/user';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS, hasPermission } from '@/data/rolePermissions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { getStorageInstance } from '@/lib/firebase';
 import { X, UserPlus, Camera, ChevronDown, Check, Phone, Lock, Eye, EyeOff, Copy, CheckCircle } from 'lucide-react';
 
 const ROLES: UserRole[] = [
@@ -90,7 +90,7 @@ export function AddUserModal({ onClose, onUserCreated, currentUserRole }: AddMod
     try {
       // Use a temp ID for upload since we don't have user ID yet
       const tempId = `temp_${Date.now()}`;
-      const storageRef = ref(storage, `avatars/${tempId}/${file.name}`);
+      const storageRef = ref(getStorageInstance(), `avatars/${tempId}/${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setPhotoURL(url);

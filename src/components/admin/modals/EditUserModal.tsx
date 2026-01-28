@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { User, UserRole, AccountType } from '@/types/user';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS, hasPermission } from '@/data/rolePermissions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { getStorageInstance } from '@/lib/firebase';
 import { X, Edit2, Shield, ChevronDown, Check, Camera, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -91,7 +91,7 @@ export function EditUserModal({ user, onClose, onSave, currentUserRole }: EditMo
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `avatars/${user.id}/${Date.now()}_${file.name}`);
+      const storageRef = ref(getStorageInstance(), `avatars/${user.id}/${Date.now()}_${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setPhotoURL(url);

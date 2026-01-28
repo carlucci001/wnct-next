@@ -28,7 +28,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { getStorageInstance } from '@/lib/firebase';
 import {
   Persona,
   PersonaInput,
@@ -249,7 +249,7 @@ export default function PersonaManager({ currentUserId }: PersonaManagerProps) {
     setUploading(true);
     try {
       const timestamp = Date.now();
-      const storageRef = ref(storage, `avatars/personas/${timestamp}_${file.name}`);
+      const storageRef = ref(getStorageInstance(), `avatars/personas/${timestamp}_${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setPhotoURL(url);
