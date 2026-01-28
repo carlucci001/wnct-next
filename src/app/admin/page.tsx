@@ -6961,7 +6961,10 @@ Return ONLY the JSON object, no other text.`;
               <Save size={17} /> Save
             </button>
             <button
-              onClick={() => setAgentArticle(null)}
+              onClick={() => {
+                setAgentArticle(null);
+                setActiveTab('articles');
+              }}
               className="p-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all duration-200"
             >
               <X size={20}/>
