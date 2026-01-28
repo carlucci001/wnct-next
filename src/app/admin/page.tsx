@@ -6961,7 +6961,7 @@ Return ONLY the JSON object, no other text.`;
               <AlertCircle size={16} /> Send to Editor
             </button>
             {/* Send Back to Author button - only for review articles */}
-            {agentArticle.status === 'review' && (
+            {agentArticle.status?.toLowerCase() === 'review' && (
               <button
                 onClick={async () => {
                   const customFeedback = prompt('Additional feedback for the author (or leave blank):');
