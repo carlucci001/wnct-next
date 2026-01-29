@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-2.0-flash';
 
     // Check if generating all SEO fields
     const generateAll = generateTypes.includes('all');
