@@ -153,7 +153,7 @@ export default function HomeClient() {
 
               const featuredArticle = categoryArticles[0];
               const trailingArticles = categoryArticles.slice(1, 5);
-              const categoryColor = featuredArticle.categoryColor || getCategoryColor(category);
+              const categoryColor = getCategoryColor(category);
               const categorySlug = category.toLowerCase().replace(/\s+/g, '-');
 
               return (
