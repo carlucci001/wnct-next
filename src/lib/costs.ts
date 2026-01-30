@@ -36,7 +36,10 @@ export const API_PRICING = {
   GEMINI_FACT_CHECK_DETAILED: 0.001, // ~1000 tokens
   GEMINI_VISUAL_EXTRACTION: 0.0001, // ~100 tokens
 
-  // OpenAI DALL-E 3 pricing
+  // Gemini Image Generation pricing
+  GEMINI_IMAGE: 0.05, // ~$0.05 per image (Gemini 2.0 Flash experimental)
+
+  // OpenAI DALL-E 3 pricing (legacy, kept for reference)
   DALLE_3_STANDARD: 0.04, // $0.04 per image (1024x1024)
   DALLE_3_HD: 0.08, // $0.08 per image (HD quality)
 

@@ -7,11 +7,13 @@ import { storageService } from '@/lib/storage';
 import { API_PRICING } from '@/lib/costs';
 
 export interface ImageGenerationOptions {
-  openaiApiKey: string;
+  geminiApiKey: string;
   title: string;
   size?: '1792x1024' | '1024x1024' | '1024x1792';
   quality?: 'standard' | 'hd';
   style?: 'natural' | 'vivid';
+  // Legacy support for existing code
+  openaiApiKey?: string;
 }
 
 export interface ImageGenerationResult {
@@ -19,7 +21,7 @@ export interface ImageGenerationResult {
   imageUrl?: string;
   error?: string;
   cost?: number; // Cost in USD
-  source?: 'dalle' | 'unsplash' | 'pexels'; // Where the image came from
+  source?: 'gemini' | 'dalle' | 'unsplash' | 'pexels'; // Where the image came from
   metadata?: {
     generatedAt: string;
     model: string;
@@ -29,7 +31,7 @@ export interface ImageGenerationResult {
 }
 
 /**
- * Generate an AI image using DALL-E for an article
+ * Generate an AI image using Gemini 3 Pro Image for an article
  * This ensures we only use legally owned images, never copyrighted news photos
  *
  * @param options - Image generation configuration
@@ -39,19 +41,17 @@ export async function generateArticleImage(
   options: ImageGenerationOptions
 ): Promise<ImageGenerationResult> {
   const {
-    openaiApiKey,
+    geminiApiKey,
     title,
     size = '1792x1024',
-    quality = 'hd',
-    style = 'natural',
   } = options;
 
   // Validate API key
-  if (!openaiApiKey || openaiApiKey.trim() === '') {
-    console.warn('[ImageGen] No OpenAI API key provided - skipping image generation');
+  if (!geminiApiKey || geminiApiKey.trim() === '') {
+    console.warn('[ImageGen] No Gemini API key provided - skipping image generation');
     return {
       success: false,
-      error: 'OpenAI API key not configured',
+      error: 'Gemini API key not configured',
     };
   }
 
@@ -64,32 +64,41 @@ export async function generateArticleImage(
   }
 
   try {
-    // Build AP-style news photo prompt
-    const imagePrompt = `A photorealistic news photograph depicting: ${title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+    // Build AP-style news photo prompt optimized for Gemini 3 Pro Image
+    const imagePrompt = `Create a professional news photograph for this headline: "${title}"
 
-    console.log('[ImageGen] Generating AI image for:', title.substring(0, 50) + '...');
+Requirements:
+- Photorealistic editorial photography style
+- High resolution, sharp focus, natural lighting
+- Clean composition suitable for newspaper front page
+- No text overlays, watermarks, or logos
+- No recognizable human faces (use back views, silhouettes, or crowds from distance)
+- Conveys the story visually without relying on text
+- Professional photojournalism quality`;
 
-    // Call DALL-E API
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: imagePrompt.substring(0, 1000), // DALL-E 3 max prompt length
-        n: 1,
-        size,
-        quality,
-        style,
-      }),
-    });
+    console.log('[ImageGen] Generating AI image with Gemini 3 Pro Image for:', title.substring(0, 50) + '...');
+
+    // Call Gemini 3 Pro Image API
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: imagePrompt }]
+          }],
+          generationConfig: {
+            responseModalities: ['image', 'text'],
+          }
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-      console.error('[ImageGen] DALL-E API error:', errorMessage);
+      console.error('[ImageGen] Gemini API error:', errorMessage);
       return {
         success: false,
         error: errorMessage,
@@ -97,34 +106,42 @@ export async function generateArticleImage(
     }
 
     const data = await response.json();
-    const tempImageUrl = data.data?.[0]?.url;
 
-    if (!tempImageUrl) {
-      console.error('[ImageGen] DALL-E returned no image URL');
+    // Extract image from Gemini response (base64 encoded)
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.mimeType?.startsWith('image/'));
+
+    if (!imagePart?.inlineData?.data) {
+      console.error('[ImageGen] Gemini returned no image data');
       return {
         success: false,
-        error: 'No image URL returned from DALL-E',
+        error: 'No image returned from Gemini',
       };
     }
 
-    // Persist the temporary DALL-E URL to Firebase Storage
-    console.log('[ImageGen] Persisting temporary image to Firebase Storage...');
-    const persistedUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
+    // Convert base64 to blob and upload to Firebase Storage
+    console.log('[ImageGen] Persisting Gemini image to Firebase Storage...');
+    const base64Data = imagePart.inlineData.data;
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
 
-    console.log('[ImageGen] ✅ AI image generated and persisted successfully');
+    // Create a data URL and upload
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    const persistedUrl = await storageService.uploadAssetFromDataUrl(dataUrl);
+
+    console.log('[ImageGen] ✅ Gemini image generated and persisted successfully');
     console.log('[ImageGen] URL:', persistedUrl.substring(0, 80) + '...');
 
-    // Calculate cost based on quality
-    const imageCost = quality === 'hd' ? API_PRICING.DALLE_3_HD : API_PRICING.DALLE_3_STANDARD;
+    // Gemini 3 Pro Image cost estimate
+    const imageCost = 0.05;
 
     return {
       success: true,
       imageUrl: persistedUrl,
       cost: imageCost,
-      source: 'dalle',
+      source: 'gemini',
       metadata: {
         generatedAt: new Date().toISOString(),
-        model: 'dall-e-3',
+        model: 'gemini-2.0-flash-exp',
         size,
         prompt: imagePrompt.substring(0, 200),
       },
@@ -140,11 +157,11 @@ export async function generateArticleImage(
 }
 
 /**
- * Helper: Check if OpenAI API key is configured
+ * Helper: Check if Gemini API key is configured for image generation
  * Use this before calling generateArticleImage to provide better UX
  */
-export function isImageGenerationAvailable(openaiApiKey?: string): boolean {
-  return Boolean(openaiApiKey && openaiApiKey.trim() !== '');
+export function isImageGenerationAvailable(geminiApiKey?: string): boolean {
+  return Boolean(geminiApiKey && geminiApiKey.trim() !== '');
 }
 
 /**

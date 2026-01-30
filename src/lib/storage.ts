@@ -218,6 +218,80 @@ export const storageService = {
       console.error('[Storage] Asset upload error:', error);
       return sourceUrl;
     }
+  },
+
+  // Upload from data URL (for Gemini base64 images)
+  uploadAssetFromDataUrl: async (dataUrl: string): Promise<string> => {
+    try {
+      console.log('[Storage] Uploading from data URL...');
+
+      // Parse data URL
+      const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) {
+        throw new Error('Invalid data URL format');
+      }
+
+      const contentType = matches[1];
+      const base64Data = matches[2];
+
+      // Convert base64 to blob
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: contentType });
+
+      // Determine file extension from content type
+      const extension = contentType.split('/')[1] || 'png';
+      const fileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+
+      // Try Firebase Storage first
+      try {
+        const storage = getStorageInstance();
+        const storageRef = ref(storage, fileName);
+
+        console.log('[Storage] Uploading to Firebase Storage:', fileName);
+        const snapshot = await uploadBytes(storageRef, blob);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        console.log('[Storage] Data URL image persisted successfully');
+        return downloadUrl;
+      } catch (firebaseError) {
+        console.warn('[Storage] Firebase Storage upload failed, trying GCS fallback:', firebaseError);
+      }
+
+      // Fallback to Google Cloud Storage if configured
+      const settings = getStorageSettings();
+      if (settings && isValidBucketName(settings.bucketName)) {
+        const gcsFileName = `articles/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+        const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${settings.bucketName}/o?uploadType=media&name=${gcsFileName}`;
+
+        const headers: Record<string, string> = {
+          'Content-Type': contentType,
+        };
+
+        if (settings.token) {
+          headers['Authorization'] = `Bearer ${settings.token}`;
+        }
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: headers,
+          body: blob
+        });
+
+        if (uploadResponse.ok) {
+          const permanentUrl = `https://storage.googleapis.com/${settings.bucketName}/${gcsFileName}`;
+          console.log('[Storage] Data URL image persisted to GCS:', permanentUrl);
+          return permanentUrl;
+        }
+      }
+
+      throw new Error('All upload methods failed');
+    } catch (error) {
+      console.error('[Storage] Data URL upload error:', error);
+      throw error;
+    }
   }
 };
 

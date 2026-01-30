@@ -103,64 +103,67 @@ async function generateArticleImage(
     console.error('[Image] Stock photo search failed:', error);
   }
 
-  // STEP 2: Fall back to AI generation with improved prompts
-  if (!openaiApiKey) {
-    console.log('[Image] No OpenAI API key - cannot generate AI image');
+  // STEP 2: Fall back to AI generation with Gemini
+  if (!geminiApiKey) {
+    console.log('[Image] No Gemini API key - cannot generate AI image');
     return { url: '', method: 'none' };
   }
 
   try {
-    console.log('[Image] No stock photos found, generating with DALL-E');
+    console.log('[Image] No stock photos found, generating with Gemini');
 
-    // Extract visual elements from article
-    let visualElements: string | null = null;
-    if (geminiApiKey && content) {
-      const { extractVisualElements } = await import('@/lib/imageGeneration');
-      visualElements = await extractVisualElements(title, content, category || 'news', geminiApiKey);
-      if (visualElements) {
-        console.log(`[Image] Visual elements extracted: ${visualElements.substring(0, 100)}`);
-      }
-    }
-
-    // Build detailed prompt
+    // Build prompt for Gemini image generation
     const { buildDetailedImagePrompt } = await import('@/lib/imageGeneration');
-    const imagePrompt = buildDetailedImagePrompt(title, visualElements || undefined, category);
+    const imagePrompt = buildDetailedImagePrompt(title, undefined, category);
 
-    console.log('[Image] Generating with improved prompt...');
+    console.log('[Image] Generating with Gemini...');
 
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: imagePrompt.substring(0, 1000),
-        n: 1,
-        size: (settings?.dalleSize as string) || '1792x1024',
-        quality: (settings?.dalleQuality as string) || 'hd',
-        style: (settings?.dalleStyle as string) || 'natural'
-      })
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `Create a professional news photograph for this headline: "${title}"\n\nRequirements:\n- Photorealistic editorial photography style\n- High resolution, sharp focus, natural lighting\n- Clean composition suitable for newspaper front page\n- No text overlays, watermarks, or logos\n- No recognizable human faces\n- Professional photojournalism quality` }]
+          }],
+          generationConfig: {
+            responseModalities: ['image', 'text'],
+          }
+        })
+      }
+    );
 
-    const data = await response.json();
-    const tempImageUrl = data.data?.[0]?.url;
-
-    if (!tempImageUrl) {
-      console.error('[Image] DALL-E returned no image:', data.error?.message);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[Image] Gemini API error:', errorData.error?.message || response.statusText);
       return { url: '', method: 'failed' };
     }
 
-    // Persist to Firebase Storage
-    const { storageService } = await import('@/lib/storage');
-    const persistedUrl = await storageService.uploadAssetFromUrl(tempImageUrl);
+    const data = await response.json();
 
-    console.log('[Image] ✓ AI image generated and persisted');
+    // Extract image from Gemini response (base64 encoded)
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.mimeType?.startsWith('image/'));
+
+    if (!imagePart?.inlineData?.data) {
+      console.error('[Image] Gemini returned no image data');
+      return { url: '', method: 'failed' };
+    }
+
+    // Convert base64 to data URL and upload to Firebase Storage
+    const base64Data = imagePart.inlineData.data;
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    const { storageService } = await import('@/lib/storage');
+    const persistedUrl = await storageService.uploadAssetFromDataUrl(dataUrl);
+
+    console.log('[Image] ✓ Gemini image generated and persisted');
     return {
       url: persistedUrl,
       attribution: 'AI-generated image',
-      method: 'dall-e'
+      method: 'gemini'
     };
   } catch (error) {
     console.error('[Image] Failed to generate AI image:', error);
@@ -521,9 +524,11 @@ export async function POST(request: NextRequest) {
             }
 
             // Image generation cost
-            if (imageResult.method === 'ai') {
+            if (imageResult.method === 'gemini') {
+              costs = addCost(costs, 'imageGeneration', API_PRICING.GEMINI_IMAGE);
+            } else if (imageResult.method === 'dall-e') {
               costs = addCost(costs, 'imageGeneration', API_PRICING.DALLE_3_STANDARD);
-            } else if (imageResult.method === 'stock') {
+            } else if (imageResult.method === 'unsplash' || imageResult.method === 'pexels') {
               costs = addCost(costs, 'stockPhotoSearch', 0);
             }
 
@@ -1526,9 +1531,9 @@ export async function GET(request: NextRequest) {
                 costs = addCost(costs, 'other', API_PRICING.PERPLEXITY_SEARCH, 'Perplexity Web Search');
               }
 
-              // Image generation cost (AI only in cron mode)
+              // Image generation cost (Gemini in cron mode)
               if (persistedImageUrl) {
-                costs = addCost(costs, 'imageGeneration', API_PRICING.DALLE_3_STANDARD);
+                costs = addCost(costs, 'imageGeneration', API_PRICING.GEMINI_IMAGE);
               }
 
               return costs;
