@@ -116,16 +116,16 @@ async function generateArticleImage(
   }
 
   try {
-    console.log('[Image] No stock photos found, generating with Gemini');
+    console.log('[Image] No stock photos found, generating with Gemini 3 Pro');
 
     // Build prompt for Gemini image generation
     const { buildDetailedImagePrompt } = await import('@/lib/imageGeneration');
     const imagePrompt = buildDetailedImagePrompt(title, undefined, category);
 
-    console.log('[Image] Generating with Gemini...');
+    console.log('[Image] Generating with Gemini 3 Pro Image...');
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

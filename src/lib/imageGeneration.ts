@@ -85,11 +85,11 @@ Requirements:
       console.log('[ImageGen] Custom prompt added:', customPrompt.substring(0, 50) + '...');
     }
 
-    console.log('[ImageGen] Generating AI image with Gemini for:', title.substring(0, 50) + '...');
+    console.log('[ImageGen] Generating AI image with Gemini 3 Pro for:', title.substring(0, 50) + '...');
 
-    // Call Gemini 3 Pro Image API
+    // Call Gemini 3 Pro Image API (highest quality, 4K output)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +150,7 @@ Requirements:
       source: 'gemini',
       metadata: {
         generatedAt: new Date().toISOString(),
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         size,
         prompt: imagePrompt.substring(0, 200),
       },
