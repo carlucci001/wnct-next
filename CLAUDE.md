@@ -123,6 +123,7 @@ Known stable commits to revert to if something breaks:
 
 | Date | Commit | Description |
 |------|--------|-------------|
+| Jan 30, 2026 | `813fb08` | Gemini image generation (replaced DALL-E) |
 | Jan 30, 2026 | `7e609a6` | Category colors fix + Gemini 2.0 Flash (stable) |
 | Jan 30, 2026 | `90825c5` | Reverted to Gemini 2.0 Flash for article generation |
 | Jan 29, 2026 | `2b79f40` | Firebase Storage upload fix |
