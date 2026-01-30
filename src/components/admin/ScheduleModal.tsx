@@ -35,6 +35,7 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
   const [categoryId, setCategoryId] = useState(journalist.taskConfig?.categoryId ?? '');
   const [isFeatured, setIsFeatured] = useState(journalist.taskConfig?.isFeatured ?? false);
   const [isBreakingNews, setIsBreakingNews] = useState(journalist.taskConfig?.isBreakingNews ?? false);
+  const [forceAIGeneration, setForceAIGeneration] = useState(journalist.taskConfig?.forceAIGeneration ?? false);
   const [autopilotMode, setAutopilotMode] = useState(journalist.taskConfig?.autopilotMode ?? false);
   const [autopilotConfidenceThreshold, setAutopilotConfidenceThreshold] = useState(journalist.taskConfig?.autopilotConfidenceThreshold ?? 70);
 
@@ -103,6 +104,7 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
         maxArticlesPerRun,
         isFeatured,
         isBreakingNews,
+        forceAIGeneration,
         autopilotMode,
         autopilotConfidenceThreshold,
       };
@@ -458,6 +460,29 @@ export default function ScheduleModal({ journalist, categories, onClose, onSaved
                     <div
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
                         isBreakingNews ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Force AI Image Generation Toggle */}
+                <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <div>
+                    <h4 className="font-medium text-purple-900 dark:text-purple-200">Force AI Image Generation</h4>
+                    <p className="text-xs text-purple-700 dark:text-purple-400">
+                      Skip stock photos, always use Gemini AI (~$0.05/image)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForceAIGeneration(!forceAIGeneration)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      forceAIGeneration ? 'bg-purple-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        forceAIGeneration ? 'left-7' : 'left-1'
                       }`}
                     />
                   </button>

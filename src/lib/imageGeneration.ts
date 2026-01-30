@@ -12,6 +12,8 @@ export interface ImageGenerationOptions {
   size?: '1792x1024' | '1024x1024' | '1024x1792';
   quality?: 'standard' | 'hd';
   style?: 'natural' | 'vivid';
+  // Custom prompt text appended to the base prompt (for manual generation)
+  customPrompt?: string;
   // Legacy support for existing code
   openaiApiKey?: string;
 }
@@ -44,6 +46,7 @@ export async function generateArticleImage(
     geminiApiKey,
     title,
     size = '1792x1024',
+    customPrompt,
   } = options;
 
   // Validate API key
@@ -65,7 +68,7 @@ export async function generateArticleImage(
 
   try {
     // Build AP-style news photo prompt optimized for Gemini 3 Pro Image
-    const imagePrompt = `Create a professional news photograph for this headline: "${title}"
+    let imagePrompt = `Create a professional news photograph for this headline: "${title}"
 
 Requirements:
 - Photorealistic editorial photography style
@@ -76,7 +79,13 @@ Requirements:
 - Conveys the story visually without relying on text
 - Professional photojournalism quality`;
 
-    console.log('[ImageGen] Generating AI image with Gemini 3 Pro Image for:', title.substring(0, 50) + '...');
+    // Append custom prompt if provided (for manual generation with specific requirements)
+    if (customPrompt && customPrompt.trim()) {
+      imagePrompt += `\n\nAdditional requirements: ${customPrompt.trim()}`;
+      console.log('[ImageGen] Custom prompt added:', customPrompt.substring(0, 50) + '...');
+    }
+
+    console.log('[ImageGen] Generating AI image with Gemini for:', title.substring(0, 50) + '...');
 
     // Call Gemini 3 Pro Image API
     const response = await fetch(

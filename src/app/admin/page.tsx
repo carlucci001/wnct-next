@@ -518,6 +518,7 @@ export default function AdminDashboard() {
   const [maintenanceProgress, setMaintenanceProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedArticleForAction, setSelectedArticleForAction] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [customImagePrompt, setCustomImagePrompt] = useState('');
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
   const [aiGeneratedData, setAiGeneratedData] = useState<any>(null);
 
@@ -1833,7 +1834,7 @@ Return ONLY valid JSON array with no markdown:
     }
   };
 
-  // Generate image for article using DALL-E
+  // Generate image for article using Gemini AI
   const handleGenerateImageForArticle = async () => {
     if (!agentArticle?.title) {
       showMessage('error', 'Please enter an article title first');
@@ -1841,99 +1842,32 @@ Return ONLY valid JSON array with no markdown:
     }
 
     setIsGeneratingImage(true);
-    setChatHistory(prev => [...prev, { role: 'user', text: `🖼️ Generate image for: ${agentArticle.title}` }]);
+    setChatHistory(prev => [...prev, { role: 'user', text: `🖼️ Generate image for: ${agentArticle.title}${customImagePrompt ? ` (with custom prompt)` : ''}` }]);
 
     try {
-      const apiKey = settings?.openaiApiKey;
-      if (!apiKey) {
-        showMessage('error', 'OpenAI API key not configured. Go to API Configuration.');
+      const geminiApiKey = settings?.geminiApiKey;
+      if (!geminiApiKey) {
+        showMessage('error', 'Gemini API key not configured. Go to API Configuration.');
         setIsGeneratingImage(false);
         return;
       }
 
-      /*
-       * IMAGE GENERATION FALLBACK SYSTEM
-       * ================================
-       *
-       * Why this exists:
-       * - OpenAI's DALL-E has a safety filter that blocks images for sensitive news topics
-       *   (protests, violence, political figures, crime, ICE/immigration, etc.)
-       * - News articles frequently cover these topics, so we need a fallback
-       *
-       * How it works:
-       * 1. First tries to generate an image specific to the article title
-       * 2. If DALL-E's safety filter rejects it, falls back to a category-appropriate generic image
-       *
-       * Why NO PEOPLE in fallbacks:
-       * - DALL-E has known bias issues when depicting people (race, gender, religion stereotypes)
-       * - Example: When asked for "classroom" it generated people in hijabs inappropriately
-       * - Using scenery/objects only avoids these bias issues entirely
-       *
-       * Image variation:
-       * - DALL-E 3 generates unique images each time, even with identical prompts
-       * - We add random lighting/weather variations to increase diversity further
-       */
+      // Import the unified image generation service
+      const { generateArticleImage } = await import('@/lib/imageGeneration');
 
-      const specificPrompt = `A photorealistic news photograph depicting: ${agentArticle.title}. Professional editorial photography style, high resolution, natural lighting, clean composition without any text overlay or watermarks.`;
+      console.log('[Image Gen] Generating with Gemini...', customImagePrompt ? 'with custom prompt' : '');
+      setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ Generating image with Gemini AI...` }]);
 
-      // Random variations for more diverse fallback images
-      const timeVariations = ['at dawn', 'at golden hour', 'at sunset', 'at dusk', 'in morning light', 'in afternoon light'];
-      const weatherVariations = ['on a clear day', 'with dramatic clouds', 'with soft overcast sky', 'with blue sky'];
-      const randomTime = timeVariations[Math.floor(Math.random() * timeVariations.length)];
-      const randomWeather = weatherVariations[Math.floor(Math.random() * weatherVariations.length)];
+      const result = await generateArticleImage({
+        geminiApiKey,
+        title: agentArticle.title,
+        customPrompt: customImagePrompt || undefined,
+      });
 
-      // Generic fallback prompts by category - NO PEOPLE to avoid AI bias issues
-      const categoryFallbacks: Record<string, string> = {
-        'News': `A photorealistic image of stacked newspapers and a coffee cup on a wooden desk ${randomTime}, no people, editorial style`,
-        'Politics': `A photorealistic image of the US Capitol building dome ${randomTime} ${randomWeather}, no people, architectural photography`,
-        'Sports': `A photorealistic image of an empty stadium ${randomTime}, dramatic lighting, no people`,
-        'Business': `A photorealistic image of a modern glass skyscraper ${randomTime} ${randomWeather}, no people, architectural`,
-        'Entertainment': `A photorealistic image of an empty theater with red velvet seats and stage lights, cinematic lighting, no people`,
-        'Lifestyle': `A photorealistic image of a steaming coffee cup on a cafe table by a window ${randomTime}, cozy atmosphere, no people`,
-        'Outdoors': `A photorealistic landscape of Blue Ridge Mountains ${randomTime} with morning mist, no people, nature photography`,
-        'default': `A photorealistic landscape of Western North Carolina mountains ${randomTime} ${randomWeather}, no people, scenic`
-      };
-
-      const generateWithPrompt = async (prompt: string): Promise<{success: boolean; url?: string; error?: string}> => {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt: prompt.substring(0, 1000),
-            n: 1,
-            size: settings?.dalleSize || '1792x1024',
-            quality: settings?.dalleQuality || 'standard',
-            style: settings?.dalleStyle || 'natural'
-          })
-        });
-        const data = await response.json();
-        if (data.data?.[0]?.url) {
-          return { success: true, url: data.data[0].url };
-        }
-        return { success: false, error: data.error?.message || 'Unknown error' };
-      };
-
-      console.log('[Image Gen] Trying specific prompt...');
-      let result = await generateWithPrompt(specificPrompt);
-
-      // If safety-rejected, try generic fallback
-      if (!result.success && result.error?.toLowerCase().includes('safety')) {
-        const category = agentArticle.category || 'default';
-        const fallbackPrompt = categoryFallbacks[category] || categoryFallbacks['default'];
-        console.log('[Image Gen] Safety rejected, trying fallback for category:', category);
-        setChatHistory(prev => [...prev, { role: 'model', text: `⚠️ Content filter triggered. Generating category-appropriate image instead...` }]);
-        result = await generateWithPrompt(fallbackPrompt);
-      }
-
-      if (result.success && result.url) {
-        setChatHistory(prev => [...prev, { role: 'model', text: `🖼️ **Image Generated!** Saving to permanent storage...` }]);
-        const permanentUrl = await storageService.uploadAssetFromUrl(result.url);
-        setAgentArticle({ ...agentArticle, imageUrl: permanentUrl, featuredImage: permanentUrl });
-        setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Image Saved!** Your featured image has been permanently stored.` }]);
+      if (result.success && result.imageUrl) {
+        setAgentArticle({ ...agentArticle, imageUrl: result.imageUrl, featuredImage: result.imageUrl });
+        setChatHistory(prev => [...prev, { role: 'model', text: `✅ **Image Generated!** Your featured image has been saved.` }]);
+        showMessage('success', 'Featured image generated successfully!');
       } else {
         throw new Error(result.error || 'Failed to generate image');
       }
@@ -7690,7 +7624,25 @@ Return ONLY the JSON object, no other text.`;
                     <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                       <Sparkles size={16} className="text-purple-600" /> AI Image Generation
                     </h3>
-                    <p className="text-xs text-slate-600 mb-4">Generate a professional featured image using DALL-E 3</p>
+                    <p className="text-xs text-slate-600 mb-3">Generate a professional featured image using Gemini AI</p>
+
+                    {/* Custom Prompt Field */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                        Custom Image Prompt (Optional)
+                      </label>
+                      <textarea
+                        value={customImagePrompt}
+                        onChange={(e) => setCustomImagePrompt(e.target.value)}
+                        placeholder="Example: Include Blue Ridge Mountains in background, autumn colors, golden hour lighting..."
+                        rows={2}
+                        className="w-full border border-purple-200 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Additional details appended to the AI image prompt
+                      </p>
+                    </div>
+
                     <button onClick={handleGenerateImageForArticle} disabled={isGeneratingImage || !agentArticle?.title} className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
                       {isGeneratingImage ? <><RefreshCw size={14} className="animate-spin" /> Generating Image...</> : <><Sparkles size={14} /> Generate Featured Image</>}
                     </button>

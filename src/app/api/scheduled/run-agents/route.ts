@@ -69,6 +69,7 @@ function generateSearchQuery(beat: string, agentName: string): string {
 /**
  * Generate article image using hybrid strategy: Stock photos first, then AI
  * This ensures we use high-quality, relevant images while avoiding copyrighted news photos
+ * @param forceAI - If true, skip stock photos and go directly to AI generation
  */
 async function generateArticleImage(
   title: string,
@@ -76,31 +77,36 @@ async function generateArticleImage(
   category: string | undefined,
   openaiApiKey: string,
   geminiApiKey: string,
-  settings: Record<string, unknown> | undefined
+  settings: Record<string, unknown> | undefined,
+  forceAI: boolean = false
 ): Promise<{ url: string; attribution?: string; method: string }> {
-  // STEP 1: Try stock photos first (Unsplash → Pexels)
-  try {
-    const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
-    const keywords = extractPhotoKeywords(title, content, category);
-    console.log(`[Image] Searching stock photos for: "${keywords}"`);
+  // STEP 1: Try stock photos first (Unsplash → Pexels) - unless forceAI is enabled
+  if (!forceAI) {
+    try {
+      const { extractPhotoKeywords, findStockPhoto } = await import('@/lib/stockPhotos');
+      const keywords = extractPhotoKeywords(title, content, category);
+      console.log(`[Image] Searching stock photos for: "${keywords}"`);
 
-    const pexelsApiKey = settings?.pexelsApiKey as string;
-    const stockPhoto = await findStockPhoto(keywords, category, pexelsApiKey);
-    if (stockPhoto) {
-      console.log(`[Image] ✓ Using ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
+      const pexelsApiKey = settings?.pexelsApiKey as string;
+      const stockPhoto = await findStockPhoto(keywords, category, pexelsApiKey);
+      if (stockPhoto) {
+        console.log(`[Image] ✓ Using ${stockPhoto.source} photo by ${stockPhoto.photographer}`);
 
-      // Persist stock photo to Firebase Storage
-      const { storageService } = await import('@/lib/storage');
-      const persistedUrl = await storageService.uploadAssetFromUrl(stockPhoto.url);
+        // Persist stock photo to Firebase Storage
+        const { storageService } = await import('@/lib/storage');
+        const persistedUrl = await storageService.uploadAssetFromUrl(stockPhoto.url);
 
-      return {
-        url: persistedUrl,
-        attribution: stockPhoto.attribution,
-        method: stockPhoto.source
-      };
+        return {
+          url: persistedUrl,
+          attribution: stockPhoto.attribution,
+          method: stockPhoto.source
+        };
+      }
+    } catch (error) {
+      console.error('[Image] Stock photo search failed:', error);
     }
-  } catch (error) {
-    console.error('[Image] Stock photo search failed:', error);
+  } else {
+    console.log('[Image] Force AI enabled - skipping stock photos');
   }
 
   // STEP 2: Fall back to AI generation with Gemini
@@ -426,14 +432,17 @@ export async function POST(request: NextRequest) {
         );
 
         // Generate article image using hybrid strategy (stock photos → AI)
+        // If forceAIGeneration is enabled, skip stock photos and go directly to Gemini
         const openaiApiKey = settings?.openaiApiKey as string;
+        const forceAI = agent.taskConfig?.forceAIGeneration ?? false;
         const imageResult = await generateArticleImage(
           article.title,
           article.content,
           category?.name,
           openaiApiKey,
           geminiApiKey,
-          settings
+          settings,
+          forceAI
         );
 
         // Generate SEO metadata (auto-generates all SEO fields)
