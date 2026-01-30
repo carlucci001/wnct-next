@@ -114,3 +114,34 @@ npx firebase deploy
 # Check databases
 npx firebase firestore:databases:list
 ```
+
+---
+
+## Restore Points
+
+Known stable commits to revert to if something breaks:
+
+| Date | Commit | Description |
+|------|--------|-------------|
+| Jan 30, 2026 | `7e609a6` | Category colors fix + Gemini 2.0 Flash (stable) |
+| Jan 30, 2026 | `90825c5` | Reverted to Gemini 2.0 Flash for article generation |
+| Jan 29, 2026 | `2b79f40` | Firebase Storage upload fix |
+
+**To restore:**
+```bash
+git checkout <commit-hash> -- <file-path>   # Restore specific file
+git revert <commit-hash>                     # Revert a commit
+git reset --hard <commit-hash>               # Reset to commit (destructive)
+```
+
+---
+
+## AI Model Configuration
+
+**Current Production Models (Jan 2026):**
+- Article Generation: `gemini-2.0-flash` (stable, full-quality output)
+- Fact-Checking: `gemini-2.0-flash`
+- SEO Metadata: `gemini-2.0-flash`
+- Editorial Review: `gemini-2.0-flash`
+
+**Note:** Gemini 2.5 Flash produced abbreviated articles. Stick with 2.0 until March 2026 deprecation, then test 2.5 carefully before switching.
