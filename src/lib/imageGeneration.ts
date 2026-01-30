@@ -98,7 +98,11 @@ Requirements:
             parts: [{ text: imagePrompt }]
           }],
           generationConfig: {
-            responseModalities: ['image', 'text'],
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: {
+              aspectRatio: '16:9',
+              imageSize: '2K'
+            }
           }
         }),
       }

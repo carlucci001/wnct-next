@@ -134,7 +134,11 @@ async function generateArticleImage(
             parts: [{ text: `Create a professional news photograph for this headline: "${title}"\n\nRequirements:\n- Photorealistic editorial photography style\n- High resolution, sharp focus, natural lighting\n- Clean composition suitable for newspaper front page\n- No text overlays, watermarks, or logos\n- No recognizable human faces\n- Professional photojournalism quality` }]
           }],
           generationConfig: {
-            responseModalities: ['image', 'text'],
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: {
+              aspectRatio: '16:9',
+              imageSize: '2K'
+            }
           }
         })
       }
