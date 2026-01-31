@@ -1,23 +1,24 @@
 import 'server-only';
-import { getAdminFirestore } from './firebase-admin';
+import { addDocument, updateDocument } from './firestoreServer';
 import { getScheduledTask } from './scheduledTasks';
 import type { ScheduledTaskInput, TaskStatus, TaskResult } from '@/types/scheduledTask';
 
 const COLLECTION_NAME = 'scheduledTasks';
 
 /**
- * Create a new scheduled task (SERVER-ONLY version using Admin SDK)
+ * Create a new scheduled task (SERVER-ONLY version)
+ * Uses Admin SDK in production, Client SDK in development
  */
 export async function createScheduledTask(data: ScheduledTaskInput): Promise<string> {
   try {
     const now = new Date().toISOString();
-    const docRef = await getAdminFirestore().collection(COLLECTION_NAME).add({
+    const docId = await addDocument(COLLECTION_NAME, {
       ...data,
       retryCount: 0,
       createdAt: now,
       updatedAt: now,
     });
-    return docRef.id;
+    return docId;
   } catch (error) {
     console.error('Error creating scheduled task:', error);
     throw error;
@@ -25,7 +26,8 @@ export async function createScheduledTask(data: ScheduledTaskInput): Promise<str
 }
 
 /**
- * Update task status (SERVER-ONLY version using Admin SDK)
+ * Update task status (SERVER-ONLY version)
+ * Uses Admin SDK in production, Client SDK in development
  */
 export async function updateTaskStatus(
   id: string,
@@ -52,7 +54,7 @@ export async function updateTaskStatus(
       updateData.result = result;
     }
 
-    await getAdminFirestore().collection(COLLECTION_NAME).doc(id).update(updateData);
+    await updateDocument(COLLECTION_NAME, id, updateData);
   } catch (error) {
     console.error('Error updating task status:', error);
     throw error;

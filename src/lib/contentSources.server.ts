@@ -1,14 +1,15 @@
 import 'server-only';
-import { getAdminFirestore } from './firebase-admin';
+import { updateDocument } from './firestoreServer';
 
 const ITEMS_COLLECTION = 'contentItems';
 
 /**
- * Mark a content item as processed (SERVER-ONLY version using Admin SDK)
+ * Mark a content item as processed (SERVER-ONLY version)
+ * Uses Admin SDK in production, Client SDK in development
  */
 export async function markItemProcessed(itemId: string, articleId?: string): Promise<void> {
   try {
-    await getAdminFirestore().collection(ITEMS_COLLECTION).doc(itemId).update({
+    await updateDocument(ITEMS_COLLECTION, itemId, {
       isProcessed: true,
       processedAt: new Date().toISOString(),
       articleId: articleId || null,

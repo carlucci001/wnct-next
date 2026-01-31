@@ -45,7 +45,7 @@ export async function searchWithPerplexity(
         messages: [
           {
             role: 'system',
-            content: 'You are a fact-checking assistant for a news publication. Provide current, verified information with citations.'
+            content: 'You are a fact-checking assistant for a news publication. Provide comprehensive information with context, key facts, quotes from sources, and background details. Structure your response to cover who, what, when, where, why, and how. Include specific details, numbers, and attributions.'
           },
           {
             role: 'user',
@@ -53,7 +53,7 @@ export async function searchWithPerplexity(
           }
         ],
         temperature: 0.2, // Low temp for factual accuracy
-        max_tokens: 1000
+        max_tokens: 2000 // Increased for more detailed responses
       })
     });
 

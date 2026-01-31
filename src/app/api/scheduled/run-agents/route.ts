@@ -301,8 +301,14 @@ export async function POST(request: NextRequest) {
             perplexityApiKey
           );
 
-          // Strip citation markers [1], [2], etc. from Perplexity response
-          const cleanAnswer = (searchResults.answer || '').replace(/\[\d+\]/g, '').trim();
+          // Keep citations for attribution but format them properly
+          // Replace [1], [2] with [Source 1], [Source 2] for better readability
+          const cleanAnswer = (searchResults.answer || '')
+            .replace(/\[(\d+)\]/g, '[Source $1]')
+            .trim();
+
+          // Store original citations for reference
+          const citationSources = searchResults.citations || [];
 
           // Create content item from web search results
           selectedItem = {
@@ -317,6 +323,7 @@ export async function POST(request: NextRequest) {
             fetchedAt: new Date().toISOString(),
             isProcessed: false,
             fullContent: cleanAnswer,
+            // Note: citationSources could be stored here if ContentItem type is extended
           };
 
           isWebSearchGenerated = true;
@@ -426,13 +433,24 @@ export async function POST(request: NextRequest) {
 
         console.log(`[${agent.name}] Source material validated: ${validation.wordCount} words available`);
 
+        // Assess source material quality for dynamic article length targeting
+        const sourceWordCount = selectedItem.fullContent?.split(/\s+/).length || 0;
+        const sourceQuality = {
+          wordCount: sourceWordCount,
+          richness: sourceWordCount > 1500 ? 'rich' :
+                    sourceWordCount > 800 ? 'moderate' :
+                    sourceWordCount > 300 ? 'adequate' : 'limited'
+        };
+        console.log(`[${agent.name}] Source quality: ${sourceQuality.richness} (${sourceWordCount} words)`);
+
         // Generate article using Gemini (with optional web search results)
         const article = await generateArticle(
           geminiApiKey,
           agent,
           category,
           selectedItem,
-          webSearchResults
+          webSearchResults,
+          sourceQuality
         );
 
         // Generate article image using hybrid strategy (stock photos → AI)
@@ -599,20 +617,25 @@ export async function POST(request: NextRequest) {
         }
 
         // DUPLICATE DETECTION: Check if article from same source URL was created recently
-        const { getAdminFirestore } = await import('@/lib/firebase-admin');
-        const db = getAdminFirestore();
+        // SKIP for web-search-generated articles - they should be able to run multiple times
+        // To revert: remove the "!isWebSearchGenerated &&" condition below
+        if (!isWebSearchGenerated) {
+          const { queryDocuments } = await import('@/lib/firestoreServer');
 
-        // Check for articles from the same source URL created within last 24 hours
-        // This is more reliable than title matching since Gemini creates variations
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          // Check for articles from the same source URL created within last 24 hours
+          // This is more reliable than title matching since Gemini creates variations
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-        const duplicateCheck = await db.collection('articles')
-          .where('sourceUrl', '==', selectedItem.url)
-          .where('createdAt', '>=', twentyFourHoursAgo)
-          .limit(1)
-          .get();
+          const duplicateCheck = await queryDocuments(
+            'articles',
+            [
+              { field: 'sourceUrl', operator: '==', value: selectedItem.url },
+              { field: 'createdAt', operator: '>=', value: twentyFourHoursAgo },
+            ],
+            1
+          );
 
-        if (!duplicateCheck.empty) {
+          if (!duplicateCheck.empty) {
           const existingArticle = duplicateCheck.docs[0];
           const existingData = existingArticle.data();
           console.log(`[${agent.name}] ⚠️ DUPLICATE DETECTED: Article from source "${selectedItem.url}" already exists (ID: ${existingArticle.id})`);
@@ -642,9 +665,17 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[${agent.name}] ✅ No duplicate found - proceeding with article creation`);
+        } // End duplicate detection (skipped for web search)
 
-        // NORMAL MODE: Save article to Firestore using Admin SDK (bypasses auth requirements)
-        const articleRef = await db.collection('articles').add(articleData);
+        // Log appropriate message based on mode
+        if (isWebSearchGenerated) {
+          console.log(`[${agent.name}] ✅ Web search mode - proceeding with article creation (duplicate detection skipped)`);
+        }
+
+        // NORMAL MODE: Save article to Firestore
+        const { addDocument } = await import('@/lib/firestoreServer');
+        const articleId = await addDocument('articles', articleData);
+        const articleRef = { id: articleId };
 
         // Mark content item as processed (skip for web-search-generated items)
         if (!isWebSearchGenerated) {
@@ -1069,12 +1100,13 @@ async function generateArticle(
   agent: AIJournalist,
   category: Category | null,
   sourceItem: ContentItem,
-  webSearchResults?: PerplexitySearchResult
+  webSearchResults?: PerplexitySearchResult,
+  sourceQuality?: { wordCount: number; richness: string }
 ): Promise<{ title: string; content: string; tags: string[] }> {
   const model = 'gemini-2.0-flash';
 
   // Build the prompt with category directive, source material, and optional web search results
-  const prompt = buildArticlePrompt(agent, category, sourceItem, webSearchResults);
+  const prompt = buildArticlePrompt(agent, category, sourceItem, webSearchResults, sourceQuality);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -1089,7 +1121,7 @@ async function generateArticle(
           },
         ],
         generationConfig: {
-          maxOutputTokens: 2000,
+          maxOutputTokens: 2800,  // PHASE 5: Increased from 2000 to support 30% longer articles
           temperature: 0.1,  // PHASE 2: Further lowered from 0.3 to 0.1 for maximum factual accuracy
           topP: 0.8,         // Limit token sampling diversity
           topK: 20,          // Further constrain output choices
@@ -1127,7 +1159,8 @@ function buildArticlePrompt(
   agent: AIJournalist,
   category: Category | null,
   sourceItem: ContentItem,
-  webSearchResults?: PerplexitySearchResult
+  webSearchResults?: PerplexitySearchResult,
+  sourceQuality?: { wordCount: number; richness: string }
 ): string {
   let prompt = `You are ${agent.name}, ${agent.title}`;
 
@@ -1203,19 +1236,41 @@ You MUST follow these HARD CONSTRAINTS (violations will block publication):
    - ❌ Adding background information not in source
    - ❌ Assuming current events or context not mentioned in source
 
-4. LENGTH CONSTRAINT:
+4. EDITORIAL TECHNIQUES FOR RICHNESS (without fabricating):
+   While staying strictly within source material, you CAN and SHOULD:
+   - ✅ Explain significance: Why does this matter to Western North Carolina residents?
+   - ✅ Provide context: Explain technical terms, acronyms, or unfamiliar concepts mentioned in source
+   - ✅ Draw connections: Relate different facts mentioned in the source to show relationships
+   - ✅ Quote directly: Use exact quotes from sources when available
+   - ✅ Ask reader-focused questions: Rhetorical questions that the source material answers
+   - ✅ Elaborate on impacts: If source mentions effects, explain what they mean practically
+   - ✅ Organize logically: Present source facts in the most coherent, engaging order
+
+   Remember: Every claim must trace to source material, but you can organize,
+   contextualize, and explain what's explicitly stated to create engaging journalism.
+
+5. LENGTH CONSTRAINT:
    - Write ONLY what the source supports
-   - Target 3-5 paragraphs (300-500 words)
-   - If source is brief (under 200 words), write 2-3 paragraphs maximum
+   ${sourceQuality?.richness === 'rich'
+     ? `- Target: 8-10 paragraphs (650-900 words) - you have rich source material
+   - Develop each key point thoroughly with all available details`
+     : sourceQuality?.richness === 'moderate'
+     ? `- Target: 5-8 paragraphs (520-715 words) - you have moderate source material
+   - Cover main points with supporting details`
+     : sourceQuality?.richness === 'adequate'
+     ? `- Target: 4-7 paragraphs (390-585 words) - you have adequate source material
+   - Cover essential points concisely`
+     : `- Target: 3-4 paragraphs (260-390 words) - source material is limited
+   - Focus on core facts only`}
    - DO NOT pad with filler or unsupported background
 
-5. WHEN INFORMATION IS MISSING:
+6. WHEN INFORMATION IS MISSING:
    - If source lacks critical details (who, what, when, where), ACKNOWLEDGE IT
    - Use: "Details about [X] were not provided in the report"
    - Use: "Further information was not available"
    - It is BETTER to admit gaps than to fabricate
 
-6. VERIFICATION STATUS:
+7. VERIFICATION STATUS:
 ${webSearchResults
   ? `   - You have VERIFIED CURRENT INFORMATION from web search
    - Cross-reference against web search results
@@ -1553,10 +1608,10 @@ export async function GET(request: NextRequest) {
             })(),
           };
 
-          // Use Admin SDK for server-side operations (bypasses auth requirements)
-          // Dynamic import to avoid bundling Admin SDK in client code
-          const { getAdminFirestore } = await import('@/lib/firebase-admin');
-          const articleRef = await getAdminFirestore().collection('articles').add(articleData);
+          // Use server-side Firestore (Admin SDK in production, Client SDK in dev)
+          const { addDocument } = await import('@/lib/firestoreServer');
+          const articleId = await addDocument('articles', articleData);
+          const articleRef = { id: articleId };
 
           // Mark content item as processed (skip for web-search-generated items)
           if (!isWebSearchGenerated) {

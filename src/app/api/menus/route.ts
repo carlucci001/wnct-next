@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebaseAdmin';
+import { getCollectionDocs, batchSetDocuments } from '@/lib/firestoreServer';
 import { SiteMenu, DEFAULT_MENUS } from '@/types/menu';
 
 export const dynamic = 'force-dynamic';
@@ -10,18 +10,15 @@ export const revalidate = 60; // Cache for 60 seconds
  */
 export async function GET() {
   try {
-    const db = getAdminFirestore();
-    const menusRef = db.collection('menus');
-    const snapshot = await menusRef.get();
+    const snapshot = await getCollectionDocs('menus');
 
     // If no menus exist, return defaults
     if (snapshot.empty) {
       // Initialize defaults in Firestore
-      const batch = db.batch();
-      for (const menu of DEFAULT_MENUS) {
-        batch.set(menusRef.doc(menu.id), menu);
-      }
-      await batch.commit();
+      await batchSetDocuments(
+        'menus',
+        DEFAULT_MENUS.map(menu => ({ id: menu.id, data: menu }))
+      );
 
       return NextResponse.json({
         success: true,

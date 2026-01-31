@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebaseAdmin';
+import { getDocument } from '@/lib/firestoreServer';
 import { SiteConfig, DEFAULT_SITE_CONFIG } from '@/types/siteConfig';
 
 export const dynamic = 'force-dynamic';
@@ -13,9 +13,7 @@ const CONFIG_COLLECTION = 'settings';
  */
 export async function GET() {
   try {
-    const db = getAdminFirestore();
-    const configRef = db.collection(CONFIG_COLLECTION).doc(SITE_CONFIG_DOC);
-    const doc = await configRef.get();
+    const doc = await getDocument(CONFIG_COLLECTION, SITE_CONFIG_DOC);
 
     let config: SiteConfig;
 
