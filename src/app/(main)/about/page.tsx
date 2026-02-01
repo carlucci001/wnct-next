@@ -37,7 +37,7 @@ const About: React.FC = () => {
           <div className="mt-12 p-6 bg-gray-50 rounded-lg font-sans">
             <h4 className="font-bold text-lg mb-2">Contact the Editor</h4>
             <p className="mb-0">
-              Have a tip or a correction? Email us at <a href="mailto:editor@wnctimes.com" className="text-blue-600 hover:underline">editor@wnctimes.com</a>
+              Have a tip or a correction? Email us at <a href="mailto:carlfarring@gmail.com" className="text-blue-600 hover:underline">carlfarring@gmail.com</a>
             </p>
           </div>
         </div>

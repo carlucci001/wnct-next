@@ -207,7 +207,7 @@ export default function AdvertisePage() {
                     </div>
                     <div className="flex flex-col justify-center gap-4">
                       <Button size="lg" className="h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold" asChild>
-                        <a href="mailto:advertising@wnctimes.com">Email Advertising Sales</a>
+                        <a href="mailto:carlfarring@gmail.com">Email Advertising Sales</a>
                       </Button>
                       <p className="text-center text-xs text-slate-500">Typical response time: &lt; 24 hours</p>
                     </div>
