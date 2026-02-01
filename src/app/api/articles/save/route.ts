@@ -3,6 +3,7 @@ import { getDb } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { markItemProcessed } from '@/lib/contentSources';
 import { updateAgentAfterRun } from '@/lib/aiJournalists.server';
+import { reportArticleGenerated } from '@/lib/platformCredits';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
         // Continue - article was saved successfully
       }
     }
+
+    // Report credit usage to platform (non-blocking)
+    reportArticleGenerated(article.title, articleRef.id, {
+      sourceType: sourceItemId ? 'content-source' : 'manual',
+    });
 
     return NextResponse.json({
       success: true,
