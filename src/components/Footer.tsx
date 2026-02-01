@@ -46,7 +46,7 @@ const DEFAULT_CONFIG: SiteConfigPublic = {
   siteTagline: 'Your Community, Your News',
   siteDescription: 'WNC Times provides the latest news, business insights, and lifestyle stories from across Western North Carolina.',
   contact: {
-    email: 'carlfarring@gmail.com',
+    email: 'editor@wnctimes.com',
     phone: '(828) 555-0123',
     address: {
       street: '123 Main Street',

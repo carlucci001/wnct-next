@@ -51,10 +51,10 @@ export function AdvertiseSidebar({ className = '' }: AdvertiseSidebarProps) {
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">Email</p>
               <a
-                href="mailto:carlfarring@gmail.com"
+                href="mailto:advertising@wnctimes.com"
                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
               >
-                carlfarring@gmail.com
+                advertising@wnctimes.com
               </a>
             </div>
           </div>

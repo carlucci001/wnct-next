@@ -123,7 +123,6 @@ Known stable commits to revert to if something breaks:
 
 | Date | Commit | Description |
 |------|--------|-------------|
-| Jan 31, 2026 | `57bd39f` | Dynamic article length + Firestore abstraction + Webpack dev |
 | Jan 30, 2026 | `e0e0a30` | Custom image prompt + Force AI Generation toggle |
 | Jan 30, 2026 | `813fb08` | Gemini image generation (replaced DALL-E) |
 | Jan 30, 2026 | `7e609a6` | Category colors fix + Gemini 2.0 Flash (stable) |
@@ -136,58 +135,6 @@ git checkout <commit-hash> -- <file-path>   # Restore specific file
 git revert <commit-hash>                     # Revert a commit
 git reset --hard <commit-hash>               # Reset to commit (destructive)
 ```
-
----
-
-## Recovery Procedures
-
-### INCIDENT: Turbopack Crash + Corrupted node_modules (Jan 31, 2026)
-
-**Symptoms:**
-- Dev server shows "Turbopack panic" errors
-- Error trying to read `c:\dev\wnct-next\nul` (Windows reserved filename)
-- `npm install` says "up to date" but packages missing
-- Mouse erratic behavior during crashes
-
-**Root Cause:**
-1. A crash created a file named `nul` in the project root (Windows reserved device name)
-2. node_modules became corrupted
-3. Turbopack panics trying to read the `nul` file
-
-**The Fix:**
-```bash
-# 1. Kill all node processes
-powershell -Command "Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force"
-
-# 2. Delete the problematic nul file (requires special path prefix on Windows)
-powershell -Command "Remove-Item -LiteralPath '\\?\c:\dev\wnct-next\nul' -Force"
-
-# 3. Clear all caches
-powershell -Command "Remove-Item 'c:\dev\wnct-next\.next' -Recurse -Force -ErrorAction SilentlyContinue"
-powershell -Command "Remove-Item 'c:\dev\wnct-next\node_modules' -Recurse -Force -ErrorAction SilentlyContinue"
-
-# 4. Clear npm cache and reinstall
-npm cache clean --force
-npm install
-
-# 5. Run with Webpack instead of Turbopack
-npm run dev  # package.json now has --webpack flag
-```
-
-**Prevention:**
-- The dev script now uses `--webpack` flag by default
-- Turbopack has Windows file system bugs with reserved filenames
-
-### Quick Recovery Checklist
-
-If something breaks badly:
-
-1. **Check git status first** - Are there uncommitted changes to save?
-2. **Check .env.local** - Are all credentials in place?
-3. **Check node_modules** - Run `npm install` to ensure packages are valid
-4. **Clear caches** - Delete `.next` folder
-5. **Test locally** - Run `npm run dev` before pushing
-6. **Rollback if needed** - Use restore points above
 
 ---
 

@@ -12,7 +12,6 @@ import { AIJournalist } from '@/types/aiJournalist';
 import { Category } from '@/types/category';
 import { searchWithPerplexity, PerplexitySearchResult } from '@/lib/perplexitySearch';
 import { initializeArticleCosts, addCost, API_PRICING } from '@/lib/costs';
-import { reportArticleGenerated, reportImageGenerated, reportWebSearch } from '@/lib/platformCredits';
 
 export const dynamic = 'force-dynamic';
 import { ContentItem } from '@/types/contentSource';
@@ -302,9 +301,6 @@ export async function POST(request: NextRequest) {
             perplexityApiKey
           );
 
-          // Report web search credit usage
-          reportWebSearch(searchQuery).catch(err => console.warn('[Credits] Web search report failed:', err));
-
           // Keep citations for attribution but format them properly
           // Replace [1], [2] with [Source 1], [Source 2] for better readability
           const cleanAnswer = (searchResults.answer || '')
@@ -407,7 +403,6 @@ export async function POST(request: NextRequest) {
                 perplexityApiKey
               );
               console.log(`[${agent.name}] Web search completed - confidence: ${webSearchResults.confidence}`);
-              reportWebSearch(searchQuery).catch(err => console.warn('[Credits] Web search report failed:', err));
             } else {
               console.log(`[${agent.name}] Web search enabled but Perplexity API key not configured`);
             }
@@ -471,11 +466,6 @@ export async function POST(request: NextRequest) {
           settings,
           forceAI
         );
-
-        // Report image credit if AI-generated (not stock photo)
-        if (imageResult.method === 'gemini' || imageResult.method === 'dalle') {
-          reportImageGenerated(article.title).catch(err => console.warn('[Credits] Image report failed:', err));
-        }
 
         // Generate SEO metadata (auto-generates all SEO fields)
         const publishedAtDate = agent.taskConfig?.autoPublish ? new Date().toISOString() : new Date().toISOString();
@@ -686,12 +676,6 @@ export async function POST(request: NextRequest) {
         const { addDocument } = await import('@/lib/firestoreServer');
         const articleId = await addDocument('articles', articleData);
         const articleRef = { id: articleId };
-
-        // Report credit usage to platform (non-blocking)
-        reportArticleGenerated(article.title, articleRef.id, {
-          model: 'gemini-2.0-flash',
-          sourceType: isWebSearchGenerated ? 'web-search' : 'rss',
-        }).catch(err => console.warn('[Credits] Report failed:', err));
 
         // Mark content item as processed (skip for web-search-generated items)
         if (!isWebSearchGenerated) {
@@ -1628,12 +1612,6 @@ export async function GET(request: NextRequest) {
           const { addDocument } = await import('@/lib/firestoreServer');
           const articleId = await addDocument('articles', articleData);
           const articleRef = { id: articleId };
-
-          // Report credit usage to platform (non-blocking)
-          reportArticleGenerated(article.title, articleRef.id, {
-            model: 'gemini-2.0-flash',
-            sourceType: isWebSearchGenerated ? 'web-search' : 'rss',
-          }).catch(err => console.warn('[Credits] Report failed:', err));
 
           // Mark content item as processed (skip for web-search-generated items)
           if (!isWebSearchGenerated) {
